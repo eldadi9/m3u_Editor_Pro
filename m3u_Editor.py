@@ -59,15 +59,15 @@ class M3UEditor(QWidget):
         main_layout.addLayout(self.create_channel_section())
         main_layout.addLayout(self.create_m3u_content_section())
 
-        # New button to filter Israel-related channels
-        self.filterButton = QPushButton('Filter Israel Channels', self)
-        self.filterButton.clicked.connect(self.filterIsraelChannels)
-        main_layout.addWidget(self.filterButton)
+        # Ensure #EXTM3U is always present and not deletable
+        self.textEdit.textChanged.connect(self.ensure_extm3u_header)
 
-        # New button to save filtered channels
-        self.saveFilteredButton = QPushButton('Save Filtered Channels', self)
-        self.saveFilteredButton.clicked.connect(self.saveFilteredChannels)
-        main_layout.addWidget(self.saveFilteredButton)
+    def ensure_extm3u_header(self):
+        content = self.textEdit.toPlainText()
+        if not content.startswith("#EXTM3U"):
+            self.textEdit.blockSignals(True)
+            self.textEdit.setPlainText("#EXTM3U\n" + content)
+            self.textEdit.blockSignals(False)
 
     def create_category_section(self):
         layout = QVBoxLayout()
