@@ -179,26 +179,74 @@ class M3UEditor(QWidget):
             self.categoryList.addItem(QListWidgetItem(category))
 
     def updateCategoryName(self):
+        """
+        Updates the name of a selected category, ensuring all associated channels
+        and M3U content are updated correctly.
+        """
         selected_item = self.categoryList.currentItem()
         if not selected_item:
             QMessageBox.warning(self, "Warning", "No category selected for updating.")
             return
+
         old_category_name = selected_item.text()
-        new_category_name, ok = QInputDialog.getText(self, 'Update Category', 'Enter new category name:',
+        new_category_name, ok = QInputDialog.getText(self, 'Edit Category', 'Enter new category name:',
                                                      text=old_category_name)
         if ok and new_category_name and new_category_name != old_category_name:
+            # Update the category in the categories dictionary
+            if new_category_name in self.categories:
+                QMessageBox.warning(self, "Warning", f"The category '{new_category_name}' already exists.")
+                return
+
             self.categories[new_category_name] = self.categories.pop(old_category_name)
             self.categoryList.currentItem().setText(new_category_name)
-            self.updateM3UContent(old_category_name, new_category_name)
+
+            # Update M3U content to reflect the new category name
+            m3u_content = self.textEdit.toPlainText()
+            updated_lines = []
+
+            for line in m3u_content.splitlines():
+                if f'group-title="{old_category_name}"' in line:
+                    line = line.replace(f'group-title="{old_category_name}"', f'group-title="{new_category_name}"')
+                updated_lines.append(line)
+
+            self.textEdit.setPlainText("\n".join(updated_lines))
+            QMessageBox.information(self, "Success",
+                                    f"Category '{old_category_name}' has been renamed to '{new_category_name}'.")
 
     def deleteSelectedCategories(self):
+        """
+        Deletes the selected categories and removes their channels from M3U content.
+        """
         selected_items = self.categoryList.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "Warning", "No categories selected for deletion.")
+            return
+
+        m3u_content = self.textEdit.toPlainText()
+        updated_lines = []
+        deleted_categories = []
+
+        # Remove categories from the categories dictionary
         for item in selected_items:
             category_name = item.text()
             if category_name in self.categories:
                 del self.categories[category_name]
-                self.removeCategoryFromM3U(category_name)
+                deleted_categories.append(category_name)
             self.categoryList.takeItem(self.categoryList.row(item))
+
+        # Remove associated channels from M3U content
+        skip_next_line = False
+        for line in m3u_content.splitlines():
+            if skip_next_line:
+                skip_next_line = False
+                continue
+            if any(f'group-title="{category}"' in line for category in deleted_categories):
+                skip_next_line = True  # Skip the URL line
+                continue
+            updated_lines.append(line)
+
+        self.textEdit.setPlainText("\n".join(updated_lines))
+        QMessageBox.information(self, "Success", "Selected categories and their channels have been removed.")
 
     def removeCategoryFromM3U(self, category_name):
         new_m3u_content = []
