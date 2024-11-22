@@ -47,10 +47,19 @@ class M3UEditor(QWidget):
         self.setWindowTitle('M3U Playlist Editor')
         self.setGeometry(100, 100, 800, 600)
         main_layout = QVBoxLayout(self)
+
+        # Title at the top
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 24px; font-weight: bold;")
         main_layout.addWidget(title)
+
+        # Add a file name label at the top-right corner
+        self.fileNameLabel = QLabel("", self)
+        self.fileNameLabel.setAlignment(Qt.AlignRight)
+        self.fileNameLabel.setStyleSheet("font-size: 12px; color: gray; margin-right: 10px;")
+        main_layout.addWidget(self.fileNameLabel)
+
         main_layout.addLayout(self.create_category_section())
         main_layout.addLayout(self.create_channel_section())
         main_layout.addLayout(self.create_m3u_content_section())
@@ -69,6 +78,9 @@ class M3UEditor(QWidget):
                     if not current_content.endswith('\n'):
                         current_content += '\n'
                     self.textEdit.setPlainText(current_content + additional_content)
+
+                    # Update the label to show that a file was merged
+                    self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]} (Merged)")
                     QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
             except Exception as e:
                 QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
@@ -413,6 +425,9 @@ class M3UEditor(QWidget):
                     content = file.read()
             self.textEdit.setPlainText(content)
             self.parseM3UContent(content)
+
+            # Display the file name in the label
+            self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]}")  # Only show the file name
 
     def saveM3U(self):
         options = QFileDialog.Options()
