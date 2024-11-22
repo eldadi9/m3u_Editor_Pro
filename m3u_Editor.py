@@ -7,6 +7,7 @@ from PyQt5.QtCore import Qt
 import sys
 import re
 
+
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
         super().__init__(parent)
@@ -35,6 +36,7 @@ class MoveChannelsDialog(QDialog):
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
+
 class M3UEditor(QWidget):
     def __init__(self):
         super().__init__()
@@ -53,11 +55,12 @@ class M3UEditor(QWidget):
         main_layout.addLayout(self.create_channel_section())
         main_layout.addLayout(self.create_m3u_content_section())
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
-        
+
     # Ensure this method is defined inside the M3UEditor class
     def mergeM3Us(self):
         options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getOpenFileName(self, "Open Additional M3U File", "", "M3U Files (*.m3u *.m3u8);;All Files (*)", options=options)
+        fileName, _ = QFileDialog.getOpenFileName(self, "Open Additional M3U File", "",
+                                                  "M3U Files (*.m3u *.m3u8);;All Files (*)", options=options)
         if fileName:
             try:
                 with open(fileName, 'r', encoding='utf-8') as file:
@@ -68,9 +71,12 @@ class M3UEditor(QWidget):
                     self.textEdit.setPlainText(current_content + additional_content)
                     QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
             except Exception as e:
-                QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))    
+                QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
 
     def ensure_extm3u_header(self):
+        """
+        Ensure that the content starts with #EXTM3U.
+        """
         content = self.textEdit.toPlainText()
         if not content.startswith("#EXTM3U"):
             self.textEdit.blockSignals(True)
@@ -178,7 +184,8 @@ class M3UEditor(QWidget):
             QMessageBox.warning(self, "Warning", "No category selected for updating.")
             return
         old_category_name = selected_item.text()
-        new_category_name, ok = QInputDialog.getText(self, 'Update Category', 'Enter new category name:', text=old_category_name)
+        new_category_name, ok = QInputDialog.getText(self, 'Update Category', 'Enter new category name:',
+                                                     text=old_category_name)
         if ok and new_category_name and new_category_name != old_category_name:
             self.categories[new_category_name] = self.categories.pop(old_category_name)
             self.categoryList.currentItem().setText(new_category_name)
@@ -320,7 +327,8 @@ class M3UEditor(QWidget):
                 item.setText(new_name.strip())
                 current_category = self.categoryList.currentItem().text()
                 self.categories[current_category] = [
-                    f"{new_name.strip()} ({url})" if c.split(" (")[0] == channel_info else c for c in self.categories[current_category]
+                    f"{new_name.strip()} ({url})" if c.split(" (")[0] == channel_info else c for c in
+                    self.categories[current_category]
                 ]
                 self.updateM3UContent()
 
@@ -346,7 +354,8 @@ class M3UEditor(QWidget):
 
     def loadM3U(self):
         options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getOpenFileName(self, "Open M3U File", "", "M3U Files (*.m3u *.m3u8);;All Files (*)", options=options)
+        fileName, _ = QFileDialog.getOpenFileName(self, "Open M3U File", "", "M3U Files (*.m3u *.m3u8);;All Files (*)",
+                                                  options=options)
         if fileName:
             try:
                 with open(fileName, 'r', encoding='utf-8') as file:
@@ -359,26 +368,53 @@ class M3UEditor(QWidget):
 
     def saveM3U(self):
         options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getSaveFileName(self, "Save M3U File", "", "M3U Files (*.m3u);;All Files (*)", options=options)
+        fileName, _ = QFileDialog.getSaveFileName(self, "Save M3U File", "", "M3U Files (*.m3u);;All Files (*)",
+                                                  options=options)
         if fileName:
             with open(fileName, 'w', encoding='utf-8') as file:
                 file.write(self.textEdit.toPlainText())
 
     def parseM3UContent(self, content):
+        """
+        Parse M3U content to populate categories and channels.
+        Automatically adds group-title if #EXTGRP is present.
+        """
         self.categories.clear()
+        updated_lines = []
+        lines = content.splitlines()
+
+        current_group = None  # To track the group name from #EXTGRP
+
+        for line in lines:
+            if line.startswith("#EXTGRP:"):
+                # Extract the group name from the #EXTGRP line
+                current_group = line.split(":", 1)[1].strip()
+            elif line.startswith("#EXTINF:") and "group-title=" not in line:
+                # Add group-title if missing and current_group exists
+                if current_group:
+                    line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
+            updated_lines.append(line)
+
+        # Update the content with the modified lines
+        content = "\n".join(updated_lines)
+
+        # Parse the updated content for categories and channels
         category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
         for match in category_pattern.findall(content):
             group_title, channel_name, channel_url = match
             if group_title not in self.categories:
                 self.categories[group_title] = []
             self.categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
+
+        # Update the QTextEdit and the category list
+        self.textEdit.setPlainText(content)
         self.categoryList.clear()
         for category in self.categories.keys():
             self.categoryList.addItem(QListWidgetItem(category))
 
     def filterIsraelChannels(self):
         israel_keywords = ['ישראל', 'IL', 'ISRAEL', 'עברית', 'hebrew', 'israeli']
-        filtered_channels = { 'Movies': [], 'News': [], 'Kids': [], 'Entertainment': [], 'Sports': [] }
+        filtered_channels = {'Movies': [], 'News': [], 'Kids': [], 'Entertainment': [], 'Sports': []}
         for category, channels in self.categories.items():
             for channel in channels:
                 if any(keyword in channel for keyword in israel_keywords):
@@ -405,7 +441,8 @@ class M3UEditor(QWidget):
 
     def saveFilteredChannels(self):
         options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getSaveFileName(self, "Save Filtered Channels", "", "M3U Files (*.m3u);;All Files (*)", options=options)
+        fileName, _ = QFileDialog.getSaveFileName(self, "Save Filtered Channels", "",
+                                                  "M3U Files (*.m3u);;All Files (*)", options=options)
         if fileName:
             with open(fileName, 'w', encoding='utf-8') as file:
                 for category, channels in our.categories.items():
@@ -415,6 +452,7 @@ class M3UEditor(QWidget):
                             file.write(f"#EXTINF:-1 group-title=\"{category}\", {name.strip()}\n{url.strip()[:-1]}\n")
                         except ValueError:
                             continue
+
 
 def main():
     app = QApplication(sys.argv)
