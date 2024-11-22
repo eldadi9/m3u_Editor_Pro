@@ -1,8 +1,9 @@
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,
-    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit
+    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView  # Add QAbstractItemView
 )
+
 from PyQt5.QtCore import Qt
 import sys
 import re
@@ -95,6 +96,8 @@ class M3UEditor(QWidget):
             self.textEdit.setPlainText("#EXTM3U\n" + content)
             self.textEdit.blockSignals(False)
 
+    from PyQt5.QtWidgets import QAbstractItemView
+
     def create_category_section(self):
         layout = QVBoxLayout()
         category_title = QLabel("Categories", self)
@@ -102,27 +105,37 @@ class M3UEditor(QWidget):
         category_title.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(category_title)
         button_layout = QHBoxLayout()
+
         self.addCategoryButton = QPushButton('Add Category')
         self.updateCategoryButton = QPushButton('Update Category Name')
         self.deleteCategoryButton = QPushButton('Delete Selected')
         self.moveCategoryUpButton = QPushButton('Move Category Up')
         self.moveCategoryDownButton = QPushButton('Move Category Down')
-        self.selectDeselectAllButton = QPushButton('Select All / Deselect All')
+        self.selectAllButton = QPushButton('Select All')
+        self.deselectAllButton = QPushButton('Deselect All')
+
         button_layout.addWidget(self.addCategoryButton)
         button_layout.addWidget(self.updateCategoryButton)
         button_layout.addWidget(self.deleteCategoryButton)
         button_layout.addWidget(self.moveCategoryUpButton)
         button_layout.addWidget(self.moveCategoryDownButton)
-        button_layout.addWidget(self.selectDeselectAllButton)
+        button_layout.addWidget(self.selectAllButton)
+        button_layout.addWidget(self.deselectAllButton)
+
         layout.addLayout(button_layout)
         self.categoryList = QListWidget(self)
+        self.categoryList.setSelectionMode(QAbstractItemView.MultiSelection)  # Ensure multiple selection is enabled
         layout.addWidget(self.categoryList)
+
+        # Connect buttons to their respective functions
         self.addCategoryButton.clicked.connect(self.addCategory)
         self.updateCategoryButton.clicked.connect(self.updateCategoryName)
         self.deleteCategoryButton.clicked.connect(self.deleteSelectedCategories)
         self.moveCategoryUpButton.clicked.connect(self.moveCategoryUp)
         self.moveCategoryDownButton.clicked.connect(self.moveCategoryDown)
-        self.selectDeselectAllButton.clicked.connect(self.toggleSelectDeselectAll)
+        self.selectAllButton.clicked.connect(self.selectAllCategories)  # Assign to select all function
+        self.deselectAllButton.clicked.connect(self.deselectAllCategories)  # Assign to deselect all function
+
         self.categoryList.itemClicked.connect(self.display_channels)
         return layout
 
@@ -281,10 +294,17 @@ class M3UEditor(QWidget):
             self.categoryList.insertItem(current_row + 1, current_item)
             self.categoryList.setCurrentRow(current_row + 1)
 
-    def toggleSelectDeselectAll(self):
+    def selectAllCategories(self):
+        """Select all categories in the list."""
         for i in range(self.categoryList.count()):
             item = self.categoryList.item(i)
-            item.setSelected(not item.isSelected())
+            item.setSelected(True)  # Ensure each item is selected
+
+    def deselectAllCategories(self):
+        """Deselect all categories in the list."""
+        for i in range(self.categoryList.count()):
+            item = self.categoryList.item(i)
+            item.setSelected(False)  # Ensure each item is deselected
 
     def addChannel(self):
         name, ok1 = QInputDialog.getText(self, 'Add Channel', 'Enter channel name:')
