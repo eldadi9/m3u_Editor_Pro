@@ -287,12 +287,36 @@ class M3UEditor(QWidget):
             self.categoryList.insertItem(current_row - 1, current_item)
             self.categoryList.setCurrentRow(current_row - 1)
 
+            # Update the self.categories dictionary
+            category_keys = list(self.categories.keys())
+            category_keys[current_row], category_keys[current_row - 1] = category_keys[current_row - 1], category_keys[
+                current_row]
+
+            # Reorder the dictionary
+            reordered_categories = {key: self.categories[key] for key in category_keys}
+            self.categories = reordered_categories
+
+            # Regenerate the M3U content
+            self.updateM3UContent()
+
     def moveCategoryDown(self):
         current_row = self.categoryList.currentRow()
         if current_row < self.categoryList.count() - 1:
             current_item = self.categoryList.takeItem(current_row)
             self.categoryList.insertItem(current_row + 1, current_item)
             self.categoryList.setCurrentRow(current_row + 1)
+
+            # Update the self.categories dictionary
+            category_keys = list(self.categories.keys())
+            category_keys[current_row], category_keys[current_row + 1] = category_keys[current_row + 1], category_keys[
+                current_row]
+
+            # Reorder the dictionary
+            reordered_categories = {key: self.categories[key] for key in category_keys}
+            self.categories = reordered_categories
+
+            # Regenerate the M3U content
+            self.updateM3UContent()
 
     def selectAllCategories(self):
         """Select all categories in the list."""
@@ -352,12 +376,34 @@ class M3UEditor(QWidget):
             self.channelList.insertItem(current_row - 1, current_item)
             self.channelList.setCurrentRow(current_row - 1)
 
+            # Update the self.categories dictionary
+            current_category = self.categoryList.currentItem().text()
+            if current_category:
+                channels = self.categories[current_category]
+                # Swap the current channel with the one above it
+                channels[current_row], channels[current_row - 1] = channels[current_row - 1], channels[current_row]
+                self.categories[current_category] = channels
+
+            # Regenerate the M3U content
+            self.updateM3UContent()
+
     def moveChannelDown(self):
         current_row = self.channelList.currentRow()
         if current_row < self.channelList.count() - 1:
             current_item = self.channelList.takeItem(current_row)
             self.channelList.insertItem(current_row + 1, current_item)
             self.channelList.setCurrentRow(current_row + 1)
+
+            # Update the self.categories dictionary
+            current_category = self.categoryList.currentItem().text()
+            if current_category:
+                channels = self.categories[current_category]
+                # Swap the current channel with the one below it
+                channels[current_row], channels[current_row + 1] = channels[current_row + 1], channels[current_row]
+                self.categories[current_category] = channels
+
+            # Regenerate the M3U content
+            self.updateM3UContent()
 
     def selectAllChannels(self):
         for i in range(self.channelList.count()):

@@ -1,8 +1,9 @@
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,
-    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit
+    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView  # Add QAbstractItemView
 )
+
 from PyQt5.QtCore import Qt
 import sys
 import re
@@ -47,10 +48,19 @@ class M3UEditor(QWidget):
         self.setWindowTitle('M3U Playlist Editor')
         self.setGeometry(100, 100, 800, 600)
         main_layout = QVBoxLayout(self)
+
+        # Title at the top
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 24px; font-weight: bold;")
         main_layout.addWidget(title)
+
+        # Add a file name label at the top-right corner
+        self.fileNameLabel = QLabel("", self)
+        self.fileNameLabel.setAlignment(Qt.AlignRight)
+        self.fileNameLabel.setStyleSheet("font-size: 12px; color: gray; margin-right: 10px;")
+        main_layout.addWidget(self.fileNameLabel)
+
         main_layout.addLayout(self.create_category_section())
         main_layout.addLayout(self.create_channel_section())
         main_layout.addLayout(self.create_m3u_content_section())
@@ -69,6 +79,9 @@ class M3UEditor(QWidget):
                     if not current_content.endswith('\n'):
                         current_content += '\n'
                     self.textEdit.setPlainText(current_content + additional_content)
+
+                    # Update the label to show that a file was merged
+                    self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]} (Merged)")
                     QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
             except Exception as e:
                 QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
@@ -83,6 +96,8 @@ class M3UEditor(QWidget):
             self.textEdit.setPlainText("#EXTM3U\n" + content)
             self.textEdit.blockSignals(False)
 
+    from PyQt5.QtWidgets import QAbstractItemView
+
     def create_category_section(self):
         layout = QVBoxLayout()
         category_title = QLabel("Categories", self)
@@ -90,27 +105,37 @@ class M3UEditor(QWidget):
         category_title.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(category_title)
         button_layout = QHBoxLayout()
+
         self.addCategoryButton = QPushButton('Add Category')
         self.updateCategoryButton = QPushButton('Update Category Name')
         self.deleteCategoryButton = QPushButton('Delete Selected')
         self.moveCategoryUpButton = QPushButton('Move Category Up')
         self.moveCategoryDownButton = QPushButton('Move Category Down')
-        self.selectDeselectAllButton = QPushButton('Select All / Deselect All')
+        self.selectAllButton = QPushButton('Select All')
+        self.deselectAllButton = QPushButton('Deselect All')
+
         button_layout.addWidget(self.addCategoryButton)
         button_layout.addWidget(self.updateCategoryButton)
         button_layout.addWidget(self.deleteCategoryButton)
         button_layout.addWidget(self.moveCategoryUpButton)
         button_layout.addWidget(self.moveCategoryDownButton)
-        button_layout.addWidget(self.selectDeselectAllButton)
+        button_layout.addWidget(self.selectAllButton)
+        button_layout.addWidget(self.deselectAllButton)
+
         layout.addLayout(button_layout)
         self.categoryList = QListWidget(self)
+        self.categoryList.setSelectionMode(QAbstractItemView.MultiSelection)  # Ensure multiple selection is enabled
         layout.addWidget(self.categoryList)
+
+        # Connect buttons to their respective functions
         self.addCategoryButton.clicked.connect(self.addCategory)
         self.updateCategoryButton.clicked.connect(self.updateCategoryName)
         self.deleteCategoryButton.clicked.connect(self.deleteSelectedCategories)
         self.moveCategoryUpButton.clicked.connect(self.moveCategoryUp)
         self.moveCategoryDownButton.clicked.connect(self.moveCategoryDown)
-        self.selectDeselectAllButton.clicked.connect(self.toggleSelectDeselectAll)
+        self.selectAllButton.clicked.connect(self.selectAllCategories)  # Assign to select all function
+        self.deselectAllButton.clicked.connect(self.deselectAllCategories)  # Assign to deselect all function
+
         self.categoryList.itemClicked.connect(self.display_channels)
         return layout
 
@@ -179,26 +204,74 @@ class M3UEditor(QWidget):
             self.categoryList.addItem(QListWidgetItem(category))
 
     def updateCategoryName(self):
+        """
+        Updates the name of a selected category, ensuring all associated channels
+        and M3U content are updated correctly.
+        """
         selected_item = self.categoryList.currentItem()
         if not selected_item:
             QMessageBox.warning(self, "Warning", "No category selected for updating.")
             return
+
         old_category_name = selected_item.text()
-        new_category_name, ok = QInputDialog.getText(self, 'Update Category', 'Enter new category name:',
+        new_category_name, ok = QInputDialog.getText(self, 'Edit Category', 'Enter new category name:',
                                                      text=old_category_name)
         if ok and new_category_name and new_category_name != old_category_name:
+            # Update the category in the categories dictionary
+            if new_category_name in self.categories:
+                QMessageBox.warning(self, "Warning", f"The category '{new_category_name}' already exists.")
+                return
+
             self.categories[new_category_name] = self.categories.pop(old_category_name)
             self.categoryList.currentItem().setText(new_category_name)
-            self.updateM3UContent(old_category_name, new_category_name)
+
+            # Update M3U content to reflect the new category name
+            m3u_content = self.textEdit.toPlainText()
+            updated_lines = []
+
+            for line in m3u_content.splitlines():
+                if f'group-title="{old_category_name}"' in line:
+                    line = line.replace(f'group-title="{old_category_name}"', f'group-title="{new_category_name}"')
+                updated_lines.append(line)
+
+            self.textEdit.setPlainText("\n".join(updated_lines))
+            QMessageBox.information(self, "Success",
+                                    f"Category '{old_category_name}' has been renamed to '{new_category_name}'.")
 
     def deleteSelectedCategories(self):
+        """
+        Deletes the selected categories and removes their channels from M3U content.
+        """
         selected_items = self.categoryList.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "Warning", "No categories selected for deletion.")
+            return
+
+        m3u_content = self.textEdit.toPlainText()
+        updated_lines = []
+        deleted_categories = []
+
+        # Remove categories from the categories dictionary
         for item in selected_items:
             category_name = item.text()
             if category_name in self.categories:
                 del self.categories[category_name]
-                self.removeCategoryFromM3U(category_name)
+                deleted_categories.append(category_name)
             self.categoryList.takeItem(self.categoryList.row(item))
+
+        # Remove associated channels from M3U content
+        skip_next_line = False
+        for line in m3u_content.splitlines():
+            if skip_next_line:
+                skip_next_line = False
+                continue
+            if any(f'group-title="{category}"' in line for category in deleted_categories):
+                skip_next_line = True  # Skip the URL line
+                continue
+            updated_lines.append(line)
+
+        self.textEdit.setPlainText("\n".join(updated_lines))
+        QMessageBox.information(self, "Success", "Selected categories and their channels have been removed.")
 
     def removeCategoryFromM3U(self, category_name):
         new_m3u_content = []
@@ -221,10 +294,17 @@ class M3UEditor(QWidget):
             self.categoryList.insertItem(current_row + 1, current_item)
             self.categoryList.setCurrentRow(current_row + 1)
 
-    def toggleSelectDeselectAll(self):
+    def selectAllCategories(self):
+        """Select all categories in the list."""
         for i in range(self.categoryList.count()):
             item = self.categoryList.item(i)
-            item.setSelected(not item.isSelected())
+            item.setSelected(True)  # Ensure each item is selected
+
+    def deselectAllCategories(self):
+        """Deselect all categories in the list."""
+        for i in range(self.categoryList.count()):
+            item = self.categoryList.item(i)
+            item.setSelected(False)  # Ensure each item is deselected
 
     def addChannel(self):
         name, ok1 = QInputDialog.getText(self, 'Add Channel', 'Enter channel name:')
@@ -365,6 +445,9 @@ class M3UEditor(QWidget):
                     content = file.read()
             self.textEdit.setPlainText(content)
             self.parseM3UContent(content)
+
+            # Display the file name in the label
+            self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]}")  # Only show the file name
 
     def saveM3U(self):
         options = QFileDialog.Options()
