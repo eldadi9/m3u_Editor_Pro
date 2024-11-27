@@ -1,9 +1,8 @@
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,
-    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView  # Add QAbstractItemView
+    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView
 )
-
 from PyQt5.QtCore import Qt
 import sys
 import re
@@ -37,6 +36,9 @@ class MoveChannelsDialog(QDialog):
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
+    def getSelectedCategory(self):
+        return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
+
 
 class M3UEditor(QWidget):
     def __init__(self):
@@ -47,34 +49,22 @@ class M3UEditor(QWidget):
     def initUI(self):
         self.setWindowTitle('M3U Playlist Editor')
         self.setGeometry(100, 100, 800, 600)
-
-        # Main Layout
         main_layout = QVBoxLayout(self)
-
-        # Title Label
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 24px; font-weight: bold;")
         main_layout.addWidget(title)
-
-        # File Name Label (Upper right)
         file_info_layout = QHBoxLayout()
         self.fileNameLabel = QLabel("No file loaded", self)
         self.fileNameLabel.setAlignment(Qt.AlignRight)
         file_info_layout.addWidget(self.fileNameLabel)
-
-        # Total Channels Label (Below File Name)
         self.channelCountLabel = QLabel("Total Channels: 0", self)
         self.channelCountLabel.setAlignment(Qt.AlignRight)
         file_info_layout.addWidget(self.channelCountLabel)
         main_layout.addLayout(file_info_layout)
-
-        # Add Sections
         main_layout.addLayout(self.create_category_section())
         main_layout.addLayout(self.create_channel_section())
         main_layout.addLayout(self.create_m3u_content_section())
-
-        # Signal Connection
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
 
     # Ensure this method is defined inside the M3UEditor class
@@ -160,6 +150,12 @@ class M3UEditor(QWidget):
         channel_title.setAlignment(Qt.AlignCenter)
         channel_title.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(channel_title)
+
+        self.sortingComboBox = QComboBox(self)
+        self.sortingComboBox.addItems(["Sort by Name A-Z", "Sort by Name Z-A"])
+        self.sortingComboBox.currentIndexChanged.connect(self.sortChannels)
+        layout.addWidget(self.sortingComboBox)
+
         button_layout = QHBoxLayout()
         self.addChannelButton = QPushButton('Add Channel')
         self.deleteChannelButton = QPushButton('Delete Selected')
@@ -191,6 +187,16 @@ class M3UEditor(QWidget):
         self.editSelectedChannelButton.clicked.connect(self.editSelectedChannel)
         return layout
 
+    def sortChannels(self):
+        sort_option = self.sortingComboBox.currentText()
+        current_category = self.categoryList.currentItem().text().split(" (")[
+            0] if self.categoryList.currentItem() else None
+        if current_category and current_category in self.categories:
+            if sort_option == "Sort by Name A-Z":
+                self.categories[current_category].sort(key=lambda x: x.split(" (")[0])
+            elif sort_option == "Sort by Name Z-A":
+                self.categories[current_category].sort(key=lambda x: x.split(" (")[0], reverse=True)
+            self.display_channels(self.categoryList.currentItem())
     def create_m3u_content_section(self):
         layout = QVBoxLayout()
         m3u_title = QLabel("M3U Content", self)
