@@ -94,6 +94,10 @@ class M3UEditor(QWidget):
                     # Update the label to show that a file was merged
                     self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]} (Merged)")
                     QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
+
+                    # Parse the merged content to update categories and channels display
+                    self.parseM3UContent(self.textEdit.toPlainText())
+
             except Exception as e:
                 QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
 
