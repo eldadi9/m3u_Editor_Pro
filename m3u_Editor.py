@@ -224,6 +224,16 @@ class M3UEditor(QWidget):
             self.categories[category] = []
             self.updateCategoryList()  # Update the category list
 
+    def updateCategoryList(self):
+                """
+                Updates the category list in the UI to match the current categories in self.categories.
+                """
+                self.categoryList.clear()  # Clear all items in the category list
+                for category, channels in self.categories.items():
+                    # Add each category name along with the count of channels
+                    display_text = f"{category} ({len(channels)})"
+                    self.categoryList.addItem(display_text)
+
     def updateCategoryName(self):
         """
         Updates the name of a selected category, ensuring all associated channels
@@ -259,55 +269,53 @@ class M3UEditor(QWidget):
             QMessageBox.information(self, "Success",
                                     f"Category '{old_category_name}' has been renamed to '{new_category_name}'.")
 
-            def updateCategoryList(self):
-                """Updates the category list with the number of channels in each category."""
-                self.categoryList.clear()  # Clear the current list
-                for category, channels in self.categories.items():
-                    # Display the category name along with the count of channels
-                    display_text = f"{category} ({len(channels)})"
-                    self.categoryList.addItem(display_text)
-
     def deleteSelectedCategories(self):
         """
-        Deletes the selected categories and removes their channels from M3U content.
+        Deletes the selected categories and removes their associated channels and M3U records.
         """
         selected_items = self.categoryList.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, "Warning", "No categories selected for deletion.")
             return
 
-        m3u_content = self.textEdit.toPlainText()
-        updated_lines = []
-        deleted_categories = []
+        # Get a list of selected category names
+        categories_to_delete = [item.text().split(" (")[0] for item in selected_items]
 
-        # Remove categories from the categories dictionary
-        for item in selected_items:
-            category_name = item.text()
-            if category_name in self.categories:
-                del self.categories[category_name]
-                deleted_categories.append(category_name)
-            self.categoryList.takeItem(self.categoryList.row(item))
+        try:
+            # Remove selected categories from the dictionary
+            for category in categories_to_delete:
+                if category in self.categories:
+                    del self.categories[category]
 
-        # Remove associated channels from M3U content
-        skip_next_line = False
-        for line in m3u_content.splitlines():
-            if skip_next_line:
-                skip_next_line = False
-                continue
-            if any(f'group-title="{category}"' in line for category in deleted_categories):
-                skip_next_line = True  # Skip the URL line
-                continue
-            updated_lines.append(line)
+            # Update the M3U content to remove records associated with the deleted categories
+            updated_lines = []
+            skip_next_line = False  # Flag to skip URLs associated with a deleted category
+            for line in self.textEdit.toPlainText().splitlines():
+                if skip_next_line:
+                    skip_next_line = False  # Reset the flag after skipping the URL line
+                    continue
 
-        self.textEdit.setPlainText("\n".join(updated_lines))
-        QMessageBox.information(self, "Success", "Selected categories and their channels have been removed.")
+                # If the line contains a deleted category, mark the next line to be skipped
+                if line.startswith("#EXTINF") and any(f'group-title="{cat}"' in line for cat in categories_to_delete):
+                    skip_next_line = True
+                    continue
 
-    def removeCategoryFromM3U(self, category_name):
-        new_m3u_content = []
-        for line in self.textEdit.toPlainText().splitlines():
-            if not line.startswith("#EXTINF") or category_name not in line:
-                new_m3u_content.append(line)
-        self.textEdit.setPlainText("\n".join(new_m3u_content))
+                # Add the line to the updated content if it doesn't match a deleted category
+                updated_lines.append(line)
+
+            # Update the QTextEdit with the modified content
+            self.textEdit.setPlainText("\n".join(updated_lines))
+
+            # Refresh the category list in the UI
+            self.updateCategoryList()
+
+            # Clear the channels list UI if the selected category is deleted
+            self.channelList.clear()
+
+            QMessageBox.information(self, "Success", "Selected categories and their records have been removed.")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An error occurred while deleting categories: {str(e)}")
 
     def moveCategoryUp(self):
         current_row = self.categoryList.currentRow()
@@ -372,18 +380,53 @@ class M3UEditor(QWidget):
                 self.updateM3UContent()
 
     def deleteSelectedChannels(self):
+        """
+        Deletes the selected channels from the current category and updates the M3U content.
+        """
         selected_items = self.channelList.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, "Warning", "No channels selected for deletion.")
             return
-        current_category = self.categoryList.currentItem().text()
-        for item in selected_items:
-            channel_info = item.text()
-            self.channelList.takeItem(self.channelList.row(item))
-            self.categories[current_category] = [
-                c for c in self.categories[current_category] if c.split(" (")[0] != channel_info
-            ]
-        self.updateM3UContent()
+
+        # Get the current category
+        selected_category_item = self.categoryList.currentItem()
+        if not selected_category_item:
+            QMessageBox.warning(self, "Warning", "No category selected.")
+            return
+
+        current_category = selected_category_item.text().split(" (")[0]
+        if current_category not in self.categories:
+            QMessageBox.warning(self, "Warning", "Category not found.")
+            return
+
+        # List of channel names to delete
+        channels_to_delete = [item.text() for item in selected_items]
+
+        # Remove channels from the categories dictionary
+        self.categories[current_category] = [
+            channel for channel in self.categories[current_category]
+            if channel.split(" (")[0] not in channels_to_delete
+        ]
+
+        # Update the M3U content to remove the deleted channels
+        updated_lines = []
+        skip_next_line = False
+        for line in self.textEdit.toPlainText().splitlines():
+            if skip_next_line:
+                skip_next_line = False
+                continue
+            if line.startswith("#EXTINF") and any(chan in line for chan in channels_to_delete):
+                skip_next_line = True  # Skip the URL line as well
+                continue
+            updated_lines.append(line)
+
+        # Update the QTextEdit with the modified content
+        self.textEdit.setPlainText("\n".join(updated_lines))
+
+        # Refresh the channel list in the UI
+        self.display_channels(selected_category_item)
+
+        QMessageBox.information(self, "Success", "Selected channels have been deleted.")
 
     def updateM3UContent(self, old_category_name=None, new_category_name=None):
         m3u_content = ""
@@ -543,29 +586,32 @@ class M3UEditor(QWidget):
 
     def parseM3UContent(self, content):
         """
-        Parse M3U content to populate categories and channels.
-        Automatically adds group-title if #EXTGRP is present.
+        Parse M3U content to handle group-title and #EXTGRP.
+        - If group-title exists, ignore #EXTGRP.
+        - If group-title does not exist, use #EXTGRP and remove it.
         """
         self.categories.clear()
         updated_lines = []
-        lines = content.splitlines()
-
         current_group = None  # To track the group name from #EXTGRP
 
-        for line in lines:
+        lines = content.splitlines()
+
+        for i, line in enumerate(lines):
             if line.startswith("#EXTGRP:"):
                 # Extract the group name from the #EXTGRP line
                 current_group = line.split(":", 1)[1].strip()
-            elif line.startswith("#EXTINF:") and "group-title=" not in line:
-                # Add group-title if missing and current_group exists
-                if current_group:
+                continue  # Skip the #EXTGRP line itself
+
+            if line.startswith("#EXTINF:"):
+                if "group-title=" not in line and current_group:
+                    # Add group-title if missing and current_group exists
                     line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
+                current_group = None  # Reset after usage
+
             updated_lines.append(line)
 
-        # Update the content with the modified lines
+        # Join updated lines and parse categories
         content = "\n".join(updated_lines)
-
-        # Parse the updated content for categories and channels
         category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
         for match in category_pattern.findall(content):
             group_title, channel_name, channel_url = match
@@ -576,8 +622,9 @@ class M3UEditor(QWidget):
         # Update the QTextEdit and the category list
         self.textEdit.setPlainText(content)
         self.categoryList.clear()
-        for category in self.categories.keys():
-            self.categoryList.addItem(QListWidgetItem(category))
+        for category, channels in self.categories.items():
+            item = QListWidgetItem(f"{category} ({len(channels)})")  # Add count of channels to the category name
+            self.categoryList.addItem(item)
 
             def parseM3UContentWithGroup(self, content):
                 """
