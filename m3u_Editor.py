@@ -236,36 +236,34 @@ class M3UEditor(QWidget):
 
     def updateCategoryName(self):
         """
-        Updates the name of a selected category, ensuring all associated channels
-        and M3U content are updated correctly.
+        Updates the name of a selected category and updates the M3U content accordingly.
         """
         selected_item = self.categoryList.currentItem()
         if not selected_item:
-            QMessageBox.warning(self, "Warning", "No category selected for updating.")
+            QMessageBox.warning(self, "Warning", "No category selected for renaming.")
             return
 
-        old_category_name = selected_item.text()
+        old_category_name = selected_item.text().split(" (")[0]
         new_category_name, ok = QInputDialog.getText(self, 'Edit Category', 'Enter new category name:',
                                                      text=old_category_name)
         if ok and new_category_name and new_category_name != old_category_name:
-            # Update the category in the categories dictionary
             if new_category_name in self.categories:
                 QMessageBox.warning(self, "Warning", f"The category '{new_category_name}' already exists.")
                 return
 
+            # Update the category in the dictionary
             self.categories[new_category_name] = self.categories.pop(old_category_name)
-            self.categoryList.currentItem().setText(new_category_name)
 
-            # Update M3U content to reflect the new category name
-            m3u_content = self.textEdit.toPlainText()
+            # Update the M3U content
             updated_lines = []
-
-            for line in m3u_content.splitlines():
+            for line in self.textEdit.toPlainText().splitlines():
                 if f'group-title="{old_category_name}"' in line:
                     line = line.replace(f'group-title="{old_category_name}"', f'group-title="{new_category_name}"')
                 updated_lines.append(line)
 
+            # Update the UI
             self.textEdit.setPlainText("\n".join(updated_lines))
+            self.updateCategoryList()
             QMessageBox.information(self, "Success",
                                     f"Category '{old_category_name}' has been renamed to '{new_category_name}'.")
 
@@ -486,49 +484,88 @@ class M3UEditor(QWidget):
             self.channelList.item(i).setSelected(False)
 
     def moveSelectedChannel(self):
+        """
+        Moves selected channels to a new or existing category and updates the M3U content.
+        """
         selected_items = self.channelList.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, "Warning", "No channels selected for moving.")
             return
+
         dialog = MoveChannelsDialog(self, list(self.categories.keys()))
         if dialog.exec_():
             target_category = dialog.getSelectedCategory()
+            if not target_category:
+                QMessageBox.warning(self, "Warning", "No target category specified.")
+                return
+
+            # Create the target category if it doesn't exist
             if target_category not in self.categories:
                 self.categories[target_category] = []
-                self.categoryList.addItem(QListWidgetItem(target_category))
-            current_category = self.categoryList.currentItem().text()
-            moved_count = 0
+                self.updateCategoryList()
+
+            # Get the current category
+            current_category = self.categoryList.currentItem().text().split(" (")[0]
+            moved_channels = []
+
+            # Move the selected channels
             for item in selected_items:
                 channel_name = item.text()
-                url = self.getUrl(channel_name)
-                full_entry = self.findFullM3UEntry(channel_name, current_category)
-                if full_entry:
-                    self.categories[target_category].append(full_entry)
-                    self.categories[current_category] = [
-                        c for c in self.categories[current_category] if c.split(" (")[0] != channel_name
-                    ]
-                    moved_count += 1
+                for channel in self.categories[current_category]:
+                    if channel.split(" (")[0] == channel_name:
+                        moved_channels.append(channel)
+                        self.categories[current_category].remove(channel)
+                        break
+
+            self.categories[target_category].extend(moved_channels)
+
+            # Update the M3U content
+            updated_lines = []
+            for line in self.textEdit.toPlainText().splitlines():
+                if any(f"{chan.split(' (')[0]}" in line for chan in moved_channels):
+                    if "group-title=" in line:
+                        line = re.sub(r'group-title="[^"]+"', f'group-title="{target_category}"', line)
+                updated_lines.append(line)
+
+            self.textEdit.setPlainText("\n".join(updated_lines))
+
+            # Refresh the UI
             self.display_channels(self.categoryList.currentItem())
-            self.updateM3UContent()
-            QMessageBox.information(self, "Success", f"Moved {moved_count} channels to {target_category}")
+            QMessageBox.information(self, "Success", "Selected channels have been moved.")
 
     def editSelectedChannel(self):
+        """
+        Renames a selected channel and updates the M3U content accordingly.
+        """
         selected_items = self.channelList.selectedItems()
         if not selected_items:
-            QMessageBox.warning(self, "Warning", "No channels selected for editing.")
+            QMessageBox.warning(self, "Warning", "No channels selected for renaming.")
             return
+
         for item in selected_items:
-            channel_info = item.text()
-            new_name, ok = QInputDialog.getText(self, 'Edit Channel', 'Edit channel name:', text=channel_info.strip())
-            if ok and new_name:
-                url = self.getUrl(channel_info)
-                item.setText(new_name.strip())
-                current_category = self.categoryList.currentItem().text()
-                self.categories[current_category] = [
-                    f"{new_name.strip()} ({url})" if c.split(" (")[0] == channel_info else c for c in
-                    self.categories[current_category]
-                ]
-                self.updateM3UContent()
+            old_channel_name = item.text()
+            new_channel_name, ok = QInputDialog.getText(self, 'Edit Channel', 'Enter new channel name:',
+                                                        text=old_channel_name)
+            if ok and new_channel_name and new_channel_name != old_channel_name:
+                # Update the channel name in the categories dictionary
+                current_category = self.categoryList.currentItem().text().split(" (")[0]
+                if current_category in self.categories:
+                    for i, channel in enumerate(self.categories[current_category]):
+                        if channel.split(" (")[0] == old_channel_name:
+                            self.categories[current_category][i] = channel.replace(old_channel_name, new_channel_name)
+                            break
+
+                # Update the M3U content
+                updated_lines = []
+                for line in self.textEdit.toPlainText().splitlines():
+                    if old_channel_name in line:
+                        line = line.replace(old_channel_name, new_channel_name)
+                    updated_lines.append(line)
+
+                self.textEdit.setPlainText("\n".join(updated_lines))
+                self.display_channels(self.categoryList.currentItem())
+                QMessageBox.information(self, "Success",
+                                        f"Channel '{old_channel_name}' has been renamed to '{new_channel_name}'.")
 
     def display_channels(self, item):
         """
