@@ -109,8 +109,10 @@ class M3UEditor(QWidget):
         category_title.setAlignment(Qt.AlignCenter)
         category_title.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(category_title)
+
         button_layout = QHBoxLayout()
 
+        # Create buttons
         self.addCategoryButton = QPushButton('Add Category')
         self.updateCategoryButton = QPushButton('Update Category Name')
         self.deleteCategoryButton = QPushButton('Delete Selected')
@@ -119,6 +121,18 @@ class M3UEditor(QWidget):
         self.selectAllButton = QPushButton('Select All')
         self.deselectAllButton = QPushButton('Deselect All')
 
+        # Apply button colors
+        self.selectAllButton.setStyleSheet("background-color: blue; color: white;")
+        self.deselectAllButton.setStyleSheet("background-color: blue; color: white;")
+
+        self.updateCategoryButton.setStyleSheet("background-color: red; color: white;")
+        self.deleteCategoryButton.setStyleSheet("background-color: red; color: white;")
+
+        self.addCategoryButton.setStyleSheet("background-color: green; color: white;")
+        self.moveCategoryUpButton.setStyleSheet("background-color: green; color: white;")
+        self.moveCategoryDownButton.setStyleSheet("background-color: green; color: white;")
+
+        # Add buttons to layout
         button_layout.addWidget(self.addCategoryButton)
         button_layout.addWidget(self.updateCategoryButton)
         button_layout.addWidget(self.deleteCategoryButton)
@@ -128,6 +142,8 @@ class M3UEditor(QWidget):
         button_layout.addWidget(self.deselectAllButton)
 
         layout.addLayout(button_layout)
+
+        # Create category list widget
         self.categoryList = QListWidget(self)
         self.categoryList.setSelectionMode(QAbstractItemView.MultiSelection)  # Ensure multiple selection is enabled
         layout.addWidget(self.categoryList)
