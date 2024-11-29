@@ -94,7 +94,15 @@ class M3UEditor(QWidget):
         file_info_layout.addWidget(self.channelCountLabel)
         main_layout.addLayout(file_info_layout)
 
+        # Button for filtering Israeli channels
+        self.filterIsraelChannelsButton = QPushButton('Filter Israeli Channels', self)
+        main_layout.addWidget(self.filterIsraelChannelsButton)
+        self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
 
+        # Button for adding new filtered categories dynamically
+        self.addFilteredCategoryButton = QPushButton('Add Filtered Category', self)
+        main_layout.addWidget(self.addFilteredCategoryButton)
+        self.addFilteredCategoryButton.clicked.connect(self.addFilteredCategory)
         # Add other sections
         main_layout.addLayout(self.create_category_section())
         main_layout.addLayout(self.create_channel_section())
@@ -857,13 +865,46 @@ class M3UEditor(QWidget):
             self.categoryList.addItem(item)
 
     def filterIsraelChannels(self):
-        israel_keywords = ['ישראל', 'IL', 'ISRAEL', 'עברית', 'hebrew', 'israeli']
-        filtered_channels = {'Movies': [], 'News': [], 'Kids': [], 'Entertainment': [], 'Sports': []}
+        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', 'Il', 'IL HD', 'ישראלי',
+                            'Hebrew']
+        sport_keywords = ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport','ONE ','ONE HD ',
+                          'SPORT']
+        yes_keywords = ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv']
+
+        hot_keywords = ['HOT', 'HOT CINEMA', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3','HOT8 HD', 'HOT COMEDY CENTRAL','HOT CINEMA 4','HOT CINEMA 3','hot-IL','hot-IL','HoT']
+
+        kids_keywords = ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'NICK JR HD IL', 'NICK HD IL', 'JUNIOR IL','HOP HD IL','LULI IL','Disney Jr IL','TeenNick IL','ZOOM IL','KIDS HD IL','KIDS HD']
+
+        news_keywords = ['Keshet 12 IL', 'Channel 9 HD IL', 'Channel 9 IL', 'Kan 11 IL', 'i24 IL', 'i24 IL','Channel 14','ערוץ 14', 'ערוץ 14','ערוץ 24', 'CHANNEL 13 HD']
+
+        entertainment_keywords = ['HOT', 'Hot', 'HOT TV', 'Hot Tv', 'Hot TV', 'hot-IL', 'hot-IL', 'HoT']
+
+        filtered_channels = {'Movies': [], 'News': [], 'Kids': [], 'Other': [], 'Entertainment': [],'Sports': [], 'Yes': [],
+                             'Hot': [], 'Documentaries': [], 'Music': []}
+
         for category, channels in self.categories.items():
             for channel in channels:
+                # Check if any general Israeli keyword is in channel
                 if any(keyword in channel for keyword in israel_keywords):
-                    filtered_category = self.getFilteredCategory(channel)
+
+                    if any(sport_keyword in channel for sport_keyword in sport_keywords):
+                        filtered_category = 'Sports'
+                        if any(hot_keyword in channel for hot_keyword in hot_keywords):
+                            filtered_category = 'Hot'
+                            if any(yes_keyword in channel for yes_keyword in yes_keywords):
+                                filtered_category = 'Yes'
+                                if any(kids_keyword in channel for kids_keyword in kids_keywords):
+                                    filtered_category = 'Kids'
+                                    if any(news_keyword in channel for news_keyword in news_keywords):
+                                        filtered_category = 'News'
+                                        if any(entertainment_keywords in channel for News_keyword in entertainment_keywords):
+                                            filtered_category = 'entertainment'
+
+                    else:
+                        filtered_category = self.getFilteredCategory(channel)
                     filtered_channels[filtered_category].append(channel)
+
+
         self.categories = filtered_channels
         self.categoryList.clear()
         for category, channels in self.categories.items():
@@ -880,8 +921,18 @@ class M3UEditor(QWidget):
             return 'Kids'
         elif 'ספורט' in channel or 'Sports' in channel:
             return 'Sports'
-        else:
+        elif 'תיעוד' in channel or 'Documentaries' in channel:
+            return 'Documentaries'
+        elif 'Yes' in channel or 'Yes' in channel:
+            return 'Yes'
+        elif 'Hot' in channel or 'Hot' in channel:
+            return 'Hot'
+        elif 'מוזיקה' in channel or 'Music' in channel:
+            return 'Music'
+        elif 'Entertainment' in channel or 'Entertainment' in channel:
             return 'Entertainment'
+        else:
+            return 'Other'
 
     def saveFilteredChannels(self):
         options = QFileDialog.Options()
@@ -896,6 +947,16 @@ class M3UEditor(QWidget):
                             file.write(f"#EXTINF:-1 group-title=\"{category}\", {name.strip()}\n{url.strip()[:-1]}\n")
                         except ValueError:
                             continue
+
+    def addFilteredCategory(self):
+        category_name, ok = QInputDialog.getText(self, 'Add Filtered Category', 'Enter new filtered category name:')
+        if ok and category_name:
+            if category_name not in self.categories:
+                self.categories[category_name] = []  # Initialize empty channel list for new category
+                QMessageBox.information(self, "Category Added", f"Category '{category_name}' has been added.")
+                self.updateCategoryList()  # Update the category list in the UI
+            else:
+                QMessageBox.warning(self, "Category Exists", f"The category '{category_name}' already exists.")
 
 
 def main():
