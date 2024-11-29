@@ -225,14 +225,13 @@ class M3UEditor(QWidget):
             self.updateCategoryList()  # Update the category list
 
     def updateCategoryList(self):
-                """
-                Updates the category list in the UI to match the current categories in self.categories.
-                """
-                self.categoryList.clear()  # Clear all items in the category list
-                for category, channels in self.categories.items():
-                    # Add each category name along with the count of channels
-                    display_text = f"{category} ({len(channels)})"
-                    self.categoryList.addItem(display_text)
+        """
+        Updates the category list dynamically to reflect the current channel counts.
+        """
+        self.categoryList.clear()
+        for category, channels in self.categories.items():
+            display_text = f"{category} ({len(channels)})"
+            self.categoryList.addItem(display_text)
 
     def updateCategoryName(self):
         """
@@ -426,54 +425,88 @@ class M3UEditor(QWidget):
 
         QMessageBox.information(self, "Success", "Selected channels have been deleted.")
 
-    def updateM3UContent(self, old_category_name=None, new_category_name=None):
-        m3u_content = ""
+    def updateM3UContent(self):
+        """
+        Regenerates the M3U content based on the current state of self.categories.
+        """
+        updated_lines = []
         for category, channels in self.categories.items():
             for channel in channels:
-                try:
-                    name, url = channel.rsplit(" (", 1)
-                    m3u_content += f"#EXTINF:-1 group-title=\"{category}\", {name.strip()}\n{url.strip()[:-1]}\n"
-                except ValueError:
-                    continue
-        self.textEdit.setPlainText(m3u_content)
-        if old_category_name and new_category_name:
-            self.textEdit.setPlainText(self.textEdit.toPlainText().replace(old_category_name, new_category_name))
+                # Add EXTINF line
+                updated_lines.append(f"#EXTINF:-1 group-title=\"{category}\",{channel.split(' (')[0]}")
+                # Add URL line
+                updated_lines.append(channel.split(' (')[-1].strip(')'))
+
+        self.textEdit.setPlainText("\n".join(updated_lines))
 
     def moveChannelUp(self):
+        """
+        Moves the selected channel up in the list and updates the M3U content.
+        """
         current_row = self.channelList.currentRow()
-        if current_row > 0:
-            current_item = self.channelList.takeItem(current_row)
-            self.channelList.insertItem(current_row - 1, current_item)
-            self.channelList.setCurrentRow(current_row - 1)
+        if current_row <= 0:
+            return  # Can't move the first item up
 
-            # Update the self.categories dictionary
-            current_category = self.categoryList.currentItem().text()
-            if current_category:
-                channels = self.categories[current_category]
-                # Swap the current channel with the one above it
-                channels[current_row], channels[current_row - 1] = channels[current_row - 1], channels[current_row]
-                self.categories[current_category] = channels
+        current_item = self.channelList.takeItem(current_row)
+        self.channelList.insertItem(current_row - 1, current_item)
+        self.channelList.setCurrentRow(current_row - 1)
 
-            # Regenerate the M3U content
-            self.updateM3UContent()
+        # Update the self.categories dictionary
+        current_category_item = self.categoryList.currentItem()
+        if not current_category_item:
+            QMessageBox.warning(self, "Warning", "No category selected.")
+            return
+
+        current_category = current_category_item.text().split(" (")[0]
+        channels = self.categories[current_category]
+        if 0 <= current_row < len(channels):
+            # Swap the current channel with the one above it
+            channels[current_row], channels[current_row - 1] = channels[current_row - 1], channels[current_row]
+            self.categories[current_category] = channels
+
+        # Update the M3U content
+        self.updateM3UContent()
 
     def moveChannelDown(self):
+        """
+        Moves the selected channel down in the list and updates the M3U content.
+        """
         current_row = self.channelList.currentRow()
-        if current_row < self.channelList.count() - 1:
-            current_item = self.channelList.takeItem(current_row)
-            self.channelList.insertItem(current_row + 1, current_item)
-            self.channelList.setCurrentRow(current_row + 1)
+        if current_row < 0 or current_row >= self.channelList.count() - 1:
+            return  # Can't move the last item down
 
-            # Update the self.categories dictionary
-            current_category = self.categoryList.currentItem().text()
-            if current_category:
-                channels = self.categories[current_category]
-                # Swap the current channel with the one below it
-                channels[current_row], channels[current_row + 1] = channels[current_row + 1], channels[current_row]
-                self.categories[current_category] = channels
+        current_item = self.channelList.takeItem(current_row)
+        self.channelList.insertItem(current_row + 1, current_item)
+        self.channelList.setCurrentRow(current_row + 1)
 
-            # Regenerate the M3U content
-            self.updateM3UContent()
+        # Update the self.categories dictionary
+        current_category_item = self.categoryList.currentItem()
+        if not current_category_item:
+            return  # No category selected
+
+        current_category = current_category_item.text().split(" (")[0]
+        channels = self.categories[current_category]
+        if 0 <= current_row < len(channels) - 1:
+            # Swap the current channel with the one below it
+            channels[current_row], channels[current_row + 1] = channels[current_row + 1], channels[current_row]
+            self.categories[current_category] = channels
+
+        # Update the M3U content
+        self.updateM3UContent()
+
+    def updateM3UContent(self):
+        """
+        Regenerates the M3U content based on the current state of self.categories.
+        """
+        updated_lines = []
+        for category, channels in self.categories.items():
+            for channel in channels:
+                # Add EXTINF line
+                updated_lines.append(f"#EXTINF:-1 group-title=\"{category}\",{channel.split(' (')[0]}")
+                # Add URL line
+                updated_lines.append(channel.split(' (')[-1].strip(')'))
+
+        self.textEdit.setPlainText("\n".join(updated_lines))
 
     def selectAllChannels(self):
         for i in range(self.channelList.count()):
@@ -487,51 +520,73 @@ class M3UEditor(QWidget):
         """
         Moves selected channels to a new or existing category and updates the M3U content.
         """
+        # Validate the selected channels
         selected_items = self.channelList.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, "Warning", "No channels selected for moving.")
             return
 
+        # Open the dialog to select the target category or create a new one
         dialog = MoveChannelsDialog(self, list(self.categories.keys()))
         if dialog.exec_():
+            # Get the target category from the dialog
             target_category = dialog.getSelectedCategory()
             if not target_category:
                 QMessageBox.warning(self, "Warning", "No target category specified.")
                 return
 
-            # Create the target category if it doesn't exist
+            # Ensure the target category exists
             if target_category not in self.categories:
-                self.categories[target_category] = []
-                self.updateCategoryList()
+                # Dynamically create the new category
+                try:
+                    self.categories[target_category] = []
+                    self.updateCategoryList()  # Refresh the UI with the new category
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"Failed to create new category: {str(e)}")
+                    return
 
-            # Get the current category
-            current_category = self.categoryList.currentItem().text().split(" (")[0]
+            # Validate the current category
+            current_category_item = self.categoryList.currentItem()
+            if not current_category_item:
+                QMessageBox.warning(self, "Warning", "No category selected.")
+                return
+
+            current_category = current_category_item.text().split(" (")[0]
+            if current_category not in self.categories:
+                QMessageBox.warning(self, "Warning", "The current category does not exist.")
+                return
+
             moved_channels = []
 
             # Move the selected channels
-            for item in selected_items:
-                channel_name = item.text()
-                for channel in self.categories[current_category]:
-                    if channel.split(" (")[0] == channel_name:
-                        moved_channels.append(channel)
-                        self.categories[current_category].remove(channel)
-                        break
+            try:
+                for item in selected_items:
+                    if not item:  # Skip if the item is None
+                        continue
+                    channel_name = item.text()
+                    # Check if the channel exists in the current category
+                    for channel in self.categories[current_category]:
+                        if channel.split(" (")[0] == channel_name:
+                            moved_channels.append(channel)
+                            self.categories[current_category].remove(channel)
+                            break
 
-            self.categories[target_category].extend(moved_channels)
+                # Add the moved channels to the target category
+                self.categories[target_category].extend(moved_channels)
 
-            # Update the M3U content
-            updated_lines = []
-            for line in self.textEdit.toPlainText().splitlines():
-                if any(f"{chan.split(' (')[0]}" in line for chan in moved_channels):
-                    if "group-title=" in line:
-                        line = re.sub(r'group-title="[^"]+"', f'group-title="{target_category}"', line)
-                updated_lines.append(line)
+                # Update the M3U content to reflect the changes
+                self.updateM3UContent()
 
-            self.textEdit.setPlainText("\n".join(updated_lines))
+                # Refresh the UI
+                self.updateCategoryList()  # Update category list counts
+                self.display_channels(self.categoryList.currentItem())  # Update channel list for the current category
 
-            # Refresh the UI
-            self.display_channels(self.categoryList.currentItem())
-            QMessageBox.information(self, "Success", "Selected channels have been moved.")
+                # Show success message with the count of moved channels
+                QMessageBox.information(self, "Success",
+                                        f"{len(moved_channels)} channels have been successfully moved to '{target_category}'.")
+
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"An error occurred while moving channels: {str(e)}")
 
     def editSelectedChannel(self):
         """
@@ -539,7 +594,7 @@ class M3UEditor(QWidget):
         """
         selected_items = self.channelList.selectedItems()
         if not selected_items:
-            QMessageBox.warning(self, "Warning", "No channels selected for renaming.")
+            QMessageBox.warning(self, "Warning", "No channels selected for moving.")
             return
 
         for item in selected_items:
