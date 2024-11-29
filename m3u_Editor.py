@@ -866,44 +866,44 @@ class M3UEditor(QWidget):
 
     def filterIsraelChannels(self):
         israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', 'Il', 'IL HD', 'ישראלי',
-                            'Hebrew']
-        sport_keywords = ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport','ONE ','ONE HD ',
-                          'SPORT']
+                           'Hebrew']
+        sport_keywords = ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport',
+                          'ONE ', 'ONE HD', 'SPORT']
         yes_keywords = ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv']
+        hot_keywords = ['HOT', 'HOT CINEMA', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
+                        'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT']
+        kids_keywords = ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'NICK JR HD IL', 'NICK HD IL', 'JUNIOR IL',
+                         'HOP HD IL', 'LULI IL', 'Disney Jr IL', 'TeenNick IL', 'ZOOM IL', 'KIDS HD IL', 'KIDS HD']
+        news_keywords = ['Keshet 12 IL', 'Channel 9 HD IL', 'Channel 9 IL', 'Kan 11 IL', 'i24 IL', 'Channel 14',
+                         'ערוץ 14', 'ערוץ 24', 'CHANNEL 13 HD']
+        entertainment_keywords = ['HOT', 'Hot', 'HOT TV', 'Hot Tv', 'hot-IL', 'HoT']
+        music_keywords = ['music', 'MUSIC', 'MTV']
 
-        hot_keywords = ['HOT', 'HOT CINEMA', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3','HOT8 HD', 'HOT COMEDY CENTRAL','HOT CINEMA 4','HOT CINEMA 3','hot-IL','hot-IL','HoT']
-
-        kids_keywords = ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'NICK JR HD IL', 'NICK HD IL', 'JUNIOR IL','HOP HD IL','LULI IL','Disney Jr IL','TeenNick IL','ZOOM IL','KIDS HD IL','KIDS HD']
-
-        news_keywords = ['Keshet 12 IL', 'Channel 9 HD IL', 'Channel 9 IL', 'Kan 11 IL', 'i24 IL', 'i24 IL','Channel 14','ערוץ 14', 'ערוץ 14','ערוץ 24', 'CHANNEL 13 HD']
-
-        entertainment_keywords = ['HOT', 'Hot', 'HOT TV', 'Hot Tv', 'Hot TV', 'hot-IL', 'hot-IL', 'HoT']
-
-        filtered_channels = {'Movies': [], 'News': [], 'Kids': [], 'Other': [], 'Entertainment': [],'Sports': [], 'Yes': [],
-                             'Hot': [], 'Documentaries': [], 'Music': []}
+        filtered_channels = {'Movies': [], 'News': [], 'Kids': [], 'Entertainment': [], 'Sports': [], 'Yes': [],
+                             'Hot': [], 'Documentaries': [], 'Music': [], 'Other': []}
 
         for category, channels in self.categories.items():
             for channel in channels:
                 # Check if any general Israeli keyword is in channel
                 if any(keyword in channel for keyword in israel_keywords):
-
                     if any(sport_keyword in channel for sport_keyword in sport_keywords):
                         filtered_category = 'Sports'
-                        if any(hot_keyword in channel for hot_keyword in hot_keywords):
-                            filtered_category = 'Hot'
-                            if any(yes_keyword in channel for yes_keyword in yes_keywords):
-                                filtered_category = 'Yes'
-                                if any(kids_keyword in channel for kids_keyword in kids_keywords):
-                                    filtered_category = 'Kids'
-                                    if any(news_keyword in channel for news_keyword in news_keywords):
-                                        filtered_category = 'News'
-                                        if any(entertainment_keywords in channel for News_keyword in entertainment_keywords):
-                                            filtered_category = 'entertainment'
-
+                    elif any(hot_keyword in channel for hot_keyword in hot_keywords):
+                        filtered_category = 'Hot'
+                    elif any(yes_keyword in channel for yes_keyword in yes_keywords):
+                        filtered_category = 'Yes'
+                    elif any(kids_keyword in channel for kids_keyword in kids_keywords):
+                        filtered_category = 'Kids'
+                    elif any(news_keyword in channel for news_keyword in news_keywords):
+                        filtered_category = 'News'
+                    elif any(entertainment_keyword in channel for entertainment_keyword in entertainment_keywords):
+                        filtered_category = 'Entertainment'
+                    elif any(music_keyword in channel for music_keyword in music_keywords):
+                        filtered_category = 'Music'
                     else:
-                        filtered_category = self.getFilteredCategory(channel)
+                        filtered_category = self.getFilteredCategory(
+                            channel)  # Catch-all for any unclassified but relevant channels
                     filtered_channels[filtered_category].append(channel)
-
 
         self.categories = filtered_channels
         self.categoryList.clear()
@@ -917,7 +917,7 @@ class M3UEditor(QWidget):
             return 'News'
         elif 'סרטים' in channel or 'Movies' in channel:
             return 'Movies'
-        elif 'ילדים' in channel or 'Kids' in channel:
+        elif 'kids' in channel or 'Kids' in channel:
             return 'Kids'
         elif 'ספורט' in channel or 'Sports' in channel:
             return 'Sports'
@@ -925,11 +925,11 @@ class M3UEditor(QWidget):
             return 'Documentaries'
         elif 'Yes' in channel or 'Yes' in channel:
             return 'Yes'
-        elif 'Hot' in channel or 'Hot' in channel:
+        elif 'Hot' in channel or 'hot' in channel:
             return 'Hot'
         elif 'מוזיקה' in channel or 'Music' in channel:
             return 'Music'
-        elif 'Entertainment' in channel or 'Entertainment' in channel:
+        elif 'entertainment' in channel or 'Entertainment' in channel:
             return 'Entertainment'
         else:
             return 'Other'
@@ -940,7 +940,7 @@ class M3UEditor(QWidget):
                                                   "M3U Files (*.m3u);;All Files (*)", options=options)
         if fileName:
             with open(fileName, 'w', encoding='utf-8') as file:
-                for category, channels in our.categories.items():
+                for category, channels in self.categories.items():
                     for channel in channels:
                         try:
                             name, url = channel.rsplit(" (", 1)
