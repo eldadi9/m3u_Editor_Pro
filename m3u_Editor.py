@@ -4,7 +4,9 @@ from PyQt5.QtWidgets import (
     QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap  # Add this line
 import sys
+import os
 import re
 
 
@@ -49,25 +51,58 @@ class M3UEditor(QWidget):
     def initUI(self):
         self.setWindowTitle('M3U Playlist Editor')
         self.setGeometry(100, 100, 800, 600)
+
+        # Main layout
         main_layout = QVBoxLayout(self)
+
+        # Add image at the top
+        logo_label = QLabel(self)
+        image_path = r'C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\Main Logo.jpg'
+
+        # Check if the image exists and load it
+        if os.path.exists(image_path):
+            logo_pixmap = QPixmap(image_path)
+            if not logo_pixmap.isNull():  # Check if the pixmap was loaded successfully
+                logo_pixmap = logo_pixmap.scaled(150, 200,Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                logo_label.setPixmap(logo_pixmap)
+            else:
+                logo_label.setText("Failed to load image.")  # Fallback text
+                logo_label.setAlignment(Qt.AlignCenter)
+        else:
+            logo_label.setText("Image not found.")
+            logo_label.setAlignment(Qt.AlignCenter)
+
+        main_layout.addWidget(logo_label)
+
+        # Title
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 24px; font-weight: bold;")
         main_layout.addWidget(title)
+
+        # File info layout
         file_info_layout = QHBoxLayout()
         self.fileNameLabel = QLabel("No file loaded", self)
         self.fileNameLabel.setAlignment(Qt.AlignRight)
         file_info_layout.addWidget(self.fileNameLabel)
+
         self.channelCountLabel = QLabel("Total Channels: 0", self)
         self.channelCountLabel.setAlignment(Qt.AlignRight)
+
+        # Change font size of 'Total Channels'
+        self.channelCountLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
         file_info_layout.addWidget(self.channelCountLabel)
         main_layout.addLayout(file_info_layout)
+
+
+        # Add other sections
         main_layout.addLayout(self.create_category_section())
         main_layout.addLayout(self.create_channel_section())
         main_layout.addLayout(self.create_m3u_content_section())
+
+        # Ensure EXTM3U header
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
 
-    # Ensure this method is defined inside the M3UEditor class
     def mergeM3Us(self):
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(self, "Open Additional M3U File", "",
