@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView
 )
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap  # Add this line
+from PyQt5.QtGui import QPixmap, QFont  # Add this line
 import sys
 import os
 import re
@@ -52,6 +52,10 @@ class M3UEditor(QWidget):
         self.setWindowTitle('M3U Playlist Editor')
         self.setGeometry(100, 100, 800, 600)
 
+        # Set a global font
+        font = QFont('Arial', 11)  # Change 'Arial' to your preferred font and '12' to your desired size
+        QApplication.setFont(font)
+
         # Main layout
         main_layout = QVBoxLayout(self)
 
@@ -63,7 +67,7 @@ class M3UEditor(QWidget):
         if os.path.exists(image_path):
             logo_pixmap = QPixmap(image_path)
             if not logo_pixmap.isNull():  # Check if the pixmap was loaded successfully
-                logo_pixmap = logo_pixmap.scaled(150, 200,Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                logo_pixmap = logo_pixmap.scaled(250, 200,Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 logo_label.setPixmap(logo_pixmap)
             else:
                 logo_label.setText("Failed to load image.")  # Fallback text
@@ -867,43 +871,40 @@ class M3UEditor(QWidget):
     def filterIsraelChannels(self):
         israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', 'Il', 'IL HD', 'ישראלי',
                            'Hebrew']
-        sport_keywords = ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport',
-                          'ONE ', 'ONE HD', 'SPORT']
-        yes_keywords = ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv']
-        hot_keywords = ['HOT', 'HOT CINEMA', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
-                        'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT']
-        kids_keywords = ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'NICK JR HD IL', 'NICK HD IL', 'JUNIOR IL',
-                         'HOP HD IL', 'LULI IL', 'Disney Jr IL', 'TeenNick IL', 'ZOOM IL', 'KIDS HD IL', 'KIDS HD']
-        news_keywords = ['Keshet 12 IL', 'Channel 9 HD IL', 'Channel 9 IL', 'Kan 11 IL', 'i24 IL', 'Channel 14',
-                         'ערוץ 14', 'ערוץ 24', 'CHANNEL 13 HD']
-        entertainment_keywords = ['HOT', 'Hot', 'HOT TV', 'Hot Tv', 'hot-IL', 'HoT']
-        music_keywords = ['music', 'MUSIC', 'MTV']
+        category_keywords = {
+            'Sports': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
+                       'ONE HD', 'Eurosport 2', 'EXTREME', 'SPORT'],
+            'Hot': ['HOT', 'HOT CINEMA', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
+                    'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT'],
+            'Yes': ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv'],
+            'Kids': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
+                     'Junior IL', 'hop IL', 'HOP HD IL', 'LULI IL', 'Disney Jr IL', 'DISNEY JR IL', 'TeenNick IL',
+                     'ZOOM IL', 'HOP CHILDHOOD IL', 'KIDS HD IL', 'DISNEY CHANNEL', 'WIZ IL'],
+            'News': ['Keshet 12 IL', 'Channel 9 HD IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
+                     'MAKAN HD IL', 'i24 IL', 'Channel 14', 'ערוץ 14', 'ערוץ 24', 'Channel 98 IL', 'CHANNEL 12 HD IL',
+                     'CHANNEL 13 HD'],
+            'Entertainment': ['Home Plus IL', 'Good Life', 'FOOD CHANNE IL', 'EGO TOTAL HD IL', 'STARS IL',
+                              'CANAL+ FAMILY HD PL', 'HISTORY HD IL', 'A+ HD IL', 'LIFETIME HD IL', 'STARS HD IL',
+                              'Ego Total', 'Food Network', 'Health', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'],
+            'Music': ['music', 'MUSIC', 'MUSIC 24', 'MTV'],
+            'Nature': ['Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'NAT GEO WILD IL', 'TRAVEL CHANNEL IL',
+                       'NATIONAL GEOGRAPHICS HD IL'],
+        }
 
-        filtered_channels = {'Movies': [], 'News': [], 'Kids': [], 'Entertainment': [], 'Sports': [], 'Yes': [],
-                             'Hot': [], 'Documentaries': [], 'Music': [], 'Other': []}
+        filtered_channels = {category: [] for category in category_keywords.keys()}
+        filtered_channels['Other'] = []
 
         for category, channels in self.categories.items():
             for channel in channels:
-                # Check if any general Israeli keyword is in channel
                 if any(keyword in channel for keyword in israel_keywords):
-                    if any(sport_keyword in channel for sport_keyword in sport_keywords):
-                        filtered_category = 'Sports'
-                    elif any(hot_keyword in channel for hot_keyword in hot_keywords):
-                        filtered_category = 'Hot'
-                    elif any(yes_keyword in channel for yes_keyword in yes_keywords):
-                        filtered_category = 'Yes'
-                    elif any(kids_keyword in channel for kids_keyword in kids_keywords):
-                        filtered_category = 'Kids'
-                    elif any(news_keyword in channel for news_keyword in news_keywords):
-                        filtered_category = 'News'
-                    elif any(entertainment_keyword in channel for entertainment_keyword in entertainment_keywords):
-                        filtered_category = 'Entertainment'
-                    elif any(music_keyword in channel for music_keyword in music_keywords):
-                        filtered_category = 'Music'
-                    else:
-                        filtered_category = self.getFilteredCategory(
-                            channel)  # Catch-all for any unclassified but relevant channels
-                    filtered_channels[filtered_category].append(channel)
+                    placed = False
+                    for key, keywords in category_keywords.items():
+                        if any(keyword in channel for keyword in keywords):
+                            filtered_channels[key].append(channel)
+                            placed = True
+                            break
+                    if not placed:
+                        filtered_channels['Other'].append(channel)
 
         self.categories = filtered_channels
         self.categoryList.clear()
@@ -931,6 +932,8 @@ class M3UEditor(QWidget):
             return 'Music'
         elif 'entertainment' in channel or 'Entertainment' in channel:
             return 'Entertainment'
+        elif 'nature' in channel or 'Nature' in channel:
+            return 'Nature'
         else:
             return 'Other'
 
