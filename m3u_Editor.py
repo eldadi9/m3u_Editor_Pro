@@ -9,7 +9,6 @@ import sys
 import os
 import re
 
-
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
         super().__init__(parent)
@@ -67,7 +66,7 @@ class M3UEditor(QWidget):
         if os.path.exists(image_path):
             logo_pixmap = QPixmap(image_path)
             if not logo_pixmap.isNull():  # Check if the pixmap was loaded successfully
-                logo_pixmap = logo_pixmap.scaled(250, 200,Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                logo_pixmap = logo_pixmap.scaled(100, 100,Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 logo_label.setPixmap(logo_pixmap)
             else:
                 logo_label.setText("Failed to load image.")  # Fallback text
@@ -869,26 +868,32 @@ class M3UEditor(QWidget):
             self.categoryList.addItem(item)
 
     def filterIsraelChannels(self):
-        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', 'Il', 'IL HD', 'ישראלי',
+        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"','Il', 'IL HD', 'ישראלי',
                            'Hebrew']
         category_keywords = {
-            'Sports': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
-                       'ONE HD', 'Eurosport 2', 'EXTREME', 'SPORT'],
-            'Hot': ['HOT', 'HOT CINEMA', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
-                    'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT'],
-            'Yes': ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv'],
-            'Kids': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
-                     'Junior IL', 'hop IL', 'HOP HD IL', 'LULI IL', 'Disney Jr IL', 'DISNEY JR IL', 'TeenNick IL',
-                     'ZOOM IL', 'HOP CHILDHOOD IL', 'KIDS HD IL', 'DISNEY CHANNEL', 'WIZ IL'],
-            'News': ['Keshet 12 IL', 'Channel 9 HD IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
-                     'MAKAN HD IL', 'i24 IL', 'Channel 14', 'ערוץ 14', 'ערוץ 24', 'Channel 98 IL', 'CHANNEL 12 HD IL',
+
+            'News📰': ['Keshet 12 IL', 'Channel 9 HD IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
+                     'MAKAN HD IL', 'i24 IL', 'Channel 14', 'Reshet 13 IL', 'KHAN 11', 'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13', 'Makan 33 HD', 'Reshet 13 IL', 'Kan Chinuchit 23', 'i24 News', 'Channel 9', 'Channel 11', 'Channel 12', 'Channel 13', 'Channel 24', 'Channel 14', 'ערוץ 14', 'ערוץ 24', 'Channel 98 IL', 'CHANNEL 12 HD IL',
                      'CHANNEL 13 HD'],
-            'Entertainment': ['Home Plus IL', 'Good Life', 'FOOD CHANNE IL', 'EGO TOTAL HD IL', 'STARS IL',
-                              'CANAL+ FAMILY HD PL', 'HISTORY HD IL', 'A+ HD IL', 'LIFETIME HD IL', 'STARS HD IL',
-                              'Ego Total', 'Food Network', 'Health', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'],
-            'Music': ['music', 'MUSIC', 'MUSIC 24', 'MTV'],
-            'Nature': ['Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'NAT GEO WILD IL', 'TRAVEL CHANNEL IL',
+            'Hot🔥💥': ['HOT', 'HOT CINEMA', 'HOT CINEMA 1', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4', 'HOT3 HD', 'HOT 8 HD', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
+                    'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT'],
+            'Yes👑': ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'yes Israeli Cinema HD', 'Yes E', 'YES_IL', 'Yes TV Drama HD', 'YES_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv'],
+            'Partner👨‍👩‍👦': ['Partner Yladim', 'Partner Sratim', 'Partner Sdarot'],
+            'Cellcom🐶': ['Cellcom Israel', 'Cellcom Rus', 'Cellcom Sratim', 'Cellcom Yeladim', 'Cellcom HBO HD', 'Cellcom Doco HD', 'YES HD IL', 'YES TV', 'yes tv'],
+            'Free Tv': ['Free Tv Drama HD', 'Free Tv Comedy HD', 'Free Tv Lifestyle HD', 'Free Israeli Movies HD', 'Free Movies Family HD','Free Movies Horror HD', 'Free Movies Romantic HD', 'Free Movies Comedy HD', 'Free Movies Drama HD', 'Free Series Global HD', 'Free Movies Action HD', 'Free Tv Cooking HD', 'Free Tv Doco HD', 'Free Tv Hatuna HD', 'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'],
+            'Sports🏀⚽': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
+                       'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'Sport  2 HD', 'Sport 3 HD', 'Sport 4 HD', 'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'WWE Network HD', 'Eurosport 2', 'Eurosport 2', 'EXTREME', 'SPORT'],
+            'Kids👨🏼‍🍼': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'hop', 'HOT A+ Kids', 'Nick Jr', 'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut', 'ZOOM','Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
+                     'Junior IL', 'hop IL', 'HOP HD IL', 'JUNIOR IL', 'Zoom', 'Zoom Toon HD', 'Wiz', 'Yalduti', 'TeenNick', 'Nick HD', 'Nick Jr HD', 'Luli', 'Logi', 'Junior', 'Jim Jam', 'Disney Jr.', 'LULI IL', 'Disney Jr IL', 'Baby TV', 'DISNEY JR IL', 'TeenNick IL',
+                     'ZOOM IL', 'HOP CHILDHOOD IL', 'KIDS HD IL', 'Hop', 'Hop Israeli Childhood', 'Hop Pele HD', 'Kids IL', 'DISNEY CHANNEL', 'WIZ IL'],
+            'Entertainment🧸': ['Home Plus IL', 'Good Life', 'FOOD CHANNE IL', 'Polsat HD', 'Home Plus', 'Food Channel', 'Ego Total', 'Health', 'EGO TOTAL HD IL', 'STARS IL',
+                              'CANAL+ FAMILY HD PL', 'HISTORY HD IL', 'Star Channel', 'Reality HD', 'Savri HD', 'A+ HD IL', 'LIFETIME HD IL', 'STARS HD IL',
+                              'Ego Total', 'Food Network', 'Health', 'E!', 'Horse and Country TV', 'ZONE HD', 'Good Life', 'TLC HD', 'Horse and Country TV', 'Home Plus', 'Love Island', 'History HD', 'Humor Channel', 'Fomo', 'Fashion', 'Food Channel HD', 'Foody HD', 'Erez Nehederet HD', 'Big', 'CBS Reality', 'Boomerang', 'Entertainment IL', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'],
+            'Music🎵': ['music', 'MUSIC', 'MUSIC 24', 'MTV Hits', 'music 24', 'MTV Hits orig', 'Club MTV', 'Bridge Deluxe HD', 'Bridge TV', 'Bridge Deluxe HD orig', 'Bridge Hits', 'Bridge Rock', 'Europa Plus TV', 'Europa Plus TV orig', 'MTV Live HD', 'MTV Live HD orig', 'MTV 90s', 'MUSIC 24', 'MUSIC 24', 'Movistar Musica HD', 'MTV'],
+            'Nature🌴': ['Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Nat Geo HD', 'Nat Geo Wild', 'Animal Planet HD', 'DISCOVERY CHANNEL HD IL', 'NET GEO_WILD HD IL', 'Sky Select 5 HD', 'NAT GEO WILD IL', 'TRAVEL CHANNEL IL',
                        'NATIONAL GEOGRAPHICS HD IL'],
+            'world series🌍': ['Viva Premium HD IL', 'Turkish Dramas 3 HD IL', 'Viva', 'Turkish Dramas 3 HD IL', 'Yam Tihoni 25', 'Viva plus', 'Aruch Sdarot Hahodiot', 'Aruch Sdarot Hahodiot 2', 'Yam Tihoni Plus', 'Vamos HD', 'Yam Tihoni HD', 'Yam Tihoni 2', 'Viva+ IL', 'Viva+', 'Viva Vintage', 'Viva Premium HD', 'VIVA IL', 'Yamtihoni IL', 'VIVA HD IL', 'VIVA+ IL', 'YAM TIHONI HD IL', 'HALA TV IL', 'BOLLYWOOD HD IL', 'BOLLYSHOW HD IL', 'Bollywood HD', 'Turkish Drama Plus', 'Turkish Drama 2', 'Turkish Drama 3', 'Viva'],
+
         }
 
         filtered_channels = {category: [] for category in category_keywords.keys()}
@@ -934,6 +939,14 @@ class M3UEditor(QWidget):
             return 'Entertainment'
         elif 'nature' in channel or 'Nature' in channel:
             return 'Nature'
+        elif 'partner' in channel or 'Partner' in channel:
+            return 'Partner'
+        elif 'cellcom' in channel or 'Cellcom' in channel:
+            return 'Cellcom'
+        elif 'free Tv' in channel or 'Free Tv' in channel:
+            return 'Free Tv'
+        elif 'world series' in channel or 'world series' in channel:
+            return 'world series'
         else:
             return 'Other'
 
