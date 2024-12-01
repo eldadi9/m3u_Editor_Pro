@@ -52,7 +52,7 @@ class M3UEditor(QWidget):
         self.setGeometry(100, 100, 800, 600)
 
         # Set a global font
-        font = QFont('Arial', 11)  # Change 'Arial' to your preferred font and '12' to your desired size
+        font = QFont('Arial', 12)  # Change 'Arial' to your preferred font and '12' to your desired size
         QApplication.setFont(font)
 
         # Main layout
@@ -60,6 +60,7 @@ class M3UEditor(QWidget):
 
         # Add image at the top
         logo_label = QLabel(self)
+        logo_label.setAlignment(Qt.AlignCenter)  # Center the logo
         image_path = r'C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\Main Logo.jpg'
 
         # Check if the image exists and load it
@@ -80,7 +81,7 @@ class M3UEditor(QWidget):
         # Title
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; background-color: black; color: white;")
         main_layout.addWidget(title)
 
         # File info layout
