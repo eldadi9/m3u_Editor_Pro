@@ -874,18 +874,18 @@ class M3UEditor(QWidget):
                            'Hebrew']
         category_keywords = {
 
-            'News📰': ['Keshet 12 IL', 'Channel 9 HD IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
+            'News📰': ['Keshet 12 IL', 'Channel 9 HD IL', '9 Channel IL', 'KAN 11 IL', '12 Keshet IL', 'C13 Keshet IL', 'KAN 14 IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
                      'MAKAN HD IL', 'i24 IL', 'Channel 14', 'Kan Educational HD IL', 'Reshet 13 IL', 'KHAN 11', 'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13', 'Makan 33 HD', 'Reshet 13 IL', 'Kan Chinuchit 23', 'i24 News', 'Channel 9', 'Channel 11', 'Channel 12', 'Channel 13', 'Channel 24', 'Channel 14', 'ערוץ 14', 'ערוץ 24', 'Channel 98 IL', 'CHANNEL 12 HD IL',
                      'CHANNEL 13 HD'],
-            'Hot🔥': ['HOT', 'HOT CINEMA', 'HOT CINEMA 1', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4', 'HOT3 HD', 'HOT 8 HD', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
+            'Hot🔥': ['HOT', 'HOT CINEMA', 'HOT Cinema 1 HD IL', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4', 'HOT3 HD', 'HOT 8 HD', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
                     'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT'],
             'Yes👑': ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'yes Israeli Cinema HD', 'Yes E', 'YES_IL', 'Yes TV Drama HD', 'YES_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv'],
             'Partner🌈': ['Partner Yladim', 'Partner Sratim', 'Partner Sdarot'],
             'Cellcom🐶': ['Cellcom Israel', 'Cellcom Rus', 'Cellcom Sratim', 'Cellcom Yeladim', 'Cellcom HBO HD', 'Cellcom Doco HD', 'YES HD IL', 'YES TV', 'yes tv'],
             'Free Tv': ['Free Tv Drama HD', 'Free Tv Comedy HD', 'Free Tv Lifestyle HD', 'Free Israeli Movies HD', 'Free Movies Family HD','Free Movies Horror HD', 'Free Movies Romantic HD', 'Free Movies Comedy HD', 'Free Movies Drama HD', 'Free Series Global HD', 'Free Movies Action HD', 'Free Tv Cooking HD', 'Free Tv Doco HD', 'Free Tv Hatuna HD', 'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'],
-            'Sports🏀⚽': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
+            'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
                        'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'Sport  2 HD', 'Sport 3 HD', 'Sport 4 HD', 'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'WWE Network HD', 'Eurosport 2', 'Eurosport 2', 'EXTREME', 'SPORT'],
-            'Kids👨🏼‍🍼': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'hop', 'HOT A+ Kids', 'Nick Jr', 'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut', 'ZOOM','Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
+            'Kids🍦': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'hop', 'HOT A+ Kids', 'Nick Jr', 'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut', 'ZOOM','Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
                      'Junior IL', 'hop IL', 'HOP HD IL', 'JUNIOR IL', 'Zoom', 'Zoom Toon HD', 'Wiz', 'Yalduti', 'TeenNick', 'Nick HD', 'Nick Jr HD', 'Luli', 'Logi', 'Junior', 'Jim Jam', 'Disney Jr.', 'LULI IL', 'Disney Jr IL', 'Baby TV', 'DISNEY JR IL', 'TeenNick IL',
                      'ZOOM IL', 'HOP CHILDHOOD IL', 'KIDS HD IL', 'Hop', 'Hop Israeli Childhood', 'Hop Pele HD', 'Kids IL', 'DISNEY CHANNEL', 'WIZ IL'],
             'Entertainment🧸': ['Home Plus IL', 'Good Life', 'FOOD CHANNE IL', '5Stars HD IL', 'Polsat HD', 'Home Plus', 'Food Channel', 'Ego Total', 'Health', 'EGO TOTAL HD IL', 'STARS IL',
@@ -913,6 +913,39 @@ class M3UEditor(QWidget):
                     if not placed:
                         filtered_channels['Other'].append(channel)
 
+        # Add "Israel Radio" to categories
+        radio_category = "Israel Radio"
+        if radio_category not in filtered_channels:
+            filtered_channels[radio_category] = []
+
+        # Load channels from the external M3U file
+        m3u_file_path = r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\IsraeliRadios.m3u"
+        try:
+            with open(m3u_file_path, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+
+            # Parse the M3U file
+            current_name = None
+            for line in lines:
+                line = line.strip()
+                if line.startswith("#EXTINF:"):
+                    # Extract channel name
+                    current_name = line.split(",")[-1].strip()
+                elif line.startswith("http") and current_name:
+                    # Add channel to the "Israel Radio" category
+                    channel_entry = f"{current_name} ({line})"
+                    filtered_channels[radio_category].append(channel_entry)
+
+                    # Add to M3U content section
+                    extinf_line = f"#EXTINF:-1 group-title=\"{radio_category}\",{current_name}"
+                    self.textEdit.append(f"{extinf_line}\n{line}")
+                    current_name = None
+        except FileNotFoundError:
+            QMessageBox.critical(self, "Error", f"The file {m3u_file_path} was not found.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An error occurred while loading the M3U file: {e}")
+
+        # Update categories and UI
         self.categories = filtered_channels
         self.categoryList.clear()
         for category, channels in self.categories.items():
