@@ -937,14 +937,25 @@ class M3UEditor(QWidget):
                 lines = file.readlines()
 
             current_name = None
+            current_logo = None
             for line in lines:
                 line = line.strip()
                 if line.startswith("#EXTINF:"):
+                    # Extract tvg-logo if it exists
+                    logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                    current_logo = logo_match.group(1) if logo_match else None
+                    # Extract channel name
                     current_name = line.split(",")[-1].strip()
                 elif line.startswith("http") and current_name:
+                    # Add channel to the "Israel Radio" category
                     channel_entry = f"{current_name} ({line})"
+                    if current_logo:
+                        channel_entry += f' tvg-logo="{current_logo}"'
+
                     filtered_channels[radio_category].append(channel_entry)
                     current_name = None
+                    current_logo = None
+
         except FileNotFoundError:
             QMessageBox.critical(self, "Error", f"The file {m3u_file_path} was not found.")
         except Exception as e:
