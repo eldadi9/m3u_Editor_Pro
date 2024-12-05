@@ -1,3 +1,4 @@
+
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,
@@ -742,10 +743,11 @@ class M3UEditor(QWidget):
 
     def parseM3UContent(self, content):
         """
-        Parse M3U content to handle group-title and #EXTGRP.
-        - If group-title exists, ignore #EXTGRP.
-        - If group-title does not exist, use #EXTGRP and remove it.
-        """
+            Parse M3U content to handle group-title, #EXTGRP, and tvg-logo.
+            - If group-title exists, ignore #EXTGRP.
+            - If group-title does not exist, use #EXTGRP and remove it.
+            - Always preserve the tvg-logo attribute if it exists.
+            """
         self.categories.clear()
         updated_lines = []
         current_group = None  # To track the group name from #EXTGRP
@@ -762,6 +764,16 @@ class M3UEditor(QWidget):
                 if "group-title=" not in line and current_group:
                     # Add group-title if missing and current_group exists
                     line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
+                current_group = None  # Reset after usage
+
+                # Ensure the tvg-logo attribute remains intact
+                # Match tvg-logo and preserve it, or leave the line unchanged
+                match = re.search(r'tvg-logo="([^"]+)"', line)
+                if match:
+                    logo_url = match.group(1)  # Extract the tvg-logo URL
+                    if 'tvg-logo' not in line:
+                        line = line.strip() + f' tvg-logo="{logo_url}"'
+
                 current_group = None  # Reset after usage
 
             updated_lines.append(line)
@@ -914,44 +926,40 @@ class M3UEditor(QWidget):
                         filtered_channels['Other'].append(channel)
 
         # Add "Israel Radio" to categories
-        radio_category = "Israel Radio"
+        radio_category = "Israel Radio📻"
         if radio_category not in filtered_channels:
             filtered_channels[radio_category] = []
 
-        # Load channels from the external M3U file
+        # Load additional Israeli radio channels
         m3u_file_path = r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\IsraeliRadios.m3u"
         try:
             with open(m3u_file_path, 'r', encoding='utf-8') as file:
                 lines = file.readlines()
 
-            # Parse the M3U file
             current_name = None
             for line in lines:
                 line = line.strip()
                 if line.startswith("#EXTINF:"):
-                    # Extract channel name
                     current_name = line.split(",")[-1].strip()
                 elif line.startswith("http") and current_name:
-                    # Add channel to the "Israel Radio" category
                     channel_entry = f"{current_name} ({line})"
                     filtered_channels[radio_category].append(channel_entry)
-
-                    # Add to M3U content section
-                    extinf_line = f"#EXTINF:-1 group-title=\"{radio_category}\",{current_name}"
-                    self.textEdit.append(f"{extinf_line}\n{line}")
                     current_name = None
         except FileNotFoundError:
             QMessageBox.critical(self, "Error", f"The file {m3u_file_path} was not found.")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An error occurred while loading the M3U file: {e}")
 
-        # Update categories and UI
+        # Update categories and regenerate M3U content
         self.categories = filtered_channels
+        self.updateCategoryList()  # Ensure category list is updated with counts
+        self.updateM3UContent()  # Regenerate M3U content for correct order
+
+        # Ensure categories are refreshed in the UI
         self.categoryList.clear()
         for category, channels in self.categories.items():
-            if channels:  # Only add categories that have channels
-                self.categoryList.addItem(QListWidgetItem(category))
-        self.updateM3UContent()
+            display_text = f"{category} ({len(channels)})"
+            self.categoryList.addItem(QListWidgetItem(display_text))
 
     def getFilteredCategory(self, channel):
         if 'חדשות' in channel or 'News' in channel:
@@ -984,7 +992,6 @@ class M3UEditor(QWidget):
             return 'world series'
         else:
             return 'Other'
-
 
     def addFilteredCategory(self):
         category_name, ok = QInputDialog.getText(self, 'Add Filtered Category', 'Enter new filtered category name:')
