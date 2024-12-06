@@ -651,7 +651,7 @@ class M3UEditor(QWidget):
                 current_category = current_category_item.text().split(" (")[0]
             else:
                 current_category = None  # Fallback
-                QMessageBox.warning(self, "Warning", "No category selected.")
+                
                 return
 
     def editSelectedChannel(self):
