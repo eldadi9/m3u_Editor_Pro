@@ -283,9 +283,9 @@ class M3UEditor(QWidget):
         self.loadButton.clicked.connect(self.loadM3U)
         self.saveButton.clicked.connect(self.saveM3U)
         self.mergeButton.clicked.connect(self.mergeM3Us)
-        self.loadButton.setStyleSheet("background-color: orange;color: white;")
+        self.loadButton.setStyleSheet("background-color: orange; color: white;")
         self.saveButton.setStyleSheet("background-color: green; color: white;")
-        self.mergeButton.setStyleSheet("background-color: blue;color: white;")
+        self.mergeButton.setStyleSheet("background-color: blue; color: white;")
 
         return layout
 
@@ -897,7 +897,8 @@ class M3UEditor(QWidget):
 
     def filterIsraelChannels(self):
         israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il', 'IL HD',
-                           'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'music', 'music'
+                           'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'Prokop TV ', 'Stingray',
+                           'Bridge TV', 'UK', 'music', 'music'
                                                        'Hebrew']
         category_keywords = {
 
