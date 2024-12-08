@@ -1,4 +1,3 @@
-
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,
@@ -9,6 +8,7 @@ from PyQt5.QtGui import QPixmap, QFont  # Add this line
 import sys
 import os
 import re
+
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -41,6 +41,7 @@ class MoveChannelsDialog(QDialog):
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
+
 class M3UEditor(QWidget):
     def __init__(self):
         super().__init__()
@@ -67,7 +68,7 @@ class M3UEditor(QWidget):
         if os.path.exists(image_path):
             logo_pixmap = QPixmap(image_path)
             if not logo_pixmap.isNull():  # Check if the pixmap was loaded successfully
-                logo_pixmap = logo_pixmap.scaled(100, 100,Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                logo_pixmap = logo_pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 logo_label.setPixmap(logo_pixmap)
             else:
                 logo_label.setText("Failed to load image.")  # Fallback text
@@ -262,6 +263,7 @@ class M3UEditor(QWidget):
             elif sort_option == "Sort by Name Z-A":
                 self.categories[current_category].sort(key=lambda x: x.split(" (")[0], reverse=True)
             self.display_channels(self.categoryList.currentItem())
+
     def create_m3u_content_section(self):
         layout = QVBoxLayout()
         m3u_title = QLabel("M3U Content", self)
@@ -281,6 +283,10 @@ class M3UEditor(QWidget):
         self.loadButton.clicked.connect(self.loadM3U)
         self.saveButton.clicked.connect(self.saveM3U)
         self.mergeButton.clicked.connect(self.mergeM3Us)
+        self.loadButton.setStyleSheet("background-color: orange;color: white;")
+        self.saveButton.setStyleSheet("background-color: green; color: white;")
+        self.mergeButton.setStyleSheet("background-color: blue;color: white;")
+
         return layout
 
     def addCategory(self):
@@ -651,7 +657,7 @@ class M3UEditor(QWidget):
                 current_category = current_category_item.text().split(" (")[0]
             else:
                 current_category = None  # Fallback
-                
+
                 return
 
     def editSelectedChannel(self):
@@ -890,30 +896,71 @@ class M3UEditor(QWidget):
             self.categoryList.addItem(item)
 
     def filterIsraelChannels(self):
-        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"','Il', 'IL HD', 'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'Prokop TV ', 'Stingray', 'Bridge TV', 'UK', 'music', 'music'
-                           'Hebrew']
+        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il', 'IL HD',
+                           'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'music', 'music'
+                                                       'Hebrew']
         category_keywords = {
 
-            'News📰': ['Keshet 12 IL', 'Channel 9 HD IL', '9 Channel IL', 'CHANNEL 9 HD IL', 'KAN 11 IL', '12 Keshet IL', 'C13 Keshet IL', 'KAN 14 IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
-                     'MAKAN HD IL', 'i24 IL', 'Channel 14', 'Kan Educational HD IL', 'Reshet 13 IL', 'KHAN 11', 'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13', 'Makan 33 HD', 'Reshet 13 IL', 'Kan Chinuchit 23', 'i24 News', 'Channel 9', 'Channel 11', 'Channel 12', 'Channel 13', 'Channel 24', 'Channel 14', 'ערוץ 14', 'ערוץ 24', 'Channel 98 IL', 'CHANNEL 12 HD IL',
-                     'CHANNEL 13 HD'],
-            'Hot🔥': ['HOT', 'HOT CINEMA', 'HOT Cinema 1 HD IL', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4', 'HOT3 HD', 'HOT 8 HD', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
-                    'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT'],
-            'Yes👑': ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'yes Israeli Cinema HD', 'Yes E', 'YES_IL', 'Yes TV Drama HD', 'YES_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv'],
+            'News📰': ['Keshet 12 IL', 'Channel 9 HD IL', '9 Channel IL', 'CHANNEL 9 HD IL', 'KAN 11 IL', '12 Keshet IL',
+                      'C13 Keshet IL', 'KAN 14 IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
+                      'MAKAN HD IL', 'i24 IL', 'Channel 14', 'Kan Educational HD IL', 'Reshet 13 IL', 'KHAN 11',
+                      'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13', 'Makan 33 HD', 'Reshet 13 IL',
+                      'Kan Chinuchit 23', 'i24 News', 'Channel 9', 'Channel 11', 'Channel 12', 'Channel 13',
+                      'Channel 24', 'Channel 14', 'ערוץ 14', 'ערוץ 24', 'Channel 98 IL', 'CHANNEL 12 HD IL',
+                      'CHANNEL 13 HD'],
+            'Hot🔥': ['HOT', 'HOT CINEMA', 'HOT Cinema 1 HD IL', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4',
+                     'HOT3 HD', 'HOT 8 HD', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
+                     'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT'],
+            'Yes👑': ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'yes Israeli Cinema HD', 'Yes E', 'YES_IL',
+                     'Yes TV Drama HD', 'YES_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv'],
             'Partner🌈': ['Partner Yladim', 'Partner Sratim', 'Partner Sdarot'],
-            'Cellcom🐶': ['Cellcom Israel', 'Cellcom Rus', 'Cellcom Sratim', 'Cellcom Yeladim', 'Cellcom HBO HD', 'Cellcom Doco HD', 'YES HD IL', 'YES TV', 'yes tv'],
-            'Free Tv🌞': ['Free Tv Drama HD', 'Free Tv Comedy HD', 'Free Tv Lifestyle HD', 'Free Israeli Movies HD', 'Free Movies Family HD','Free Movies Horror HD', 'Free Movies Romantic HD', 'Free Movies Comedy HD', 'Free Movies Drama HD', 'Free Series Global HD', 'Free Movies Action HD', 'Free Tv Cooking HD', 'Free Tv Doco HD', 'Free Tv Hatuna HD', 'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'],
-            'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ', 'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'Sport  2 HD', 'Sport 3 HD', 'Sport 4 HD', 'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'WWE Network HD', 'Eurosport 2', 'Eurosport 2', 'EXTREME', 'SPORT'],
-            'Kids🍦': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'BABY TV IL',  'hop', 'HOT A+ Kids', 'Nick Jr', 'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut', 'ZOOM','Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
-                     'Junior IL', 'hop IL', 'HOP HD IL', 'JUNIOR IL', 'Zoom', 'Zoom Toon HD', 'Wiz', 'Yalduti', 'TeenNick', 'Nick HD', 'Nick Jr HD', 'Luli', 'Logi', 'Junior', 'Jim Jam', 'Disney Jr.', 'LULI IL', 'Disney Jr IL', 'Baby TV', 'DISNEY JR IL', 'TeenNick IL',
-                     'ZOOM IL', 'HOP CHILDHOOD IL', 'KIDS HD IL', 'Hop', 'Hop Israeli Childhood', 'Hop Pele HD', 'Kids IL', 'DISNEY CHANNEL', 'WIZ IL'],
-            'Entertainment🧸': ['Home Plus IL', 'Good Life', 'FOOD CHANNE IL', '5Stars HD IL', 'Polsat HD', 'Home Plus', 'Food Channel', 'Ego Total', 'Health', 'EGO TOTAL HD IL', 'STARS IL',
-                              'CANAL+ FAMILY HD PL', 'HISTORY HD IL', 'Star Channel', 'Reality HD', 'Savri HD', 'A+ HD IL', 'LIFETIME HD IL', 'STARS HD IL',
-                              'Ego Total', 'Food Network', 'Game Show Channel HD IL', 'Health', 'E!', 'Horse and Country TV', 'ZONE HD', 'Good Life', 'TLC HD', 'Horse and Country TV', 'Home Plus', 'Love Island', 'History HD', 'Humor Channel', 'Fomo', 'Fashion', 'Food Channel HD', 'Foody HD', 'Erez Nehederet HD', 'Big', 'CBS Reality', 'Boomerang', 'Entertainment IL', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'],
-            'Music🎵': ['music', 'MUSIC', 'MUSIC 24', 'MTV Hits', 'MTV Base HD', 'Stingray ', 'MTV Hits', 'Stingray Hot Country HD', 'Stingray Pop Adult HD', 'Stingray Hit List HD', 'MTV Hits', 'MTV Club', 'Clubbing TV HD', 'Europa Plus TV HD', 'Music Box Gold', 'music 24', 'MTV Hits orig', 'Club MTV', 'Bridge Deluxe HD', 'Bridge TV', 'Bridge Deluxe HD orig', 'Bridge Hits', 'Bridge Rock', 'Europa Plus TV', 'Europa Plus TV orig', 'MTV Live HD', 'MTV Live HD orig', 'MTV 90s', 'MUSIC 24', 'Yosso TV Music Hits', 'Fresh Concerts', 'Fresh Dance', 'Sky High Concert HD', 'Movistar Musica HD', 'MTV'],
-            'Nature🌴': ['Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Nat Geo HD', 'Nat Geo Wild', 'Animal Planet HD', 'DISCOVERY CHANNEL HD IL', 'NET GEO_WILD HD IL', 'Sky Select 5 HD', 'NAT GEO WILD IL', 'TRAVEL CHANNEL IL',
-                       'NATIONAL GEOGRAPHICS HD IL'],
-            'world series🌍': ['Viva Premium HD IL', 'Turkish Dramas 3 HD IL', 'Turkish Dramas 2 HD IL', 'Turkish Dramas Plus HD IL', 'Viva', 'Turkish Dramas 3 HD IL', 'Yam Tihoni 25', 'Viva plus', 'Aruch Sdarot Hahodiot', 'Aruch Sdarot Hahodiot 2', 'Yam Tihoni Plus', 'Vamos HD', 'Yam Tihoni HD', 'Yam Tihoni 2', 'Viva+ IL', 'Viva+', 'Viva Vintage', 'Viva Premium HD', 'VIVA IL', 'Yamtihoni IL', 'VIVA HD IL', 'VIVA+ IL', 'YAM TIHONI HD IL', 'HALA TV IL', 'BOLLYWOOD HD IL', 'BOLLYSHOW HD IL', 'Bollywood HD', 'Turkish Drama Plus', 'Turkish Drama 2', 'Turkish Drama 3', 'Viva'],
+            'Cellcom🐶': ['Cellcom Israel', 'Cellcom Rus', 'Cellcom Sratim', 'Cellcom Yeladim', 'Cellcom HBO HD',
+                         'Cellcom Doco HD', 'YES HD IL', 'YES TV', 'yes tv'],
+            'Free Tv🌞': ['Free Tv Drama HD', 'Free Tv Comedy HD', 'Free Tv Lifestyle HD', 'Free Israeli Movies HD',
+                         'Free Movies Family HD', 'Free Movies Horror HD', 'Free Movies Romantic HD',
+                         'Free Movies Comedy HD', 'Free Movies Drama HD', 'Free Series Global HD',
+                         'Free Movies Action HD', 'Free Tv Cooking HD', 'Free Tv Doco HD', 'Free Tv Hatuna HD',
+                         'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'],
+            'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
+                        'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'Sport  2 HD', 'Sport 3 HD', 'Sport 4 HD',
+                        'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'WWE Network HD', 'Eurosport 2',
+                        'Eurosport 2', 'EXTREME', 'SPORT'],
+            'Kids🍦': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'BABY TV IL', 'hop', 'HOT A+ Kids', 'Nick Jr',
+                      'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut',
+                      'ZOOM', 'Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
+                      'Junior IL', 'hop IL', 'HOP HD IL', 'JUNIOR IL', 'Zoom', 'Zoom Toon HD', 'Wiz', 'Yalduti',
+                      'TeenNick', 'Nick HD', 'Nick Jr HD', 'Luli', 'Logi', 'Junior', 'Jim Jam', 'Disney Jr.', 'LULI IL',
+                      'Disney Jr IL', 'Baby TV', 'DISNEY JR IL', 'TeenNick IL',
+                      'ZOOM IL', 'HOP CHILDHOOD IL', 'KIDS HD IL', 'Hop', 'Hop Israeli Childhood', 'Hop Pele HD',
+                      'Kids IL', 'DISNEY CHANNEL', 'WIZ IL'],
+            'Entertainment🧸': ['Home Plus IL', 'Good Life', 'FOOD CHANNE IL', '5Stars HD IL', 'Polsat HD', 'Home Plus',
+                               'Food Channel', 'Ego Total', 'Health', 'EGO TOTAL HD IL', 'STARS IL',
+                               'CANAL+ FAMILY HD PL', 'HISTORY HD IL', 'Star Channel', 'Reality HD', 'Savri HD',
+                               'A+ HD IL', 'LIFETIME HD IL', 'STARS HD IL',
+                               'Ego Total', 'Food Network', 'Game Show Channel HD IL', 'Health', 'E!',
+                               'Horse and Country TV', 'ZONE HD', 'Good Life', 'TLC HD', 'Horse and Country TV',
+                               'Home Plus', 'Love Island', 'History HD', 'Humor Channel', 'Fomo', 'Fashion',
+                               'Food Channel HD', 'Foody HD', 'Erez Nehederet HD', 'Big', 'CBS Reality', 'Boomerang',
+                               'Entertainment IL', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'],
+            'Music🎵': ['music', 'MUSIC', 'MUSIC 24', 'MTV Hits', 'MTV Base HD', 'Stingray ', 'MTV Hits',
+                       'Stingray Hot Country HD', 'Stingray Pop Adult HD', 'Stingray Hit List HD', 'MTV Hits',
+                       'MTV Club', 'Clubbing TV HD', 'Europa Plus TV HD', 'Music Box Gold', 'music 24', 'MTV Hits orig',
+                       'Club MTV', 'Bridge Deluxe HD', 'Bridge TV', 'Bridge Deluxe HD orig', 'Bridge Hits',
+                       'Bridge Rock', 'Europa Plus TV', 'Europa Plus TV orig', 'MTV Live HD', 'MTV Live HD orig',
+                       'MTV 90s', 'MUSIC 24', 'Yosso TV Music Hits', 'Fresh Concerts', 'Fresh Dance',
+                       'Sky High Concert HD', 'Movistar Musica HD', 'MTV'],
+            'Nature🌴': ['Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Travel Channel',
+                        'DISCOVERY CHANNEL HD IL', 'Nat Geo HD', 'Nat Geo Wild', 'Animal Planet HD',
+                        'DISCOVERY CHANNEL HD IL', 'NET GEO_WILD HD IL', 'Sky Select 5 HD', 'NAT GEO WILD IL',
+                        'TRAVEL CHANNEL IL',
+                        'NATIONAL GEOGRAPHICS HD IL'],
+            'world series🌍': ['Viva Premium HD IL', 'Turkish Dramas 3 HD IL', 'Turkish Dramas 2 HD IL',
+                              'Turkish Dramas Plus HD IL', 'Viva', 'Turkish Dramas 3 HD IL', 'Yam Tihoni 25',
+                              'Viva plus', 'Aruch Sdarot Hahodiot', 'Aruch Sdarot Hahodiot 2', 'Yam Tihoni Plus',
+                              'Vamos HD', 'Yam Tihoni HD', 'Yam Tihoni 2', 'Viva+ IL', 'Viva+', 'Viva Vintage',
+                              'Viva Premium HD', 'VIVA IL', 'Yamtihoni IL', 'VIVA HD IL', 'VIVA+ IL',
+                              'YAM TIHONI HD IL', 'HALA TV IL', 'BOLLYWOOD HD IL', 'BOLLYSHOW HD IL', 'Bollywood HD',
+                              'Turkish Drama Plus', 'Turkish Drama 2', 'Turkish Drama 3', 'Viva'],
 
         }
 
@@ -1027,6 +1074,7 @@ def main():
     editor = M3UEditor()
     editor.show()
     sys.exit(app.exec_())
+
 
 if __name__ == '__main__':
     main()

@@ -1,3 +1,4 @@
+
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,
@@ -237,6 +238,7 @@ class M3UEditor(QWidget):
         button_layout.addWidget(self.moveSelectedChannelButton)
         button_layout.addWidget(self.editSelectedChannelButton)
         layout.addLayout(button_layout)
+
         self.channelList = QListWidget(self)
         self.channelList.setSelectionMode(QListWidget.MultiSelection)
         layout.addWidget(self.channelList)
@@ -601,16 +603,12 @@ class M3UEditor(QWidget):
             # Ensure the target category exists
             if target_category not in self.categories:
                 # Dynamically create the new category
-                try:
-                    self.categories[target_category] = []
-                    self.updateCategoryList()  # Refresh the UI with the new category
-                except Exception as e:
-                    QMessageBox.critical(self, "Error", f"Failed to create new category: {str(e)}")
-                    return
+                self.categories[target_category] = []
+                self.updateCategoryList()  # Refresh the UI with the new category
 
             # Validate the current category
             current_category_item = self.categoryList.currentItem()
-            if not current_category_item:
+            if current_category_item is None:
                 QMessageBox.warning(self, "Warning", "No category selected.")
                 return
 
@@ -622,35 +620,39 @@ class M3UEditor(QWidget):
             moved_channels = []
 
             # Move the selected channels
-            try:
-                for item in selected_items:
-                    if not item:  # Skip if the item is None
-                        continue
-                    channel_name = item.text()
-                    # Check if the channel exists in the current category
-                    for channel in self.categories[current_category]:
-                        if channel.split(" (")[0] == channel_name:
-                            moved_channels.append(channel)
-                            self.categories[current_category].remove(channel)
-                            break
+            for item in selected_items:
+                if item is None:
+                    continue
+                channel_name = item.text()
+                if not channel_name:
+                    continue
+                # Check if the channel exists in the current category
+                for channel in self.categories[current_category]:
+                    if channel.split(" (")[0] == channel_name:
+                        moved_channels.append(channel)
+                        self.categories[current_category].remove(channel)
+                        break
 
-                # Add the moved channels to the target category
-                self.categories[target_category].extend(moved_channels)
+            # Add the moved channels to the target category
+            self.categories[target_category].extend(moved_channels)
 
-                # Update the M3U content to reflect the changes
-                self.updateM3UContent()
+            # Update the M3U content to reflect the changes
+            self.updateM3UContent()
 
-                # Refresh the UI
-                self.updateCategoryList()  # Update category list counts
-                self.display_channels(self.categoryList.currentItem())  # Update channel list for the current category
+            # Refresh the UI
+            self.updateCategoryList()  # Update category list counts
+            self.display_channels(self.categoryList.currentItem())  # Update channel list for the current category
 
-                # Show success message with the count of moved channels
-                QMessageBox.information(self, "Success",
-                                        f"{len(moved_channels)} channels have been successfully moved to '{target_category}'.")
-
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"An error occurred while moving channels: {str(e)}")
-
+            # Show success message with the count of moved channels
+            QMessageBox.information(self, "Success",
+                                    f"{len(moved_channels)} channels have been successfully moved to '{target_category}'.")
+            current_category_item = self.categoryList.currentItem()
+            if current_category_item and hasattr(current_category_item, 'text') and current_category_item.text():
+                current_category = current_category_item.text().split(" (")[0]
+            else:
+                current_category = None  # Fallback
+                
+                return
 
     def editSelectedChannel(self):
         """
@@ -690,6 +692,11 @@ class M3UEditor(QWidget):
         """
         Display channels for the selected category and update the total count label.
         """
+        if item is None:  # Check if item is None
+            self.channelList.clear()
+            self.channelCountLabel.setText("Total Channels: 0")
+            return
+
         category = item.text().split(" (")[0]  # Extract the category name
         self.channelList.clear()
 
@@ -697,6 +704,8 @@ class M3UEditor(QWidget):
         channels = self.categories.get(category, [])
         for channel in channels:
             channel_name = channel.split(" (")[0]
+            if not channel_name:  # Skip empty or invalid channel names
+                continue
             channel_item = QListWidgetItem(channel_name)
             self.channelList.addItem(channel_item)
 
@@ -742,10 +751,11 @@ class M3UEditor(QWidget):
 
     def parseM3UContent(self, content):
         """
-        Parse M3U content to handle group-title and #EXTGRP.
-        - If group-title exists, ignore #EXTGRP.
-        - If group-title does not exist, use #EXTGRP and remove it.
-        """
+            Parse M3U content to handle group-title, #EXTGRP, and tvg-logo.
+            - If group-title exists, ignore #EXTGRP.
+            - If group-title does not exist, use #EXTGRP and remove it.
+            - Always preserve the tvg-logo attribute if it exists.
+            """
         self.categories.clear()
         updated_lines = []
         current_group = None  # To track the group name from #EXTGRP
@@ -762,6 +772,16 @@ class M3UEditor(QWidget):
                 if "group-title=" not in line and current_group:
                     # Add group-title if missing and current_group exists
                     line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
+                current_group = None  # Reset after usage
+
+                # Ensure the tvg-logo attribute remains intact
+                # Match tvg-logo and preserve it, or leave the line unchanged
+                match = re.search(r'tvg-logo="([^"]+)"', line)
+                if match:
+                    logo_url = match.group(1)  # Extract the tvg-logo URL
+                    if 'tvg-logo' not in line:
+                        line = line.strip() + f' tvg-logo="{logo_url}"'
+
                 current_group = None  # Reset after usage
 
             updated_lines.append(line)
@@ -870,28 +890,27 @@ class M3UEditor(QWidget):
             self.categoryList.addItem(item)
 
     def filterIsraelChannels(self):
-        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"','Il', 'IL HD', 'ישראלי',
+        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"','Il', 'IL HD', 'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'Prokop TV ', 'Stingray', 'Bridge TV', 'UK', 'music', 'music'
                            'Hebrew']
         category_keywords = {
 
-            'News📰': ['Keshet 12 IL', 'Channel 9 HD IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
+            'News📰': ['Keshet 12 IL', 'Channel 9 HD IL', '9 Channel IL', 'CHANNEL 9 HD IL', 'KAN 11 IL', '12 Keshet IL', 'C13 Keshet IL', 'KAN 14 IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
                      'MAKAN HD IL', 'i24 IL', 'Channel 14', 'Kan Educational HD IL', 'Reshet 13 IL', 'KHAN 11', 'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13', 'Makan 33 HD', 'Reshet 13 IL', 'Kan Chinuchit 23', 'i24 News', 'Channel 9', 'Channel 11', 'Channel 12', 'Channel 13', 'Channel 24', 'Channel 14', 'ערוץ 14', 'ערוץ 24', 'Channel 98 IL', 'CHANNEL 12 HD IL',
                      'CHANNEL 13 HD'],
-            'Hot🔥': ['HOT', 'HOT CINEMA', 'HOT CINEMA 1', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4', 'HOT3 HD', 'HOT 8 HD', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
+            'Hot🔥': ['HOT', 'HOT CINEMA', 'HOT Cinema 1 HD IL', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4', 'HOT3 HD', 'HOT 8 HD', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
                     'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT'],
             'Yes👑': ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'yes Israeli Cinema HD', 'Yes E', 'YES_IL', 'Yes TV Drama HD', 'YES_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv'],
             'Partner🌈': ['Partner Yladim', 'Partner Sratim', 'Partner Sdarot'],
             'Cellcom🐶': ['Cellcom Israel', 'Cellcom Rus', 'Cellcom Sratim', 'Cellcom Yeladim', 'Cellcom HBO HD', 'Cellcom Doco HD', 'YES HD IL', 'YES TV', 'yes tv'],
-            'Free Tv': ['Free Tv Drama HD', 'Free Tv Comedy HD', 'Free Tv Lifestyle HD', 'Free Israeli Movies HD', 'Free Movies Family HD','Free Movies Horror HD', 'Free Movies Romantic HD', 'Free Movies Comedy HD', 'Free Movies Drama HD', 'Free Series Global HD', 'Free Movies Action HD', 'Free Tv Cooking HD', 'Free Tv Doco HD', 'Free Tv Hatuna HD', 'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'],
-            'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
-                       'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'Sport  2 HD', 'Sport 3 HD', 'Sport 4 HD', 'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'WWE Network HD', 'Eurosport 2', 'Eurosport 2', 'EXTREME', 'SPORT'],
-            'Kids🍦': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'hop', 'HOT A+ Kids', 'Nick Jr', 'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut', 'ZOOM','Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
+            'Free Tv🌞': ['Free Tv Drama HD', 'Free Tv Comedy HD', 'Free Tv Lifestyle HD', 'Free Israeli Movies HD', 'Free Movies Family HD','Free Movies Horror HD', 'Free Movies Romantic HD', 'Free Movies Comedy HD', 'Free Movies Drama HD', 'Free Series Global HD', 'Free Movies Action HD', 'Free Tv Cooking HD', 'Free Tv Doco HD', 'Free Tv Hatuna HD', 'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'],
+            'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ', 'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'Sport  2 HD', 'Sport 3 HD', 'Sport 4 HD', 'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'WWE Network HD', 'Eurosport 2', 'Eurosport 2', 'EXTREME', 'SPORT'],
+            'Kids🍦': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'BABY TV IL',  'hop', 'HOT A+ Kids', 'Nick Jr', 'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut', 'ZOOM','Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
                      'Junior IL', 'hop IL', 'HOP HD IL', 'JUNIOR IL', 'Zoom', 'Zoom Toon HD', 'Wiz', 'Yalduti', 'TeenNick', 'Nick HD', 'Nick Jr HD', 'Luli', 'Logi', 'Junior', 'Jim Jam', 'Disney Jr.', 'LULI IL', 'Disney Jr IL', 'Baby TV', 'DISNEY JR IL', 'TeenNick IL',
                      'ZOOM IL', 'HOP CHILDHOOD IL', 'KIDS HD IL', 'Hop', 'Hop Israeli Childhood', 'Hop Pele HD', 'Kids IL', 'DISNEY CHANNEL', 'WIZ IL'],
             'Entertainment🧸': ['Home Plus IL', 'Good Life', 'FOOD CHANNE IL', '5Stars HD IL', 'Polsat HD', 'Home Plus', 'Food Channel', 'Ego Total', 'Health', 'EGO TOTAL HD IL', 'STARS IL',
                               'CANAL+ FAMILY HD PL', 'HISTORY HD IL', 'Star Channel', 'Reality HD', 'Savri HD', 'A+ HD IL', 'LIFETIME HD IL', 'STARS HD IL',
                               'Ego Total', 'Food Network', 'Game Show Channel HD IL', 'Health', 'E!', 'Horse and Country TV', 'ZONE HD', 'Good Life', 'TLC HD', 'Horse and Country TV', 'Home Plus', 'Love Island', 'History HD', 'Humor Channel', 'Fomo', 'Fashion', 'Food Channel HD', 'Foody HD', 'Erez Nehederet HD', 'Big', 'CBS Reality', 'Boomerang', 'Entertainment IL', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'],
-            'Music🎵': ['music', 'MUSIC', 'MUSIC 24', 'MTV Hits', 'music 24', 'MTV Hits orig', 'Club MTV', 'Bridge Deluxe HD', 'Bridge TV', 'Bridge Deluxe HD orig', 'Bridge Hits', 'Bridge Rock', 'Europa Plus TV', 'Europa Plus TV orig', 'MTV Live HD', 'MTV Live HD orig', 'MTV 90s', 'MUSIC 24', 'MUSIC 24', 'Movistar Musica HD', 'MTV'],
+            'Music🎵': ['music', 'MUSIC', 'MUSIC 24', 'MTV Hits', 'MTV Base HD', 'Stingray ', 'MTV Hits', 'Stingray Hot Country HD', 'Stingray Pop Adult HD', 'Stingray Hit List HD', 'MTV Hits', 'MTV Club', 'Clubbing TV HD', 'Europa Plus TV HD', 'Music Box Gold', 'music 24', 'MTV Hits orig', 'Club MTV', 'Bridge Deluxe HD', 'Bridge TV', 'Bridge Deluxe HD orig', 'Bridge Hits', 'Bridge Rock', 'Europa Plus TV', 'Europa Plus TV orig', 'MTV Live HD', 'MTV Live HD orig', 'MTV 90s', 'MUSIC 24', 'Yosso TV Music Hits', 'Fresh Concerts', 'Fresh Dance', 'Sky High Concert HD', 'Movistar Musica HD', 'MTV'],
             'Nature🌴': ['Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Nat Geo HD', 'Nat Geo Wild', 'Animal Planet HD', 'DISCOVERY CHANNEL HD IL', 'NET GEO_WILD HD IL', 'Sky Select 5 HD', 'NAT GEO WILD IL', 'TRAVEL CHANNEL IL',
                        'NATIONAL GEOGRAPHICS HD IL'],
             'world series🌍': ['Viva Premium HD IL', 'Turkish Dramas 3 HD IL', 'Turkish Dramas 2 HD IL', 'Turkish Dramas Plus HD IL', 'Viva', 'Turkish Dramas 3 HD IL', 'Yam Tihoni 25', 'Viva plus', 'Aruch Sdarot Hahodiot', 'Aruch Sdarot Hahodiot 2', 'Yam Tihoni Plus', 'Vamos HD', 'Yam Tihoni HD', 'Yam Tihoni 2', 'Viva+ IL', 'Viva+', 'Viva Vintage', 'Viva Premium HD', 'VIVA IL', 'Yamtihoni IL', 'VIVA HD IL', 'VIVA+ IL', 'YAM TIHONI HD IL', 'HALA TV IL', 'BOLLYWOOD HD IL', 'BOLLYSHOW HD IL', 'Bollywood HD', 'Turkish Drama Plus', 'Turkish Drama 2', 'Turkish Drama 3', 'Viva'],
@@ -913,12 +932,52 @@ class M3UEditor(QWidget):
                     if not placed:
                         filtered_channels['Other'].append(channel)
 
+        # Add "Israel Radio" to categories
+        radio_category = "Israel Radio📻"
+        if radio_category not in filtered_channels:
+            filtered_channels[radio_category] = []
+
+        # Load additional Israeli radio channels
+        m3u_file_path = r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\IsraeliRadios.m3u"
+        try:
+            with open(m3u_file_path, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+
+            current_name = None
+            current_logo = None
+            for line in lines:
+                line = line.strip()
+                if line.startswith("#EXTINF:"):
+                    # Extract tvg-logo if it exists
+                    logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                    current_logo = logo_match.group(1) if logo_match else None
+                    # Extract channel name
+                    current_name = line.split(",")[-1].strip()
+                elif line.startswith("http") and current_name:
+                    # Add channel to the "Israel Radio" category
+                    channel_entry = f"{current_name} ({line})"
+                    if current_logo:
+                        channel_entry += f' tvg-logo="{current_logo}"'
+
+                    filtered_channels[radio_category].append(channel_entry)
+                    current_name = None
+                    current_logo = None
+
+        except FileNotFoundError:
+            QMessageBox.critical(self, "Error", f"The file {m3u_file_path} was not found.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An error occurred while loading the M3U file: {e}")
+
+        # Update categories and regenerate M3U content
         self.categories = filtered_channels
+        self.updateCategoryList()  # Ensure category list is updated with counts
+        self.updateM3UContent()  # Regenerate M3U content for correct order
+
+        # Ensure categories are refreshed in the UI
         self.categoryList.clear()
         for category, channels in self.categories.items():
-            if channels:  # Only add categories that have channels
-                self.categoryList.addItem(QListWidgetItem(category))
-        self.updateM3UContent()
+            display_text = f"{category} ({len(channels)})"
+            self.categoryList.addItem(QListWidgetItem(display_text))
 
     def getFilteredCategory(self, channel):
         if 'חדשות' in channel or 'News' in channel:
@@ -951,7 +1010,6 @@ class M3UEditor(QWidget):
             return 'world series'
         else:
             return 'Other'
-
 
     def addFilteredCategory(self):
         category_name, ok = QInputDialog.getText(self, 'Add Filtered Category', 'Enter new filtered category name:')
