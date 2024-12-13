@@ -170,6 +170,10 @@ class M3UEditor(QWidget):
         self.selectAllButton = QPushButton('Select All')
         self.deselectAllButton = QPushButton('Deselect All')
 
+        # New button to show total channels
+        self.showTotalChannelsButton = QPushButton('Show Total Channels')
+        self.showTotalChannelsButton.clicked.connect(self.displayTotalChannels)
+
         # Apply button colors
         self.selectAllButton.setStyleSheet("background-color: blue; color: white;")
         self.deselectAllButton.setStyleSheet("background-color: blue; color: white;")
@@ -180,6 +184,7 @@ class M3UEditor(QWidget):
         self.addCategoryButton.setStyleSheet("background-color: green; color: white;")
         self.moveCategoryUpButton.setStyleSheet("background-color: green; color: white;")
         self.moveCategoryDownButton.setStyleSheet("background-color:green; color: white;")
+        self.showTotalChannelsButton.setStyleSheet("background-color:black; color: white;")
 
         # Add buttons to layout
         button_layout.addWidget(self.addCategoryButton)
@@ -189,6 +194,7 @@ class M3UEditor(QWidget):
         button_layout.addWidget(self.moveCategoryDownButton)
         button_layout.addWidget(self.selectAllButton)
         button_layout.addWidget(self.deselectAllButton)
+        button_layout.addWidget(self.showTotalChannelsButton)  # Add the new button
 
         layout.addLayout(button_layout)
 
@@ -205,9 +211,12 @@ class M3UEditor(QWidget):
         self.moveCategoryDownButton.clicked.connect(self.moveCategoryDown)
         self.selectAllButton.clicked.connect(self.selectAllCategories)  # Assign to select all function
         self.deselectAllButton.clicked.connect(self.deselectAllCategories)  # Assign to deselect all function
-
         self.categoryList.itemClicked.connect(self.display_channels)
         return layout
+
+    def displayTotalChannels(self):
+        total_channels = sum(len(channels) for channels in self.categories.values())
+        self.channelCountLabel.setText(f"Total Channels: {total_channels}")
 
     def create_channel_section(self):
         layout = QVBoxLayout()
