@@ -716,7 +716,7 @@ class M3UEditor(QWidget):
             self.channelList.addItem(channel_item)
 
         # Update the total channel count label
-        self.channelCountLabel.setText(f"Total Channels: {len(channels)}")
+        self.channelCountLabel.setText(f"Channels in '{category}': {len(channels)}")
 
     def getUrl(self, channel_info):
         try:
@@ -738,14 +738,14 @@ class M3UEditor(QWidget):
             try:
                 with open(fileName, 'r', encoding='utf-8') as file:
                     content = file.read()
-            except UnicodeDecodeError:
-                with open(fileName, 'r', encoding='latin-1') as file:
-                    content = file.read()
-            self.textEdit.setPlainText(content)
-            self.parseM3UContent(content)
-
-            # Display the file name in the label
-            self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]}")  # Only show the file name
+                self.textEdit.setPlainText(content)
+                self.parseM3UContent(content)
+                # Display the file name and total channels in the label
+                total_channels = sum(len(channels) for channels in self.categories.values())
+                self.channelCountLabel.setText(f"Total Channels: {total_channels}")
+                self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]}")  # Only show the file name
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to load file: {str(e)}")
 
     def saveM3U(self):
         options = QFileDialog.Options()
