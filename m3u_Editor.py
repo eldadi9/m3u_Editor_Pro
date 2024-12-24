@@ -1,3 +1,4 @@
+
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,
@@ -34,6 +35,11 @@ class MoveChannelsDialog(QDialog):
         layout.addLayout(buttonBox)
         self.okButton.clicked.connect(self.accept)
         self.cancelButton.clicked.connect(self.reject)
+        # Add a search bar and search button to the layout
+        self.search_input = QLineEdit(self)
+        self.search_button = QPushButton('Search', self)
+
+
 
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
@@ -47,6 +53,28 @@ class M3UEditor(QWidget):
         super().__init__()
         self.categories = {}
         self.initUI()
+
+    def search_channels(self, query, filter_options):
+        results = []
+        for category, channels in self.categories.items():
+            for channel in channels:
+                if query.lower() in channel.lower():
+                    results.append(channel)
+        return results
+
+    def perform_search(self):
+        query = self.search_input.text().strip()
+        if query:  # Check if the query is not empty
+            results = self.search_channels(query, {})
+            self.display_search_results(results)
+        else:
+            self.display_search_results([])  # Clear results if query is empty
+
+
+    def display_search_results(self, results):
+        self.channelList.clear()  # Assuming `channelList` is your QListWidget for channels
+        for result in results:
+            self.channelList.addItem(result)  # Add each result to the channel list
 
     def initUI(self):
         self.setWindowTitle('M3U Playlist Editor')
@@ -79,11 +107,22 @@ class M3UEditor(QWidget):
 
         main_layout.addWidget(logo_label)
 
-        # Title
+        # Setup title
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 21px; font-weight: bold; background-color: black; color: white;")
         main_layout.addWidget(title)
+
+        # Search components
+        self.search_input = QLineEdit(self)
+        self.search_button = QPushButton('Search', self)
+        self.search_button.clicked.connect(self.perform_search)
+
+
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(self.search_input)
+        search_layout.addWidget(self.search_button)
+        main_layout.addLayout(search_layout)
 
         # File info layout
         file_info_layout = QHBoxLayout()
@@ -116,6 +155,8 @@ class M3UEditor(QWidget):
 
         # Ensure EXTM3U header
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
+        # Ensure everything is added to main_layout
+        self.setLayout(main_layout)
 
     def mergeM3Us(self):
         options = QFileDialog.Options()
