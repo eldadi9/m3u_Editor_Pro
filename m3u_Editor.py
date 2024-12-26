@@ -884,7 +884,7 @@ class M3UEditor(QWidget):
             item = QListWidgetItem(f"{category} ({len(channels)})")  # Add count of channels to the category name
             self.categoryList.addItem(item)
 
-            def parseM3UContentWithGroup(self, content):
+    def parseM3UContentWithGroup(self, content):
                 """
                 Parse M3U content, dynamically adding group-title if #EXTGRP is present.
                 Updates categories and channels without altering the existing parseM3UContent logic.
@@ -928,49 +928,7 @@ class M3UEditor(QWidget):
                         f"{category} ({len(channels)})")  # Add count of channels to the category name
                     self.categoryList.addItem(item)
 
-    def parseM3UContentWithGroup(self, content):
-        """
-        Parse M3U content, dynamically adding group-title if #EXTGRP is present.
-        Updates categories and channels without altering the existing parseM3UContent logic.
-        """
-        # Temporary storage for categories and channels
-        updated_categories = {}
-        updated_lines = []
-
-        lines = content.splitlines()
-        current_group = None  # To track the current group from #EXTGRP
-
-        for line in lines:
-            if line.startswith("#EXTGRP:"):
-                # Extract the group name from the #EXTGRP line
-                current_group = line.split(":", 1)[1].strip()
-            elif line.startswith("#EXTINF:") and "group-title=" not in line:
-                # If group-title is missing, add it using the current_group
-                if current_group:
-                    line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
-            updated_lines.append(line)
-
-        # Combine updated lines into a modified M3U content
-        updated_content = "\n".join(updated_lines)
-
-        # Extract categories and channels from the updated content
-        category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
-        for match in category_pattern.findall(updated_content):
-            group_title, channel_name, channel_url = match
-            if group_title not in updated_categories:
-                updated_categories[group_title] = []
-            updated_categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
-
-        # Update the instance's categories and channels
-        self.categories = updated_categories
-
-        # Update the QTextEdit and the category list
-        self.textEdit.setPlainText(updated_content)
-        self.categoryList.clear()
-        for category, channels in self.categories.items():
-            item = QListWidgetItem(f"{category} ({len(channels)})")  # Add count of channels to the category name
-            self.categoryList.addItem(item)
-
+    
     def filterIsraelChannels(self):
         israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il', 'IL HD',
                            'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'WWE ', 'nba tv',
