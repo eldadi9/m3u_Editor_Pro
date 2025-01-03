@@ -884,7 +884,7 @@ class M3UEditor(QWidget):
             item = QListWidgetItem(f"{category} ({len(channels)})")  # Add count of channels to the category name
             self.categoryList.addItem(item)
 
-    def parseM3UContentWithGroup(self, content):
+            def parseM3UContentWithGroup(self, content):
                 """
                 Parse M3U content, dynamically adding group-title if #EXTGRP is present.
                 Updates categories and channels without altering the existing parseM3UContent logic.
@@ -928,14 +928,56 @@ class M3UEditor(QWidget):
                         f"{category} ({len(channels)})")  # Add count of channels to the category name
                     self.categoryList.addItem(item)
 
-    
+    def parseM3UContentWithGroup(self, content):
+        """
+        Parse M3U content, dynamically adding group-title if #EXTGRP is present.
+        Updates categories and channels without altering the existing parseM3UContent logic.
+        """
+        # Temporary storage for categories and channels
+        updated_categories = {}
+        updated_lines = []
+
+        lines = content.splitlines()
+        current_group = None  # To track the current group from #EXTGRP
+
+        for line in lines:
+            if line.startswith("#EXTGRP:"):
+                # Extract the group name from the #EXTGRP line
+                current_group = line.split(":", 1)[1].strip()
+            elif line.startswith("#EXTINF:") and "group-title=" not in line:
+                # If group-title is missing, add it using the current_group
+                if current_group:
+                    line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
+            updated_lines.append(line)
+
+        # Combine updated lines into a modified M3U content
+        updated_content = "\n".join(updated_lines)
+
+        # Extract categories and channels from the updated content
+        category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
+        for match in category_pattern.findall(updated_content):
+            group_title, channel_name, channel_url = match
+            if group_title not in updated_categories:
+                updated_categories[group_title] = []
+            updated_categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
+
+        # Update the instance's categories and channels
+        self.categories = updated_categories
+
+        # Update the QTextEdit and the category list
+        self.textEdit.setPlainText(updated_content)
+        self.categoryList.clear()
+        for category, channels in self.categories.items():
+            item = QListWidgetItem(f"{category} ({len(channels)})")  # Add count of channels to the category name
+            self.categoryList.addItem(item)
+
     def filterIsraelChannels(self):
         israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il', 'IL HD',
                            'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'WWE ', 'nba tv',
                              'music', 'IL:', 'Hebrew']
         category_keywords = {
 
-            'News📰': ['Keshet 12 IL', 'Channel 9 HD IL', '9 Channel IL', 'CHANNEL 9 HD IL', 'KAN 11 IL', '12 Keshet IL',
+            'News📺': ['Keshet 12 IL', 'Channel 9 HD IL', '9 Channel IL', 'CHANNEL 9 HD IL', 'KAN 11 IL', '12 Keshet IL',
                       'C13 Keshet IL', 'KAN 14 IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
                       'MAKAN HD IL', 'i24 IL', 'Channel 14', 'Kan Educational HD IL', 'Reshet 13 IL', 'KHAN 11',
                       'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13', 'Makan 33 HD', 'Reshet 13 IL',
@@ -956,8 +998,9 @@ class M3UEditor(QWidget):
                          'Free Movies Action HD', 'Free Tv Cooking HD', 'Free Tv Doco HD', 'Free Tv Hatuna HD',
                          'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'],
             'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
-                        'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'Sport 2 HD', 'Sport 3 HD', 'Sport 4 HD',
-                        'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'ESPN 2 HD USA', 'ESPN USA', 'Eurosport 1 HD', 'Red Bull TV HD', 'WWE Russian', 'Red Bull TV', 'MMA-TV.com HD', 'MMA-TV.com', 'MMA-TV.com orig', 'NHL', 'nba', 'NBA', 'wwe', 'WWE Network HD', 'Eurosport 2',
+                        'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'EXTREME IL', 'Sport 5+ Live HD IL', 'ONE 2 HD IL', 'Sport 3 HD IL', 'Sport 5 HD IL ', 'SPORT 2 HD IL', 'Sport 1 HD IL', 'Sport 2 HD', 'Sport 3 HD', 'Sport 4 HD',
+                        'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'ESPN 2 HD USA', 'ESPN USA', 'Eurosport 1 HD', 'Red Bull TV HD',
+                        'WWE Russian', 'Red Bull TV', 'MMA-TV.com HD', 'MMA-TV.com', 'MMA-TV.com orig', 'NHL', 'nba', 'NBA', 'wwe', 'WWE Network HD', 'Eurosport 2',
                         'Eurosport 2', 'EXTREME', 'SPORT'],
             'Kids🍦': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'BABY TV IL', 'hop', 'HOT A+ Kids', 'Nick Jr',
                       'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut',
