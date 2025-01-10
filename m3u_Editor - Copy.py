@@ -10,6 +10,7 @@ import sys
 import os
 import re
 
+
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
         super().__init__(parent)
@@ -34,18 +35,72 @@ class MoveChannelsDialog(QDialog):
         layout.addLayout(buttonBox)
         self.okButton.clicked.connect(self.accept)
         self.cancelButton.clicked.connect(self.reject)
+        # Add a search bar and search button to the layout
+        self.search_input = QLineEdit(self)
+        self.search_button = QPushButton('Search', self)
+
+
 
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
+
 
 class M3UEditor(QWidget):
     def __init__(self):
         super().__init__()
         self.categories = {}
         self.initUI()
+
+    def search_channels(self, query, filter_options):
+        results = []
+        for category, channels in self.categories.items():
+            for channel in channels:
+                if query.lower() in channel.lower():
+                    results.append(channel)
+        return results
+
+    def perform_search(self):
+        query = self.search_input.text().strip()
+        if query:  # Check if the query is not empty
+            results = self.search_channels(query, {})
+            self.display_search_results(results)
+        else:
+            self.display_search_results([])  # Clear results if query is empty
+
+    def display_search_results(self, results):
+        self.channelList.clear()  # Clears the current list
+        self.textEdit.clear()  # Assuming 'textEdit' is your QTextEdit for M3U content
+        for channel in results:
+            self.channelList.addItem(channel)  # Adds channel to the list
+            self.textEdit.append(channel)  # Also append the full channel info to the M3U content area
+
+    def setup_channel_context_menu(self):
+        self.channelList.setContextMenuPolicy(Qt.ActionsContextMenu)
+        addToCategoryAction = QAction('Add to Category', self)
+        addToCategoryAction.triggered.connect(self.add_to_category)
+        self.channelList.addAction(addToCategoryAction)
+
+        newCategoryAction = QAction('Create New Category with Channel', self)
+        newCategoryAction.triggered.connect(self.create_new_category_with_channel)
+        self.channelList.addAction(newCategoryAction)
+
+    def add_to_category(self):
+        selected_channel = self.channelList.currentItem().text()
+        category, ok = QInputDialog.getItem(self, "Select Category", "Choose a category:", self.categories.keys(), 0,
+                                            False)
+        if ok and category:
+            self.categories[category].append(selected_channel)
+            self.updateCategoryList()  # Update your category view if necessary
+
+    def create_new_category_with_channel(self):
+        selected_channel = self.channelList.currentItem().text()
+        category_name, ok = QInputDialog.getText(self, "New Category", "Enter new category name:")
+        if ok and category_name:
+            self.categories[category_name] = [selected_channel]
+            self.updateCategoryList()  # Update your category view if necessary
 
     def initUI(self):
         self.setWindowTitle('M3U Playlist Editor')
@@ -67,7 +122,7 @@ class M3UEditor(QWidget):
         if os.path.exists(image_path):
             logo_pixmap = QPixmap(image_path)
             if not logo_pixmap.isNull():  # Check if the pixmap was loaded successfully
-                logo_pixmap = logo_pixmap.scaled(100, 100,Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                logo_pixmap = logo_pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 logo_label.setPixmap(logo_pixmap)
             else:
                 logo_label.setText("Failed to load image.")  # Fallback text
@@ -78,11 +133,22 @@ class M3UEditor(QWidget):
 
         main_layout.addWidget(logo_label)
 
-        # Title
+        # Setup title
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 21px; font-weight: bold; background-color: black; color: white;")
         main_layout.addWidget(title)
+
+        # Search components
+        self.search_input = QLineEdit(self)
+        self.search_button = QPushButton('Search', self)
+        self.search_button.clicked.connect(self.perform_search)
+
+
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(self.search_input)
+        search_layout.addWidget(self.search_button)
+        main_layout.addLayout(search_layout)
 
         # File info layout
         file_info_layout = QHBoxLayout()
@@ -115,6 +181,8 @@ class M3UEditor(QWidget):
 
         # Ensure EXTM3U header
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
+        # Ensure everything is added to main_layout
+        self.setLayout(main_layout)
 
     def mergeM3Us(self):
         options = QFileDialog.Options()
@@ -169,16 +237,21 @@ class M3UEditor(QWidget):
         self.selectAllButton = QPushButton('Select All')
         self.deselectAllButton = QPushButton('Deselect All')
 
+        # New button to show total channels
+        self.showTotalChannelsButton = QPushButton('Show Total Channels')
+        self.showTotalChannelsButton.clicked.connect(self.displayTotalChannels)
+
         # Apply button colors
         self.selectAllButton.setStyleSheet("background-color: blue; color: white;")
         self.deselectAllButton.setStyleSheet("background-color: blue; color: white;")
 
         self.updateCategoryButton.setStyleSheet("background-color: red; color: white;")
-        self.deleteCategoryButton.setStyleSheet("background-color: red; color: white;")
+        self.deleteCategoryButton.setStyleSheet("background-color:red; color: white;")
 
         self.addCategoryButton.setStyleSheet("background-color: green; color: white;")
         self.moveCategoryUpButton.setStyleSheet("background-color: green; color: white;")
-        self.moveCategoryDownButton.setStyleSheet("background-color: green; color: white;")
+        self.moveCategoryDownButton.setStyleSheet("background-color:green; color: white;")
+        self.showTotalChannelsButton.setStyleSheet("background-color:black; color: white;")
 
         # Add buttons to layout
         button_layout.addWidget(self.addCategoryButton)
@@ -188,6 +261,7 @@ class M3UEditor(QWidget):
         button_layout.addWidget(self.moveCategoryDownButton)
         button_layout.addWidget(self.selectAllButton)
         button_layout.addWidget(self.deselectAllButton)
+        button_layout.addWidget(self.showTotalChannelsButton)  # Add the new button
 
         layout.addLayout(button_layout)
 
@@ -204,9 +278,12 @@ class M3UEditor(QWidget):
         self.moveCategoryDownButton.clicked.connect(self.moveCategoryDown)
         self.selectAllButton.clicked.connect(self.selectAllCategories)  # Assign to select all function
         self.deselectAllButton.clicked.connect(self.deselectAllCategories)  # Assign to deselect all function
-
         self.categoryList.itemClicked.connect(self.display_channels)
         return layout
+
+    def displayTotalChannels(self):
+        total_channels = sum(len(channels) for channels in self.categories.values())
+        self.channelCountLabel.setText(f"Total Channels: {total_channels}")
 
     def create_channel_section(self):
         layout = QVBoxLayout()
@@ -262,6 +339,7 @@ class M3UEditor(QWidget):
             elif sort_option == "Sort by Name Z-A":
                 self.categories[current_category].sort(key=lambda x: x.split(" (")[0], reverse=True)
             self.display_channels(self.categoryList.currentItem())
+
     def create_m3u_content_section(self):
         layout = QVBoxLayout()
         m3u_title = QLabel("M3U Content", self)
@@ -281,6 +359,10 @@ class M3UEditor(QWidget):
         self.loadButton.clicked.connect(self.loadM3U)
         self.saveButton.clicked.connect(self.saveM3U)
         self.mergeButton.clicked.connect(self.mergeM3Us)
+        self.loadButton.setStyleSheet("background-color: green; color: white;")
+        self.saveButton.setStyleSheet("background-color: red; color: white;")
+        self.mergeButton.setStyleSheet("background-color: blue; color: white;")
+
         return layout
 
     def addCategory(self):
@@ -651,7 +733,7 @@ class M3UEditor(QWidget):
                 current_category = current_category_item.text().split(" (")[0]
             else:
                 current_category = None  # Fallback
-                
+
                 return
 
     def editSelectedChannel(self):
@@ -710,7 +792,7 @@ class M3UEditor(QWidget):
             self.channelList.addItem(channel_item)
 
         # Update the total channel count label
-        self.channelCountLabel.setText(f"Total Channels: {len(channels)}")
+        self.channelCountLabel.setText(f"Channels in '{category}': {len(channels)}")
 
     def getUrl(self, channel_info):
         try:
@@ -732,14 +814,14 @@ class M3UEditor(QWidget):
             try:
                 with open(fileName, 'r', encoding='utf-8') as file:
                     content = file.read()
-            except UnicodeDecodeError:
-                with open(fileName, 'r', encoding='latin-1') as file:
-                    content = file.read()
-            self.textEdit.setPlainText(content)
-            self.parseM3UContent(content)
-
-            # Display the file name in the label
-            self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]}")  # Only show the file name
+                self.textEdit.setPlainText(content)
+                self.parseM3UContent(content)
+                # Display the file name and total channels in the label
+                total_channels = sum(len(channels) for channels in self.categories.values())
+                self.channelCountLabel.setText(f"Total Channels: {total_channels}")
+                self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]}")  # Only show the file name
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to load file: {str(e)}")
 
     def saveM3U(self):
         options = QFileDialog.Options()
@@ -890,30 +972,72 @@ class M3UEditor(QWidget):
             self.categoryList.addItem(item)
 
     def filterIsraelChannels(self):
-        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"','Il', 'IL HD', 'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'Prokop TV ', 'Stingray', 'Bridge TV', 'UK', 'music', 'music'
-                           'Hebrew']
+        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il', 'IL HD',
+                           'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'WWE ', 'nba tv',
+                             'music', 'IL:', 'Hebrew']
         category_keywords = {
 
-            'News📰': ['Keshet 12 IL', 'Channel 9 HD IL', '9 Channel IL', 'CHANNEL 9 HD IL', 'KAN 11 IL', '12 Keshet IL', 'C13 Keshet IL', 'KAN 14 IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
-                     'MAKAN HD IL', 'i24 IL', 'Channel 14', 'Kan Educational HD IL', 'Reshet 13 IL', 'KHAN 11', 'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13', 'Makan 33 HD', 'Reshet 13 IL', 'Kan Chinuchit 23', 'i24 News', 'Channel 9', 'Channel 11', 'Channel 12', 'Channel 13', 'Channel 24', 'Channel 14', 'ערוץ 14', 'ערוץ 24', 'Channel 98 IL', 'CHANNEL 12 HD IL',
-                     'CHANNEL 13 HD'],
-            'Hot🔥': ['HOT', 'HOT CINEMA', 'HOT Cinema 1 HD IL', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4', 'HOT3 HD', 'HOT 8 HD', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
-                    'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT'],
-            'Yes👑': ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'yes Israeli Cinema HD', 'Yes E', 'YES_IL', 'Yes TV Drama HD', 'YES_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv'],
+            'News📺': ['Keshet 12 IL', 'Channel 9 HD IL', '9 Channel IL', 'CHANNEL 9 HD IL', 'KAN 11 IL', '12 Keshet IL',
+                      'C13 Keshet IL', 'KAN 14 IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
+                      'MAKAN HD IL', 'i24 IL', 'Channel 14', 'Kan Educational HD IL', 'Reshet 13 IL', 'KHAN 11',
+                      'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13', 'Makan 33 HD', 'Reshet 13 IL',
+                      'Kan Chinuchit 23', 'i24 News', 'Channel 9', 'Channel 11', 'Channel 12', 'Channel 13',
+                      'Channel 24', 'Channel 14', 'ערוץ 14', 'ערוץ 24', 'Channel 98 IL', 'CHANNEL 12 HD IL',
+                      'CHANNEL 13 HD'],
+            'Hot🔥': ['HOT', 'HOT CINEMA', 'HOT Cinema 1 HD IL', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4',
+                     'HOT3 HD', 'HOT 8 HD', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
+                     'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT'],
+            'Yes👑': ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'yes Israeli Cinema HD', 'Yes E', 'YES_IL',
+                     'Yes TV Drama HD', 'YES_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv'],
             'Partner🌈': ['Partner Yladim', 'Partner Sratim', 'Partner Sdarot'],
-            'Cellcom🐶': ['Cellcom Israel', 'Cellcom Rus', 'Cellcom Sratim', 'Cellcom Yeladim', 'Cellcom HBO HD', 'Cellcom Doco HD', 'YES HD IL', 'YES TV', 'yes tv'],
-            'Free Tv🌞': ['Free Tv Drama HD', 'Free Tv Comedy HD', 'Free Tv Lifestyle HD', 'Free Israeli Movies HD', 'Free Movies Family HD','Free Movies Horror HD', 'Free Movies Romantic HD', 'Free Movies Comedy HD', 'Free Movies Drama HD', 'Free Series Global HD', 'Free Movies Action HD', 'Free Tv Cooking HD', 'Free Tv Doco HD', 'Free Tv Hatuna HD', 'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'],
-            'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ', 'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'Sport  2 HD', 'Sport 3 HD', 'Sport 4 HD', 'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'WWE Network HD', 'Eurosport 2', 'Eurosport 2', 'EXTREME', 'SPORT'],
-            'Kids🍦': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'BABY TV IL',  'hop', 'HOT A+ Kids', 'Nick Jr', 'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut', 'ZOOM','Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
-                     'Junior IL', 'hop IL', 'HOP HD IL', 'JUNIOR IL', 'Zoom', 'Zoom Toon HD', 'Wiz', 'Yalduti', 'TeenNick', 'Nick HD', 'Nick Jr HD', 'Luli', 'Logi', 'Junior', 'Jim Jam', 'Disney Jr.', 'LULI IL', 'Disney Jr IL', 'Baby TV', 'DISNEY JR IL', 'TeenNick IL',
-                     'ZOOM IL', 'HOP CHILDHOOD IL', 'KIDS HD IL', 'Hop', 'Hop Israeli Childhood', 'Hop Pele HD', 'Kids IL', 'DISNEY CHANNEL', 'WIZ IL'],
-            'Entertainment🧸': ['Home Plus IL', 'Good Life', 'FOOD CHANNE IL', '5Stars HD IL', 'Polsat HD', 'Home Plus', 'Food Channel', 'Ego Total', 'Health', 'EGO TOTAL HD IL', 'STARS IL',
-                              'CANAL+ FAMILY HD PL', 'HISTORY HD IL', 'Star Channel', 'Reality HD', 'Savri HD', 'A+ HD IL', 'LIFETIME HD IL', 'STARS HD IL',
-                              'Ego Total', 'Food Network', 'Game Show Channel HD IL', 'Health', 'E!', 'Horse and Country TV', 'ZONE HD', 'Good Life', 'TLC HD', 'Horse and Country TV', 'Home Plus', 'Love Island', 'History HD', 'Humor Channel', 'Fomo', 'Fashion', 'Food Channel HD', 'Foody HD', 'Erez Nehederet HD', 'Big', 'CBS Reality', 'Boomerang', 'Entertainment IL', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'],
-            'Music🎵': ['music', 'MUSIC', 'MUSIC 24', 'MTV Hits', 'MTV Base HD', 'Stingray ', 'MTV Hits', 'Stingray Hot Country HD', 'Stingray Pop Adult HD', 'Stingray Hit List HD', 'MTV Hits', 'MTV Club', 'Clubbing TV HD', 'Europa Plus TV HD', 'Music Box Gold', 'music 24', 'MTV Hits orig', 'Club MTV', 'Bridge Deluxe HD', 'Bridge TV', 'Bridge Deluxe HD orig', 'Bridge Hits', 'Bridge Rock', 'Europa Plus TV', 'Europa Plus TV orig', 'MTV Live HD', 'MTV Live HD orig', 'MTV 90s', 'MUSIC 24', 'Yosso TV Music Hits', 'Fresh Concerts', 'Fresh Dance', 'Sky High Concert HD', 'Movistar Musica HD', 'MTV'],
-            'Nature🌴': ['Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Nat Geo HD', 'Nat Geo Wild', 'Animal Planet HD', 'DISCOVERY CHANNEL HD IL', 'NET GEO_WILD HD IL', 'Sky Select 5 HD', 'NAT GEO WILD IL', 'TRAVEL CHANNEL IL',
-                       'NATIONAL GEOGRAPHICS HD IL'],
-            'world series🌍': ['Viva Premium HD IL', 'Turkish Dramas 3 HD IL', 'Turkish Dramas 2 HD IL', 'Turkish Dramas Plus HD IL', 'Viva', 'Turkish Dramas 3 HD IL', 'Yam Tihoni 25', 'Viva plus', 'Aruch Sdarot Hahodiot', 'Aruch Sdarot Hahodiot 2', 'Yam Tihoni Plus', 'Vamos HD', 'Yam Tihoni HD', 'Yam Tihoni 2', 'Viva+ IL', 'Viva+', 'Viva Vintage', 'Viva Premium HD', 'VIVA IL', 'Yamtihoni IL', 'VIVA HD IL', 'VIVA+ IL', 'YAM TIHONI HD IL', 'HALA TV IL', 'BOLLYWOOD HD IL', 'BOLLYSHOW HD IL', 'Bollywood HD', 'Turkish Drama Plus', 'Turkish Drama 2', 'Turkish Drama 3', 'Viva'],
+            'Cellcom🐶': ['Cellcom Israel', 'Cellcom Rus', 'Cellcom Sratim', 'Cellcom Yeladim', 'Cellcom HBO HD',
+                         'Cellcom Doco HD', 'YES HD IL', 'YES TV', 'yes tv'],
+            'Free Tv🌞': ['Free Tv Drama HD', 'Free Tv Comedy HD', 'Free Tv Lifestyle HD', 'Free Israeli Movies HD',
+                         'Free Movies Family HD', 'Free Movies Horror HD', 'Free Movies Romantic HD',
+                         'Free Movies Comedy HD', 'Free Movies Drama HD', 'Free Series Global HD',
+                         'Free Movies Action HD', 'Free Tv Cooking HD', 'Free Tv Doco HD', 'Free Tv Hatuna HD',
+                         'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'],
+            'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
+                        'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'EXTREME IL', 'Sport 5+ Live HD IL', 'ONE 2 HD IL', 'Sport 3 HD IL', 'Sport 5 HD IL ', 'SPORT 2 HD IL', 'Sport 1 HD IL', 'Sport 2 HD', 'Sport 3 HD', 'Sport 4 HD',
+                        'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'ESPN 2 HD USA', 'ESPN USA', 'Eurosport 1 HD', 'Red Bull TV HD',
+                        'WWE Russian', 'Red Bull TV', 'MMA-TV.com HD', 'MMA-TV.com', 'MMA-TV.com orig', 'NHL', 'nba', 'NBA', 'wwe', 'WWE Network HD', 'Eurosport 2',
+                        'Eurosport 2', 'EXTREME', 'SPORT'],
+            'Kids🍦': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'BABY TV IL', 'hop', 'HOT A+ Kids', 'Nick Jr',
+                      'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut',
+                      'ZOOM', 'Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
+                      'Junior IL', 'hop IL', 'HOP HD IL', 'JUNIOR IL', 'Zoom', 'Zoom Toon HD', 'Wiz', 'Yalduti',
+                      'TeenNick', 'Nick HD', 'Nick Jr HD', 'Luli', 'Logi', 'Junior', 'Jim Jam', 'Disney Jr.', 'LULI IL',
+                      'Disney Jr IL', 'Baby TV', 'DISNEY JR IL', 'TeenNick IL',
+                      'ZOOM IL', 'HOP CHILDHOOD IL', 'KIDS HD IL', 'Hop', 'Hop Israeli Childhood', 'Hop Pele HD',
+                      'Kids IL', 'DISNEY CHANNEL', 'WIZ IL'],
+            'Entertainment🧸': ['Home Plus IL', 'Good Life', 'FOOD CHANNE IL', '5Stars HD IL', 'Polsat HD', 'Home Plus',
+                               'Food Channel', 'Ego Total', 'Health', 'EGO TOTAL HD IL', 'STARS IL',
+                               'CANAL+ FAMILY HD PL', 'HISTORY HD IL', 'Star Channel', 'Reality HD', 'Savri HD',
+                               'A+ HD IL', 'LIFETIME HD IL', 'STARS HD IL',
+                               'Ego Total', 'Food Network', 'Game Show Channel HD IL', 'Health', 'E!',
+                               'Horse and Country TV', 'ZONE HD', 'Good Life', 'TLC HD', 'Horse and Country TV',
+                               'Home Plus', 'Love Island', 'History HD', 'Humor Channel', 'Fomo', 'Fashion',
+                               'Food Channel HD', 'Foody HD', 'Erez Nehederet HD', 'Big', 'CBS Reality', 'Boomerang',
+                               'Entertainment IL', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'],
+            'Music🎵': ['music', 'MUSIC', 'MUSIC 24', 'MTV Hits', 'MTV Base HD', 'Stingray ', 'MTV Hits',
+                       'Stingray Hot Country HD', 'Stingray Pop Adult HD', 'Stingray Hit List HD', 'MTV Hits',
+                       'MTV Club', 'Clubbing TV HD', 'IL: MTV HD', 'MTV 80s', 'MTV', 'MTV Pulse HD', 'IT: MTV HD', 'MTV Idol HD', 'VH1 Classic', 'Rock Classics', 'Europa Plus TV HD', 'Music Box Gold', 'music 24', 'MTV Hits orig',
+                       'Club MTV', 'Bridge Deluxe HD', 'Now 90s HD UK', 'Now 80s HD UK', 'NOW 70s UK', 'Bridge TV', 'Bridge Deluxe HD orig', 'Bridge Hits',
+                       'Bridge Rock', 'Europa Plus TV', 'Europa Plus TV orig', 'MTV Live HD', 'MTV Live HD orig',
+                       'MTV 90s', 'MUSIC 24', 'Yosso TV Music Hits', 'Fresh Concerts', 'Fresh Dance',
+                       'Sky High Concert HD', 'Movistar Musica HD', 'MTV' '1HD Music Television orig','4ever Music HD UA','4ever Music UA','B4U Music IN','BOX Music 4K HDR','Backus TV Music HD','Baraza Music HD','Biz Music HD UZ','CHANNEL 24 MUSIC HD IL','Classic Music','Classic Music HD','Disco Polo Music PL','EU Music HD UA','EU Music UA','FRESH Sad Music HD','HMTV IN','KLI Music HD',"MTV 00's PT",'MTV 00s RO', 'MTV 80s RO','MTV 90s','MTV Aitio HD SE','MTV Base UK','MTV Classic','MTV Classic USA','MTV Club','MTV HD CA','MTV Hits', 'MTV Hits RO','MTV India IN', 'MTV Live HD','MTV Live HD orig','MTV MUSIC IL','MTV Music UK','MTV POLSKA PL','MTV RO','MTV SE','MTV Viihde HD FI','MTV Viihde HD SE','MUSIC 24 IL','Music Box Gold','Music Box Russia','Music Box Russia HD','Music Box Russia orig','Music Channel RO','MusicBox GE','Prokop TV Music','Public Music IN','Retro Music TV HD CZ','SUN Music IN','Sochi Music HD','VB MTV Old Россия HD','VF Music','Vox Music TV PL','Yosso TV Music Hits','Z!Music HD','ТНТ Music','ТНТ Music HD','ТНТ Music orig' ],
+            'Nature🌴': ['Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Travel Channel',
+                        'DISCOVERY CHANNEL HD IL', 'Nat Geo HD', 'Nat Geo Wild', 'Animal Planet HD',
+                        'DISCOVERY CHANNEL HD IL', 'NET GEO_WILD HD IL', 'Sky Select 5 HD', 'NAT GEO WILD IL',
+                        'TRAVEL CHANNEL IL',
+                        'NATIONAL GEOGRAPHICS HD IL'],
+            'world series🌍': ['Viva Premium HD IL', 'Turkish Dramas 3 HD IL', 'Turkish Dramas 2 HD IL',
+                              'Turkish Dramas Plus HD IL', 'Viva', 'Turkish Dramas 3 HD IL', 'Yam Tihoni 25',
+                              'Viva plus', 'Aruch Sdarot Hahodiot', 'Aruch Sdarot Hahodiot 2', 'Yam Tihoni Plus',
+                              'Vamos HD', 'Yam Tihoni HD', 'Yam Tihoni 2', 'Viva+ IL', 'Viva+', 'Viva Vintage',
+                              'Viva Premium HD', 'VIVA IL', 'Yamtihoni IL', 'VIVA HD IL', 'VIVA+ IL',
+                              'YAM TIHONI HD IL', 'HALA TV IL', 'BOLLYWOOD HD IL', 'BOLLYSHOW HD IL', 'Bollywood HD',
+                              'Turkish Drama Plus', 'Turkish Drama 2', 'Turkish Drama 3', 'Viva'],
 
         }
 
@@ -933,7 +1057,7 @@ class M3UEditor(QWidget):
                         filtered_channels['Other'].append(channel)
 
         # Add "Israel Radio" to categories
-        radio_category = "Israel Radio📻"
+        radio_category = " Israel Radio📻"
         if radio_category not in filtered_channels:
             filtered_channels[radio_category] = []
 
@@ -1027,6 +1151,7 @@ def main():
     editor = M3UEditor()
     editor.show()
     sys.exit(app.exec_())
+
 
 if __name__ == '__main__':
     main()
