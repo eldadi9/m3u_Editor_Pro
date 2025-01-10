@@ -202,7 +202,7 @@ class M3UEditor(QWidget):
                     QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
 
                     # Parse the merged content to update categories and channels display
-                    self.parseM3UContent(self.textEdit.toPlainText())
+                    self.parseM3UContentEnhanced(self.textEdit.toPlainText())
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
@@ -815,7 +815,7 @@ class M3UEditor(QWidget):
                 with open(fileName, 'r', encoding='utf-8') as file:
                     content = file.read()
                 self.textEdit.setPlainText(content)
-                self.parseM3UContent(content)
+                self.parseM3UContentEnhanced(content)
                 # Display the file name and total channels in the label
                 total_channels = sum(len(channels) for channels in self.categories.values())
                 self.channelCountLabel.setText(f"Total Channels: {total_channels}")
@@ -831,104 +831,56 @@ class M3UEditor(QWidget):
             with open(fileName, 'w', encoding='utf-8') as file:
                 file.write(self.textEdit.toPlainText())
 
-    def parseM3UContent(self, content):
+    def parseM3UContentEnhanced(self, content):
         """
-            Parse M3U content to handle group-title, #EXTGRP, and tvg-logo.
-            - If group-title exists, ignore #EXTGRP.
-            - If group-title does not exist, use #EXTGRP and remove it.
-            - Always preserve the tvg-logo attribute if it exists.
-            """
+        Parse M3U content, handling group-title, #EXTGRP, and tvg-logo robustly.
+        - Use #EXTGRP to set group-title if missing and reset appropriately.
+        - Always preserve the tvg-logo attribute if it exists.
+        - Reset current_group after each #EXTINF to prevent misapplication.
+        """
         self.categories.clear()
         updated_lines = []
         current_group = None  # To track the group name from #EXTGRP
 
         lines = content.splitlines()
 
-        for i, line in enumerate(lines):
+        for line in lines:
             if line.startswith("#EXTGRP:"):
                 # Extract the group name from the #EXTGRP line
                 current_group = line.split(":", 1)[1].strip()
                 continue  # Skip the #EXTGRP line itself
 
             if line.startswith("#EXTINF:"):
+                # Handle group-title, adding it if missing and current_group is set
                 if "group-title=" not in line and current_group:
-                    # Add group-title if missing and current_group exists
                     line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
-                current_group = None  # Reset after usage
+                current_group = None  # Reset after usage to prevent misapplication
 
                 # Ensure the tvg-logo attribute remains intact
-                # Match tvg-logo and preserve it, or leave the line unchanged
                 match = re.search(r'tvg-logo="([^"]+)"', line)
                 if match:
                     logo_url = match.group(1)  # Extract the tvg-logo URL
                     if 'tvg-logo' not in line:
-                        line = line.strip() + f' tvg-logo="{logo_url}"'
-
-                current_group = None  # Reset after usage
+                        line += f' tvg-logo="{logo_url}"'
 
             updated_lines.append(line)
 
-        # Join updated lines and parse categories
-        content = "\n".join(updated_lines)
+        # Combine updated lines into a modified M3U content
+        updated_content = "\n".join(updated_lines)
+        # Parse categories and channels from the updated content
         category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
-        for match in category_pattern.findall(content):
+        for match in category_pattern.findall(updated_content):
             group_title, channel_name, channel_url = match
             if group_title not in self.categories:
                 self.categories[group_title] = []
             self.categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
 
         # Update the QTextEdit and the category list
-        self.textEdit.setPlainText(content)
+        self.textEdit.setPlainText(updated_content)
         self.categoryList.clear()
         for category, channels in self.categories.items():
             item = QListWidgetItem(f"{category} ({len(channels)})")  # Add count of channels to the category name
             self.categoryList.addItem(item)
-
-            def parseM3UContentWithGroup(self, content):
-                """
-                Parse M3U content, dynamically adding group-title if #EXTGRP is present.
-                Updates categories and channels without altering the existing parseM3UContent logic.
-                """
-                # Temporary storage for categories and channels
-                updated_categories = {}
-                updated_lines = []
-
-                lines = content.splitlines()
-                current_group = None  # To track the current group from #EXTGRP
-
-                for line in lines:
-                    if line.startswith("#EXTGRP:"):
-                        # Extract the group name from the #EXTGRP line
-                        current_group = line.split(":", 1)[1].strip()
-                    elif line.startswith("#EXTINF:") and "group-title=" not in line:
-                        # If group-title is missing, add it using the current_group
-                        if current_group:
-                            line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
-                    updated_lines.append(line)
-
-                # Combine updated lines into a modified M3U content
-                updated_content = "\n".join(updated_lines)
-
-                # Extract categories and channels from the updated content
-                category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
-                for match in category_pattern.findall(updated_content):
-                    group_title, channel_name, channel_url = match
-                    if group_title not in updated_categories:
-                        updated_categories[group_title] = []
-                    updated_categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
-
-                # Update the instance's categories and channels
-                self.categories = updated_categories
-
-                # Update the QTextEdit and the category list
-                self.textEdit.setPlainText(updated_content)
-                self.categoryList.clear()
-                for category, channels in self.categories.items():
-                    item = QListWidgetItem(
-                        f"{category} ({len(channels)})")  # Add count of channels to the category name
-                    self.categoryList.addItem(item)
-
-   
 
     def filterIsraelChannels(self):
         israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il', 'IL HD',
