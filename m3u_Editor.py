@@ -50,6 +50,7 @@ class ExportGroupsDialog(QDialog):
     def __init__(self, categories, parent=None):
         super().__init__(parent)
         self.categories = categories
+        self.selectedCategory = None  # Store the selected category
         self.setupUI()
 
     def setupUI(self):
@@ -67,20 +68,24 @@ class ExportGroupsDialog(QDialog):
         layout.addWidget(self.exportAllButton)
 
     def exportSelected(self):
-        selected_category, ok = QInputDialog.getItem(self, "Select Group", "Choose a group to export:",
-                                                     self.categories.keys(), 0, False)
-        if ok and selected_category:
-            self.exportGroup(selected_category)
+        self.selectedCategory, ok = QInputDialog.getItem(self, "Select Group", "Choose a group to export:",
+                                                         self.categories.keys(), 0, False)
+        if ok and self.selectedCategory:
+            self.exportGroup(self.selectedCategory)
 
     def exportAll(self):
         for category in self.categories.keys():
             self.exportGroup(category)
 
     def exportGroup(self, category):
-        fileName, _ = QFileDialog.getSaveFileName(self, f"Save {category} Group", "", "M3U Files (*.m3u);;All Files (*)")
+        if not category:
+            category = self.selectedCategory  # Fallback to selected category if no category specified
+        fileName, _ = QFileDialog.getSaveFileName(self, f"Save {category} Group", "",
+                                                  "M3U Files (*.m3u);;All Files (*)")
         if fileName:
             with open(fileName, 'w', encoding='utf-8') as file:
-                for channel in self.parent().categories[category]:
+                file.write("#EXTM3U\n")  # Ensure the file starts with #EXTM3U
+                for channel in set(self.parent().categories[category]):  # Remove duplicates by converting to set
                     file.write(f"#EXTINF:-1 group-title=\"{category}\",{channel}\n")
                     file.write(f"{self.parent().getUrl(channel)}\n")
 
