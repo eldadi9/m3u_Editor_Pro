@@ -9,7 +9,7 @@ from PyQt5.QtGui import QPixmap, QFont  # Add this line
 import sys
 import os
 import re
-
+import traceback
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -40,13 +40,49 @@ class MoveChannelsDialog(QDialog):
         self.search_button = QPushButton('Search', self)
 
 
-
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
+class ExportGroupsDialog(QDialog):
+    def __init__(self, categories, parent=None):
+        super().__init__(parent)
+        self.categories = categories
+        self.setupUI()
+
+    def setupUI(self):
+        layout = QVBoxLayout(self)
+        self.setWindowTitle("Export Groups")
+
+        # Option to export selected groups
+        self.exportSelectedButton = QPushButton("Export Selected Groups", self)
+        self.exportSelectedButton.clicked.connect(self.exportSelected)
+        layout.addWidget(self.exportSelectedButton)
+
+        # Option to export all groups
+        self.exportAllButton = QPushButton("Export All Groups", self)
+        self.exportAllButton.clicked.connect(self.exportAll)
+        layout.addWidget(self.exportAllButton)
+
+    def exportSelected(self):
+        selected_category, ok = QInputDialog.getItem(self, "Select Group", "Choose a group to export:",
+                                                     self.categories.keys(), 0, False)
+        if ok and selected_category:
+            self.exportGroup(selected_category)
+
+    def exportAll(self):
+        for category in self.categories.keys():
+            self.exportGroup(category)
+
+    def exportGroup(self, category):
+        fileName, _ = QFileDialog.getSaveFileName(self, f"Save {category} Group", "", "M3U Files (*.m3u);;All Files (*)")
+        if fileName:
+            with open(fileName, 'w', encoding='utf-8') as file:
+                for channel in self.parent().categories[category]:
+                    file.write(f"#EXTINF:-1 group-title=\"{category}\",{channel}\n")
+                    file.write(f"{self.parent().getUrl(channel)}\n")
 
 class M3UEditor(QWidget):
     def __init__(self):
@@ -112,6 +148,7 @@ class M3UEditor(QWidget):
 
         # Main layout
         main_layout = QVBoxLayout(self)
+        self.setLayout(main_layout)
 
         # Add image at the top
         logo_label = QLabel(self)
@@ -183,7 +220,12 @@ class M3UEditor(QWidget):
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
         # Ensure everything is added to main_layout
         self.setLayout(main_layout)
-
+        # Adding Export Groups button at the top left
+        self.exportGroupButton = QPushButton('Export Groups', self)
+        self.exportGroupButton.clicked.connect(self.openExportDialog)
+        top_layout = QHBoxLayout()  # Create a horizontal layout for the top row
+        top_layout.addWidget(self.exportGroupButton)
+        main_layout.addLayout(top_layout)  # Add this top layout to the main vertical layout
     def mergeM3Us(self):
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(self, "Open Additional M3U File", "",
@@ -830,6 +872,15 @@ class M3UEditor(QWidget):
         if fileName:
             with open(fileName, 'w', encoding='utf-8') as file:
                 file.write(self.textEdit.toPlainText())
+
+    def openExportDialog(self):
+        try:
+            dialog = ExportGroupsDialog(self.categories, self)
+            dialog.exec_()
+        except Exception as e:
+            error_message = traceback.format_exc()
+            QMessageBox.critical(self, "Error", f"An unexpected error occurred:\n{error_message}")
+            print(error_message)  # Print the full traceback to the console
 
     def parseM3UContentEnhanced(self, content):
         """
