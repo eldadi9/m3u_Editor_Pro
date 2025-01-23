@@ -11,6 +11,7 @@ import os
 import re
 import traceback
 import pyperclip
+import requests  # You need to import requests to handle downloading
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -106,6 +107,24 @@ class M3UUrlConverterDialog(QDialog):
             self.setWindowTitle("M3U URL Converter")
             layout = QVBoxLayout(self)
 
+            # Convert button
+            self.convertButton = QPushButton("Convert to M3U URL", self)
+            self.convertButton.clicked.connect(self.convertToM3U)
+            layout.addWidget(self.convertButton)
+
+            # New button for downloading M3U
+            self.downloadButton = QPushButton("Download M3U", self)
+            self.downloadButton.clicked.connect(self.downloadM3U)
+            self.downloadButton.hide()  # Initially hidden
+            layout.addWidget(self.downloadButton)
+
+            # Result display, copy button etc...
+            self.resultLabel = QLabel("", self)
+            layout.addWidget(self.resultLabel)
+            self.copyButton = QPushButton("Copy Result", self)
+            self.copyButton.clicked.connect(self.copyResultToClipboard)
+            layout.addWidget(self.copyButton)
+
             # Input fields setup
             self.usernameInput = QLineEdit(self)
             self.passwordInput = QLineEdit(self)
@@ -125,35 +144,38 @@ class M3UUrlConverterDialog(QDialog):
             layout.addWidget(self.hostInput)
 
 
-            # Convert button
-            self.convertButton = QPushButton("Convert to M3U URL", self)
-            self.convertButton.clicked.connect(self.convertToM3U)
-            layout.addWidget(self.convertButton)
-
-            # Result display
-            self.resultLabel = QLabel("", self)
-            layout.addWidget(self.resultLabel)
-
-            # Copy result button
-            self.copyButton = QPushButton("Copy Result", self)
-            self.copyButton.clicked.connect(self.copyResultToClipboard)
-            layout.addWidget(self.copyButton)
-            self.copyButton.hide()  # Hide button initially
-
     def convertToM3U(self):
-            username = self.usernameInput.text()
-            password = self.passwordInput.text()
-            host = self.hostInput.text()
-            m3uURL = f"http://{host}/get.php?username={username}&password={password}&type=m3u_plus"
-            self.resultLabel.setText(m3uURL)
-            self.copyButton.show()  # Show copy button after URL generation
+        username = self.usernameInput.text()
+        password = self.passwordInput.text()
+        host = self.hostInput.text()
+        self.m3uURL = f"http://{host}/get.php?username={username}&password={password}&type=m3u_plus"
+        self.resultLabel.setText(self.m3uURL)
+        self.copyButton.show()
+        self.downloadButton.show()  # Show the download button once URL is generated
 
     def copyResultToClipboard(self):
-            resultText = self.resultLabel.text()
-            pyperclip.copy(resultText)
-            QMessageBox.information(self, "Success", "Result copied to clipboard!")
+        resultText = self.resultLabel.text()
+        pyperclip.copy(resultText)
+        QMessageBox.information(self, "Success", "Result copied to clipboard!")
 
+    def downloadM3U(self):
+        try:
+            response = requests.get(self.m3uURL)
+            response.raise_for_status()  # Raises stored HTTPError, if one occurred
 
+            # Prompt to save file
+            options = QFileDialog.Options()
+            fileName, _ = QFileDialog.getSaveFileName(self,
+                                                      "Save M3U File",
+                                                      "",
+                                                      "M3U Files (*.m3u);;All Files (*)",
+                                                      options=options)
+            if fileName:
+                with open(fileName, 'wb') as f:
+                    f.write(response.content)
+                QMessageBox.information(self, "Download Successful", "The M3U file has been downloaded successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to download M3U file: {str(e)}")
 class M3UEditor(QWidget):
     def __init__(self):
         super().__init__()
@@ -216,6 +238,10 @@ class M3UEditor(QWidget):
         self.setWindowTitle('M3U Playlist Editor')
         self.setGeometry(100, 100, 800, 600)
 
+        # Setup the horizontal layout for top buttons
+        top_buttons_layout = QHBoxLayout()
+
+
         # Set a global font
         font = QFont('Arial', 10)  # Change 'Arial' to your preferred font and '12' to your desired size
         QApplication.setFont(font)
@@ -233,7 +259,7 @@ class M3UEditor(QWidget):
         if os.path.exists(image_path):
             logo_pixmap = QPixmap(image_path)
             if not logo_pixmap.isNull():  # Check if the pixmap was loaded successfully
-                logo_pixmap = logo_pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                logo_pixmap = logo_pixmap.scaled(150, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 logo_label.setPixmap(logo_pixmap)
             else:
                 logo_label.setText("Failed to load image.")  # Fallback text
@@ -247,7 +273,7 @@ class M3UEditor(QWidget):
         # Setup title
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 21px; font-weight: bold; background-color: black; color: white;")
+        title.setStyleSheet("font-size: 23px; font-weight: bold; background-color: black; color: white;")
         main_layout.addWidget(title)
 
         # Search components
@@ -257,6 +283,7 @@ class M3UEditor(QWidget):
 
         # Button to open the M3U URL Converter dialog
         self.m3uUrlConverterButton = QPushButton('M3U URL Converter', self)
+        self.m3uUrlConverterButton.setStyleSheet("background-color:black; color: white;")
         self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
         main_layout.addWidget(self.m3uUrlConverterButton)  # Add this button to your main layout
 
@@ -300,12 +327,11 @@ class M3UEditor(QWidget):
         self.setLayout(main_layout)
         # Adding Export Groups button at the top left
         self.exportGroupButton = QPushButton('Export Groups', self)
+        self.exportGroupButton.setStyleSheet("background-color:black; color: white;")
         self.exportGroupButton.clicked.connect(self.openExportDialog)
         top_layout = QHBoxLayout()  # Create a horizontal layout for the top row
         top_layout.addWidget(self.exportGroupButton)
         main_layout.addLayout(top_layout)  # Add this top layout to the main vertical layout
-
-
 
     def mergeM3Us(self):
         options = QFileDialog.Options()
