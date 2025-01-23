@@ -2,7 +2,7 @@
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,
-    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView
+    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView, QAction
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QFont  # Add this line
@@ -10,6 +10,7 @@ import sys
 import os
 import re
 import traceback
+import pyperclip
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -96,11 +97,72 @@ class ExportGroupsDialog(QDialog):
             url = match.group(2)
             return name, url
         return "", ""
+
+class M3UUrlConverterDialog(QDialog):
+    def __init__(self, parent=None):
+            super().__init__(parent)
+            self.initUI()
+    def initUI(self):
+            self.setWindowTitle("M3U URL Converter")
+            layout = QVBoxLayout(self)
+
+            # Input fields setup
+            self.usernameInput = QLineEdit(self)
+            self.passwordInput = QLineEdit(self)
+            self.hostInput = QLineEdit(self)
+
+            # Labels
+            usernameLabel = QLabel("Username:", self)
+            passwordLabel = QLabel("Password:", self)
+            hostLabel = QLabel("Host (e.g., EG.com:8080):", self)
+
+            # Add widgets to layout
+            layout.addWidget(usernameLabel)
+            layout.addWidget(self.usernameInput)
+            layout.addWidget(passwordLabel)
+            layout.addWidget(self.passwordInput)
+            layout.addWidget(hostLabel)
+            layout.addWidget(self.hostInput)
+
+
+            # Convert button
+            self.convertButton = QPushButton("Convert to M3U URL", self)
+            self.convertButton.clicked.connect(self.convertToM3U)
+            layout.addWidget(self.convertButton)
+
+            # Result display
+            self.resultLabel = QLabel("", self)
+            layout.addWidget(self.resultLabel)
+
+            # Copy result button
+            self.copyButton = QPushButton("Copy Result", self)
+            self.copyButton.clicked.connect(self.copyResultToClipboard)
+            layout.addWidget(self.copyButton)
+            self.copyButton.hide()  # Hide button initially
+
+    def convertToM3U(self):
+            username = self.usernameInput.text()
+            password = self.passwordInput.text()
+            host = self.hostInput.text()
+            m3uURL = f"http://{host}/get.php?username={username}&password={password}&type=m3u_plus"
+            self.resultLabel.setText(m3uURL)
+            self.copyButton.show()  # Show copy button after URL generation
+
+    def copyResultToClipboard(self):
+            resultText = self.resultLabel.text()
+            pyperclip.copy(resultText)
+            QMessageBox.information(self, "Success", "Result copied to clipboard!")
+
+
 class M3UEditor(QWidget):
     def __init__(self):
         super().__init__()
         self.categories = {}
         self.initUI()
+
+    def openM3UConverterDialog(self):
+            dialog = M3UUrlConverterDialog(self)
+            dialog.exec_()
 
     def search_channels(self, query, filter_options):
         results = []
@@ -193,6 +255,10 @@ class M3UEditor(QWidget):
         self.search_button = QPushButton('Search', self)
         self.search_button.clicked.connect(self.perform_search)
 
+        # Button to open the M3U URL Converter dialog
+        self.m3uUrlConverterButton = QPushButton('M3U URL Converter', self)
+        self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
+        main_layout.addWidget(self.m3uUrlConverterButton)  # Add this button to your main layout
 
         search_layout = QHBoxLayout()
         search_layout.addWidget(self.search_input)
@@ -238,6 +304,9 @@ class M3UEditor(QWidget):
         top_layout = QHBoxLayout()  # Create a horizontal layout for the top row
         top_layout.addWidget(self.exportGroupButton)
         main_layout.addLayout(top_layout)  # Add this top layout to the main vertical layout
+
+
+
     def mergeM3Us(self):
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(self, "Open Additional M3U File", "",
@@ -908,6 +977,7 @@ class M3UEditor(QWidget):
         if fileName:
             with open(fileName, 'w', encoding='utf-8') as file:
                 file.write(self.textEdit.toPlainText())
+
 
     def openExportDialog(self):
         try:
