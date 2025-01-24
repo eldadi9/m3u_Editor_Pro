@@ -312,16 +312,8 @@ class M3UEditor(QWidget):
         self.search_button = QPushButton('Search', self)
         self.search_button.clicked.connect(self.perform_search)
 
-        # Button to open the M3U URL Converter dialog
-        self.m3uUrlConverterButton = QPushButton('M3U URL Converter', self)
-        self.m3uUrlConverterButton.setStyleSheet("background-color:black; color: white;")
-        self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
-        main_layout.addWidget(self.m3uUrlConverterButton)  # Add this button to your main layout
 
-        search_layout = QHBoxLayout()
-        search_layout.addWidget(self.search_input)
-        search_layout.addWidget(self.search_button)
-        main_layout.addLayout(search_layout)
+
 
         # File info layout
         file_info_layout = QHBoxLayout()
@@ -333,29 +325,23 @@ class M3UEditor(QWidget):
         self.channelCountLabel = QLabel("Total Channels: 0", self)
         self.channelCountLabel.setAlignment(Qt.AlignRight)
 
+
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(self.search_input)
+        search_layout.addWidget(self.search_button)
+        main_layout.addLayout(search_layout)
+
         # Change font size of 'Total Channels'
         self.channelCountLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
         file_info_layout.addWidget(self.channelCountLabel)
         main_layout.addLayout(file_info_layout)
 
-        # Button for filtering Israeli channels
-        self.filterIsraelChannelsButton = QPushButton('Filter Israeli Channels', self)
-        main_layout.addWidget(self.filterIsraelChannelsButton)
-        self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
+        # Button to open the M3U URL Converter dialog
+        self.m3uUrlConverterButton = QPushButton('M3U URL Converter', self)
+        self.m3uUrlConverterButton.setStyleSheet("background-color:black; color: white;")
+        self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
+        main_layout.addWidget(self.m3uUrlConverterButton)  # Add this button to your main layout
 
-        # Button for adding new filtered categories dynamically
-        self.addFilteredCategoryButton = QPushButton('Add Filtered Category', self)
-        main_layout.addWidget(self.addFilteredCategoryButton)
-        self.addFilteredCategoryButton.clicked.connect(self.addFilteredCategory)
-        # Add other sections
-        main_layout.addLayout(self.create_category_section())
-        main_layout.addLayout(self.create_channel_section())
-        main_layout.addLayout(self.create_m3u_content_section())
-
-        # Ensure EXTM3U header
-        self.textEdit.textChanged.connect(self.ensure_extm3u_header)
-        # Ensure everything is added to main_layout
-        self.setLayout(main_layout)
         # Adding Export Groups button at the top left
         self.exportGroupButton = QPushButton('Export Groups', self)
         self.exportGroupButton.setStyleSheet("background-color:black; color: white;")
@@ -363,6 +349,28 @@ class M3UEditor(QWidget):
         top_layout = QHBoxLayout()  # Create a horizontal layout for the top row
         top_layout.addWidget(self.exportGroupButton)
         main_layout.addLayout(top_layout)  # Add this top layout to the main vertical layout
+
+        # Button for filtering Israeli channels
+        self.filterIsraelChannelsButton = QPushButton('Filter Israeli Channels', self)
+        self.filterIsraelChannelsButton.setStyleSheet("background-color:black; color: white;")
+        main_layout.addWidget(self.filterIsraelChannelsButton)
+        self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
+
+        # Button for adding new filtered categories dynamically
+        self.addFilteredCategoryButton = QPushButton('Add Filtered Category', self)
+        self.addFilteredCategoryButton.setStyleSheet("background-color:black; color: white;")
+        main_layout.addWidget(self.addFilteredCategoryButton)
+        self.addFilteredCategoryButton.clicked.connect(self.addFilteredCategory)
+        # Add other sections
+        main_layout.addLayout(self.create_category_section())
+        main_layout.addLayout(self.create_channel_section())
+        main_layout.addLayout(self.create_m3u_content_section())
+
+
+        # Ensure EXTM3U header
+        self.textEdit.textChanged.connect(self.ensure_extm3u_header)
+        # Ensure everything is added to main_layout
+        self.setLayout(main_layout)
 
     def mergeM3Us(self):
         options = QFileDialog.Options()
