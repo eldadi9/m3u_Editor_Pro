@@ -75,20 +75,34 @@ class ExportGroupsDialog(QDialog):
             self.exportGroup(selectedCategory)
 
     def exportAll(self):
-        for category in self.categories.keys():
-            self.exportGroup(category)
+        directory = QFileDialog.getExistingDirectory(self, "Select Directory")
+        if not directory:
+            return  # User cancelled the directory selection
 
-    def exportGroup(self, category):
-        fileName, _ = QFileDialog.getSaveFileName(self, "Save Group", f"{category}.m3u",
-                                                  "M3U Files (*.m3u);;All Files (*)")
-        if fileName:
-            with open(fileName, 'w', encoding='utf-8') as file:
+        for category in self.categories.keys():
+            self.exportGroup(category, directory)
+
+        for category in self.categories.keys():
+            self.exportGroup(category, directory)
+
+    def exportGroup(self, category, directory):
+        # Sanitize the category name to create a valid filename
+        safe_category = "".join(c for c in category if c.isalnum() or c in " _-").rstrip()
+        file_path = os.path.join(directory, f"{safe_category}.m3u")
+
+        try:
+            with open(file_path, 'w', encoding='utf-8') as file:
                 file.write("#EXTM3U\n")
                 for channel in self.categories[category]:
-                    # Extract full EXTINF line from channel information
+                    # Assuming you have methods to get the full EXTINF line and URL
                     extinf_line = self.parent().getFullExtInfLine(channel)
                     url = self.parent().getUrl(channel)
                     file.write(f"{extinf_line}\n{url}\n")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {str(e)}")
+            return  # Exit if there's an error
+
+        # The success message has been removed to fulfill the requirement
 
     def parseChannelInfo(self, channel):
         # Regex to extract name, url and optional tvg-logo
@@ -148,7 +162,7 @@ class M3UUrlConverterDialog(QDialog):
         username = self.usernameInput.text()
         password = self.passwordInput.text()
         host = self.hostInput.text()
-        self.m3uURL = f"http://{host}/get.php?username={username}&password={password}&type=m3u_plus"
+        self.m3uURL = f"{host}/get.php?username={username}&password={password}&type=m3u_plus"
         self.resultLabel.setText(self.m3uURL)
         self.copyButton.show()
         self.downloadButton.show()  # Show the download button once URL is generated
