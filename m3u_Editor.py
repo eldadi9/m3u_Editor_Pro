@@ -52,6 +52,7 @@ class ExportGroupsDialog(QDialog):
     def __init__(self, categories, parent=None):
         super(ExportGroupsDialog, self).__init__(parent)
         self.categories = categories  # Make sure categories are stored in the instance
+        self.parent = parent  # Reference to M3UEditor
         self.setupUI()
 
     def setupUI(self):
@@ -68,6 +69,11 @@ class ExportGroupsDialog(QDialog):
         self.exportAllButton.clicked.connect(self.exportAll)
         layout.addWidget(self.exportAllButton)
 
+    def getUrl(self, channel):
+        if self.parent:
+            return self.parent.getUrl(channel)  # Call getUrl of M3UEditor
+        return ""  # Default or error handling
+
     def exportSelected(self):
         selectedCategory, ok = QInputDialog.getItem(self, "Select Group", "Choose a group to export:",
                                                     list(self.categories.keys()), 0, False)
@@ -83,7 +89,6 @@ class ExportGroupsDialog(QDialog):
                 self.exportGroup(category, directory)
 
     def exportGroup(self, category, directory):
-        # Sanitize the category name to create a valid filename
         safe_category = "".join(c for c in category if c.isalnum() or c in " _-").rstrip()
         file_path = os.path.join(directory, f"{safe_category}.m3u")
 
@@ -91,21 +96,30 @@ class ExportGroupsDialog(QDialog):
             with open(file_path, 'w', encoding='utf-8') as file:
                 file.write("#EXTM3U\n")
                 for channel in self.categories[category]:
-                    # Call getFullExtInfLine correctly by passing only the channel
-                    extinf_line = self.parent().getFullExtInfLine(channel)
-                    url = self.parent().getUrl(channel)
-                    file.write(f"{extinf_line}\n{url}\n")
+                    extinf_line = self.getFullExtInfLine(channel, category)
+                    url = self.getUrl(channel)  # Correctly extracts URL
+                    file.write(f"{extinf_line}\n{url}\n")  # Newline between properties and URL
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {str(e)}")
-            return  # Exit if there's an error
 
-        def getFullExtInfLine(self, channel, category):
-            """
-            Extracts or constructs the full EXTINF line from channel information,
-            considering the category for a more detailed EXTINF line.
-            """
-            name_part = channel.split(' (')[0]  # Gets the part before the URL
-            return f"#EXTINF:-1 group-title=\"{category}\",{name_part}"
+    def getFullExtInfLine(self, channel, category="Default Category"):
+        """
+        Constructs the full EXTINF line from channel information,
+        preserving all properties such as tvg-logo, tvg-id, catchup-days, etc.
+        The category parameter is optional and will default to 'Default Category' if not provided.
+        """
+        # Assume the channel format includes the full EXTINF line with properties followed by URL in parentheses
+        properties_part = channel.split(' (')[0]  # Separate properties from URL
+        channel_name = properties_part.split(',')[
+            -1] if ',' in properties_part else properties_part  # Get last part after comma as channel name
+
+        # Check if "group-title" is included and add it if missing
+        if "group-title=" not in properties_part:
+            properties_part = f"#EXTINF:-1, group-title=\"{category}\", {channel_name}"
+        else:
+            properties_part = f"#EXTINF:-1, {properties_part}"
+
+        return properties_part
 
     def parseChannelInfo(self, channel):
         # Regex to extract name, url and optional tvg-logo
@@ -765,16 +779,6 @@ class M3UEditor(QWidget):
         """
         return channel.split(' (')[1].strip(')')
 
-    def getFullExtInfLine(self, channel):
-            """
-            Extracts or constructs the full EXTINF line from channel information,
-            preserving attributes like 'tvg-logo'.
-            """
-            # This method assumes channel format includes all needed attributes
-            # For example: 'Channel Name tvg-logo="logo.png" (http://url.com)'
-            name_part = channel.split(' (')[0]  # Gets the part before the URL
-            url = channel.split(' (')[1].strip(')')  # Extracts the URL
-            return f"#EXTINF:-1 group-title=\"{self.getCategoryName(channel)}\",{name_part}"
 
     def moveChannelUp(self):
         """
