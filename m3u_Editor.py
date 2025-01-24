@@ -72,18 +72,15 @@ class ExportGroupsDialog(QDialog):
         selectedCategory, ok = QInputDialog.getItem(self, "Select Group", "Choose a group to export:",
                                                     list(self.categories.keys()), 0, False)
         if ok and selectedCategory:
-            self.exportGroup(selectedCategory)
+            directory = QFileDialog.getExistingDirectory(self, "Select Directory")
+            if directory:
+                self.exportGroup(selectedCategory, directory)
 
     def exportAll(self):
         directory = QFileDialog.getExistingDirectory(self, "Select Directory")
-        if not directory:
-            return  # User cancelled the directory selection
-
-        for category in self.categories.keys():
-            self.exportGroup(category, directory)
-
-        for category in self.categories.keys():
-            self.exportGroup(category, directory)
+        if directory:
+            for category in self.categories.keys():
+                self.exportGroup(category, directory)
 
     def exportGroup(self, category, directory):
         # Sanitize the category name to create a valid filename
@@ -94,7 +91,7 @@ class ExportGroupsDialog(QDialog):
             with open(file_path, 'w', encoding='utf-8') as file:
                 file.write("#EXTM3U\n")
                 for channel in self.categories[category]:
-                    # Assuming you have methods to get the full EXTINF line and URL
+                    # Call getFullExtInfLine correctly by passing only the channel
                     extinf_line = self.parent().getFullExtInfLine(channel)
                     url = self.parent().getUrl(channel)
                     file.write(f"{extinf_line}\n{url}\n")
@@ -102,7 +99,13 @@ class ExportGroupsDialog(QDialog):
             QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {str(e)}")
             return  # Exit if there's an error
 
-        # The success message has been removed to fulfill the requirement
+        def getFullExtInfLine(self, channel, category):
+            """
+            Extracts or constructs the full EXTINF line from channel information,
+            considering the category for a more detailed EXTINF line.
+            """
+            name_part = channel.split(' (')[0]  # Gets the part before the URL
+            return f"#EXTINF:-1 group-title=\"{category}\",{name_part}"
 
     def parseChannelInfo(self, channel):
         # Regex to extract name, url and optional tvg-logo
