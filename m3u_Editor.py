@@ -272,7 +272,6 @@ class M3UEditor(QWidget):
         # Setup the horizontal layout for top buttons
         top_buttons_layout = QHBoxLayout()
 
-
         # Set a global font
         font = QFont('Arial', 10)  # Change 'Arial' to your preferred font and '12' to your desired size
         QApplication.setFont(font)
@@ -304,16 +303,13 @@ class M3UEditor(QWidget):
         # Setup title
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 23px; font-weight: bold; background-color: black; color: white;")
+        title.setStyleSheet("font-size: 25px; font-weight: bold; background-color: black; color: white;")
         main_layout.addWidget(title)
 
         # Search components
         self.search_input = QLineEdit(self)
         self.search_button = QPushButton('Search', self)
         self.search_button.clicked.connect(self.perform_search)
-
-
-
 
         # File info layout
         file_info_layout = QHBoxLayout()
@@ -325,7 +321,6 @@ class M3UEditor(QWidget):
         self.channelCountLabel = QLabel("Total Channels: 0", self)
         self.channelCountLabel.setAlignment(Qt.AlignRight)
 
-
         search_layout = QHBoxLayout()
         search_layout.addWidget(self.search_input)
         search_layout.addWidget(self.search_button)
@@ -336,36 +331,12 @@ class M3UEditor(QWidget):
         file_info_layout.addWidget(self.channelCountLabel)
         main_layout.addLayout(file_info_layout)
 
-        # Button to open the M3U URL Converter dialog
-        self.m3uUrlConverterButton = QPushButton('M3U URL Converter', self)
-        self.m3uUrlConverterButton.setStyleSheet("background-color:black; color: white;")
-        self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
-        main_layout.addWidget(self.m3uUrlConverterButton)  # Add this button to your main layout
 
-        # Adding Export Groups button at the top left
-        self.exportGroupButton = QPushButton('Export Groups', self)
-        self.exportGroupButton.setStyleSheet("background-color:black; color: white;")
-        self.exportGroupButton.clicked.connect(self.openExportDialog)
-        top_layout = QHBoxLayout()  # Create a horizontal layout for the top row
-        top_layout.addWidget(self.exportGroupButton)
-        main_layout.addLayout(top_layout)  # Add this top layout to the main vertical layout
-
-        # Button for filtering Israeli channels
-        self.filterIsraelChannelsButton = QPushButton('Filter Israeli Channels', self)
-        self.filterIsraelChannelsButton.setStyleSheet("background-color:black; color: white;")
-        main_layout.addWidget(self.filterIsraelChannelsButton)
-        self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
-
-        # Button for adding new filtered categories dynamically
-        self.addFilteredCategoryButton = QPushButton('Add Filtered Category', self)
-        self.addFilteredCategoryButton.setStyleSheet("background-color:black; color: white;")
-        main_layout.addWidget(self.addFilteredCategoryButton)
-        self.addFilteredCategoryButton.clicked.connect(self.addFilteredCategory)
         # Add other sections
         main_layout.addLayout(self.create_category_section())
         main_layout.addLayout(self.create_channel_section())
         main_layout.addLayout(self.create_m3u_content_section())
-
+        main_layout.addLayout(self.create_Tools())
 
         # Ensure EXTM3U header
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
@@ -467,6 +438,45 @@ class M3UEditor(QWidget):
         self.selectAllButton.clicked.connect(self.selectAllCategories)  # Assign to select all function
         self.deselectAllButton.clicked.connect(self.deselectAllCategories)  # Assign to deselect all function
         self.categoryList.itemClicked.connect(self.display_channels)
+        return layout
+
+    def create_Tools(self):
+        layout = QVBoxLayout()
+        tools_title = QLabel("Tools", self)
+        tools_title.setAlignment(Qt.AlignCenter)
+        tools_title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(tools_title)
+
+        # Create a horizontal layout for the buttons
+        buttons_layout = QHBoxLayout()
+
+        # M3U URL Converter button
+        self.m3uUrlConverterButton = QPushButton('M3U URL Converter', self)
+        self.m3uUrlConverterButton.setStyleSheet("background-color: black; color: white;")
+        self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
+        buttons_layout.addWidget(self.m3uUrlConverterButton)
+
+        # Export Groups button
+        self.exportGroupButton = QPushButton('Export Groups', self)
+        self.exportGroupButton.setStyleSheet("background-color: black; color: white;")
+        self.exportGroupButton.clicked.connect(self.openExportDialog)
+        buttons_layout.addWidget(self.exportGroupButton)
+
+        # Filter Israeli Channels button
+        self.filterIsraelChannelsButton = QPushButton('Filter Israeli Channels', self)
+        self.filterIsraelChannelsButton.setStyleSheet("background-color: black; color: white;")
+        self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
+        buttons_layout.addWidget(self.filterIsraelChannelsButton)
+
+        # Add Filtered Category button
+        self.addFilteredCategoryButton = QPushButton('Add Filtered Category', self)
+        self.addFilteredCategoryButton.setStyleSheet("background-color: black; color: white;")
+        self.addFilteredCategoryButton.clicked.connect(self.addFilteredCategory)
+        buttons_layout.addWidget(self.addFilteredCategoryButton)
+
+        # Add the horizontal layout to the vertical layout
+        layout.addLayout(buttons_layout)
+
         return layout
 
     def displayTotalChannels(self):

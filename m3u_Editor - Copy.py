@@ -2,14 +2,16 @@
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,
-    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView
+    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView, QAction
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QFont  # Add this line
 import sys
 import os
 import re
-
+import traceback
+import pyperclip
+import requests  # You need to import requests to handle downloading
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -40,19 +42,180 @@ class MoveChannelsDialog(QDialog):
         self.search_button = QPushButton('Search', self)
 
 
-
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
+class ExportGroupsDialog(QDialog):
+    def __init__(self, categories, parent=None):
+        super(ExportGroupsDialog, self).__init__(parent)
+        self.categories = categories  # Make sure categories are stored in the instance
+        self.parent = parent  # Reference to M3UEditor
+        self.setupUI()
 
+    def setupUI(self):
+        layout = QVBoxLayout(self)
+        self.setWindowTitle("Export Groups")
+
+        # Option to export selected groups
+        self.exportSelectedButton = QPushButton("Export Selected Groups", self)
+        self.exportSelectedButton.clicked.connect(self.exportSelected)
+        layout.addWidget(self.exportSelectedButton)
+
+        # Option to export all groups
+        self.exportAllButton = QPushButton("Export All Groups", self)
+        self.exportAllButton.clicked.connect(self.exportAll)
+        layout.addWidget(self.exportAllButton)
+
+    def getUrl(self, channel):
+        if self.parent:
+            return self.parent.getUrl(channel)  # Call getUrl of M3UEditor
+        return ""  # Default or error handling
+
+    def exportSelected(self):
+        selectedCategory, ok = QInputDialog.getItem(self, "Select Group", "Choose a group to export:",
+                                                    list(self.categories.keys()), 0, False)
+        if ok and selectedCategory:
+            directory = QFileDialog.getExistingDirectory(self, "Select Directory")
+            if directory:
+                self.exportGroup(selectedCategory, directory)
+
+    def exportAll(self):
+        directory = QFileDialog.getExistingDirectory(self, "Select Directory")
+        if directory:
+            for category in self.categories.keys():
+                self.exportGroup(category, directory)
+
+    def exportGroup(self, category, directory):
+        safe_category = "".join(c for c in category if c.isalnum() or c in " _-").rstrip()
+        file_path = os.path.join(directory, f"{safe_category}.m3u")
+
+        try:
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write("#EXTM3U\n")
+                for channel in self.categories[category]:
+                    extinf_line = self.getFullExtInfLine(channel, category)
+                    url = self.getUrl(channel)  # Correctly extracts URL
+                    file.write(f"{extinf_line}\n{url}\n")  # Newline between properties and URL
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {str(e)}")
+
+    def getFullExtInfLine(self, channel, category="Default Category"):
+        """
+        Constructs the full EXTINF line from channel information,
+        preserving all properties such as tvg-logo, tvg-id, catchup-days, etc.
+        The category parameter is optional and will default to 'Default Category' if not provided.
+        """
+        # Assume the channel format includes the full EXTINF line with properties followed by URL in parentheses
+        properties_part = channel.split(' (')[0]  # Separate properties from URL
+        channel_name = properties_part.split(',')[
+            -1] if ',' in properties_part else properties_part  # Get last part after comma as channel name
+
+        # Check if "group-title" is included and add it if missing
+        if "group-title=" not in properties_part:
+            properties_part = f"#EXTINF:-1, group-title=\"{category}\", {channel_name}"
+        else:
+            properties_part = f"#EXTINF:-1, {properties_part}"
+
+        return properties_part
+
+    def parseChannelInfo(self, channel):
+        # Regex to extract name, url and optional tvg-logo
+        match = re.search(r'^(.+) \((http.+)\)$', channel)
+        if match:
+            name = match.group(1)
+            url = match.group(2)
+            return name, url
+        return "", ""
+
+class M3UUrlConverterDialog(QDialog):
+    def __init__(self, parent=None):
+            super().__init__(parent)
+            self.initUI()
+    def initUI(self):
+            self.setWindowTitle("M3U URL Converter")
+            layout = QVBoxLayout(self)
+
+            # Convert button
+            self.convertButton = QPushButton("Convert to M3U URL", self)
+            self.convertButton.clicked.connect(self.convertToM3U)
+            layout.addWidget(self.convertButton)
+
+            # New button for downloading M3U
+            self.downloadButton = QPushButton("Download M3U", self)
+            self.downloadButton.clicked.connect(self.downloadM3U)
+            self.downloadButton.hide()  # Initially hidden
+            layout.addWidget(self.downloadButton)
+
+            # Result display, copy button etc...
+            self.resultLabel = QLabel("", self)
+            layout.addWidget(self.resultLabel)
+            self.copyButton = QPushButton("Copy Result", self)
+            self.copyButton.clicked.connect(self.copyResultToClipboard)
+            layout.addWidget(self.copyButton)
+
+            # Input fields setup
+            self.usernameInput = QLineEdit(self)
+            self.passwordInput = QLineEdit(self)
+            self.hostInput = QLineEdit(self)
+
+            # Labels
+            usernameLabel = QLabel("Username:", self)
+            passwordLabel = QLabel("Password:", self)
+            hostLabel = QLabel("Host (e.g., EG.com:8080):", self)
+
+            # Add widgets to layout
+            layout.addWidget(usernameLabel)
+            layout.addWidget(self.usernameInput)
+            layout.addWidget(passwordLabel)
+            layout.addWidget(self.passwordInput)
+            layout.addWidget(hostLabel)
+            layout.addWidget(self.hostInput)
+
+
+    def convertToM3U(self):
+        username = self.usernameInput.text()
+        password = self.passwordInput.text()
+        host = self.hostInput.text()
+        self.m3uURL = f"{host}/get.php?username={username}&password={password}&type=m3u_plus"
+        self.resultLabel.setText(self.m3uURL)
+        self.copyButton.show()
+        self.downloadButton.show()  # Show the download button once URL is generated
+
+    def copyResultToClipboard(self):
+        resultText = self.resultLabel.text()
+        pyperclip.copy(resultText)
+        QMessageBox.information(self, "Success", "Result copied to clipboard!")
+
+    def downloadM3U(self):
+        try:
+            response = requests.get(self.m3uURL)
+            response.raise_for_status()  # Raises stored HTTPError, if one occurred
+
+            # Prompt to save file
+            options = QFileDialog.Options()
+            fileName, _ = QFileDialog.getSaveFileName(self,
+                                                      "Save M3U File",
+                                                      "",
+                                                      "M3U Files (*.m3u);;All Files (*)",
+                                                      options=options)
+            if fileName:
+                with open(fileName, 'wb') as f:
+                    f.write(response.content)
+                QMessageBox.information(self, "Download Successful", "The M3U file has been downloaded successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to download M3U file: {str(e)}")
 class M3UEditor(QWidget):
     def __init__(self):
         super().__init__()
         self.categories = {}
         self.initUI()
+
+    def openM3UConverterDialog(self):
+            dialog = M3UUrlConverterDialog(self)
+            dialog.exec_()
 
     def search_channels(self, query, filter_options):
         results = []
@@ -106,12 +269,17 @@ class M3UEditor(QWidget):
         self.setWindowTitle('M3U Playlist Editor')
         self.setGeometry(100, 100, 800, 600)
 
+        # Setup the horizontal layout for top buttons
+        top_buttons_layout = QHBoxLayout()
+
+
         # Set a global font
         font = QFont('Arial', 10)  # Change 'Arial' to your preferred font and '12' to your desired size
         QApplication.setFont(font)
 
         # Main layout
         main_layout = QVBoxLayout(self)
+        self.setLayout(main_layout)
 
         # Add image at the top
         logo_label = QLabel(self)
@@ -122,7 +290,7 @@ class M3UEditor(QWidget):
         if os.path.exists(image_path):
             logo_pixmap = QPixmap(image_path)
             if not logo_pixmap.isNull():  # Check if the pixmap was loaded successfully
-                logo_pixmap = logo_pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                logo_pixmap = logo_pixmap.scaled(150, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 logo_label.setPixmap(logo_pixmap)
             else:
                 logo_label.setText("Failed to load image.")  # Fallback text
@@ -136,7 +304,7 @@ class M3UEditor(QWidget):
         # Setup title
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 21px; font-weight: bold; background-color: black; color: white;")
+        title.setStyleSheet("font-size: 23px; font-weight: bold; background-color: black; color: white;")
         main_layout.addWidget(title)
 
         # Search components
@@ -145,10 +313,7 @@ class M3UEditor(QWidget):
         self.search_button.clicked.connect(self.perform_search)
 
 
-        search_layout = QHBoxLayout()
-        search_layout.addWidget(self.search_input)
-        search_layout.addWidget(self.search_button)
-        main_layout.addLayout(search_layout)
+
 
         # File info layout
         file_info_layout = QHBoxLayout()
@@ -160,24 +325,47 @@ class M3UEditor(QWidget):
         self.channelCountLabel = QLabel("Total Channels: 0", self)
         self.channelCountLabel.setAlignment(Qt.AlignRight)
 
+
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(self.search_input)
+        search_layout.addWidget(self.search_button)
+        main_layout.addLayout(search_layout)
+
         # Change font size of 'Total Channels'
         self.channelCountLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
         file_info_layout.addWidget(self.channelCountLabel)
         main_layout.addLayout(file_info_layout)
 
+        # Button to open the M3U URL Converter dialog
+        self.m3uUrlConverterButton = QPushButton('M3U URL Converter', self)
+        self.m3uUrlConverterButton.setStyleSheet("background-color:black; color: white;")
+        self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
+        main_layout.addWidget(self.m3uUrlConverterButton)  # Add this button to your main layout
+
+        # Adding Export Groups button at the top left
+        self.exportGroupButton = QPushButton('Export Groups', self)
+        self.exportGroupButton.setStyleSheet("background-color:black; color: white;")
+        self.exportGroupButton.clicked.connect(self.openExportDialog)
+        top_layout = QHBoxLayout()  # Create a horizontal layout for the top row
+        top_layout.addWidget(self.exportGroupButton)
+        main_layout.addLayout(top_layout)  # Add this top layout to the main vertical layout
+
         # Button for filtering Israeli channels
         self.filterIsraelChannelsButton = QPushButton('Filter Israeli Channels', self)
+        self.filterIsraelChannelsButton.setStyleSheet("background-color:black; color: white;")
         main_layout.addWidget(self.filterIsraelChannelsButton)
         self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
 
         # Button for adding new filtered categories dynamically
         self.addFilteredCategoryButton = QPushButton('Add Filtered Category', self)
+        self.addFilteredCategoryButton.setStyleSheet("background-color:black; color: white;")
         main_layout.addWidget(self.addFilteredCategoryButton)
         self.addFilteredCategoryButton.clicked.connect(self.addFilteredCategory)
         # Add other sections
         main_layout.addLayout(self.create_category_section())
         main_layout.addLayout(self.create_channel_section())
         main_layout.addLayout(self.create_m3u_content_section())
+
 
         # Ensure EXTM3U header
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
@@ -202,7 +390,7 @@ class M3UEditor(QWidget):
                     QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
 
                     # Parse the merged content to update categories and channels display
-                    self.parseM3UContent(self.textEdit.toPlainText())
+                    self.parseM3UContentEnhanced(self.textEdit.toPlainText())
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
@@ -574,17 +762,31 @@ class M3UEditor(QWidget):
 
     def updateM3UContent(self):
         """
-        Regenerates the M3U content based on the current state of self.categories.
+        Regenerates the M3U content based on the current state of self.categories,
+        preserving all channel attributes.
         """
-        updated_lines = []
+        updated_lines = ["#EXTM3U"]
         for category, channels in self.categories.items():
             for channel in channels:
-                # Add EXTINF line
-                updated_lines.append(f"#EXTINF:-1 group-title=\"{category}\",{channel.split(' (')[0]}")
-                # Add URL line
-                updated_lines.append(channel.split(' (')[-1].strip(')'))
+                extinf_line = self.getFullExtInfLine(channel)
+                url = self.getUrl(channel)
+                updated_lines.append(f"{extinf_line}\n{url}")
 
         self.textEdit.setPlainText("\n".join(updated_lines))
+
+    def getCategoryName(self, channel):
+        """
+        Placeholder method to extract the category from a channel string.
+        """
+        # Implement logic based on your channel data structure
+        return "Default Category"
+
+    def getUrl(self, channel):
+        """
+        Extracts the URL from a channel string.
+        """
+        return channel.split(' (')[1].strip(')')
+
 
     def moveChannelUp(self):
         """
@@ -815,7 +1017,7 @@ class M3UEditor(QWidget):
                 with open(fileName, 'r', encoding='utf-8') as file:
                     content = file.read()
                 self.textEdit.setPlainText(content)
-                self.parseM3UContent(content)
+                self.parseM3UContentEnhanced(content)
                 # Display the file name and total channels in the label
                 total_channels = sum(len(channels) for channels in self.categories.values())
                 self.channelCountLabel.setText(f"Total Channels: {total_channels}")
@@ -831,138 +1033,59 @@ class M3UEditor(QWidget):
             with open(fileName, 'w', encoding='utf-8') as file:
                 file.write(self.textEdit.toPlainText())
 
-    def parseM3UContent(self, content):
+
+    def openExportDialog(self):
+        try:
+            dialog = ExportGroupsDialog(self.categories, self)
+            dialog.exec_()
+        except Exception as e:
+            error_message = traceback.format_exc()
+            QMessageBox.critical(self, "Error", f"An unexpected error occurred:\n{error_message}")
+            print(error_message)  # Print the full traceback to the console
+
+    def parseM3UContentEnhanced(self, content):
         """
-            Parse M3U content to handle group-title, #EXTGRP, and tvg-logo.
-            - If group-title exists, ignore #EXTGRP.
-            - If group-title does not exist, use #EXTGRP and remove it.
-            - Always preserve the tvg-logo attribute if it exists.
-            """
+        Parse M3U content, handling group-title, #EXTGRP, and tvg-logo robustly.
+        - Use #EXTGRP to set group-title if missing and reset appropriately.
+        - Always preserve the tvg-logo attribute if it exists.
+        - Reset current_group after each #EXTINF to prevent misapplication.
+        """
         self.categories.clear()
         updated_lines = []
         current_group = None  # To track the group name from #EXTGRP
 
         lines = content.splitlines()
 
-        for i, line in enumerate(lines):
+        for line in lines:
             if line.startswith("#EXTGRP:"):
                 # Extract the group name from the #EXTGRP line
                 current_group = line.split(":", 1)[1].strip()
                 continue  # Skip the #EXTGRP line itself
 
             if line.startswith("#EXTINF:"):
+                # Handle group-title, adding it if missing and current_group is set
                 if "group-title=" not in line and current_group:
-                    # Add group-title if missing and current_group exists
                     line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
-                current_group = None  # Reset after usage
+                current_group = None  # Reset after usage to prevent misapplication
 
                 # Ensure the tvg-logo attribute remains intact
-                # Match tvg-logo and preserve it, or leave the line unchanged
                 match = re.search(r'tvg-logo="([^"]+)"', line)
                 if match:
                     logo_url = match.group(1)  # Extract the tvg-logo URL
                     if 'tvg-logo' not in line:
-                        line = line.strip() + f' tvg-logo="{logo_url}"'
+                        line += f' tvg-logo="{logo_url}"'
 
-                current_group = None  # Reset after usage
-
-            updated_lines.append(line)
-
-        # Join updated lines and parse categories
-        content = "\n".join(updated_lines)
-        category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
-        for match in category_pattern.findall(content):
-            group_title, channel_name, channel_url = match
-            if group_title not in self.categories:
-                self.categories[group_title] = []
-            self.categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
-
-        # Update the QTextEdit and the category list
-        self.textEdit.setPlainText(content)
-        self.categoryList.clear()
-        for category, channels in self.categories.items():
-            item = QListWidgetItem(f"{category} ({len(channels)})")  # Add count of channels to the category name
-            self.categoryList.addItem(item)
-
-            def parseM3UContentWithGroup(self, content):
-                """
-                Parse M3U content, dynamically adding group-title if #EXTGRP is present.
-                Updates categories and channels without altering the existing parseM3UContent logic.
-                """
-                # Temporary storage for categories and channels
-                updated_categories = {}
-                updated_lines = []
-
-                lines = content.splitlines()
-                current_group = None  # To track the current group from #EXTGRP
-
-                for line in lines:
-                    if line.startswith("#EXTGRP:"):
-                        # Extract the group name from the #EXTGRP line
-                        current_group = line.split(":", 1)[1].strip()
-                    elif line.startswith("#EXTINF:") and "group-title=" not in line:
-                        # If group-title is missing, add it using the current_group
-                        if current_group:
-                            line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
-                    updated_lines.append(line)
-
-                # Combine updated lines into a modified M3U content
-                updated_content = "\n".join(updated_lines)
-
-                # Extract categories and channels from the updated content
-                category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
-                for match in category_pattern.findall(updated_content):
-                    group_title, channel_name, channel_url = match
-                    if group_title not in updated_categories:
-                        updated_categories[group_title] = []
-                    updated_categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
-
-                # Update the instance's categories and channels
-                self.categories = updated_categories
-
-                # Update the QTextEdit and the category list
-                self.textEdit.setPlainText(updated_content)
-                self.categoryList.clear()
-                for category, channels in self.categories.items():
-                    item = QListWidgetItem(
-                        f"{category} ({len(channels)})")  # Add count of channels to the category name
-                    self.categoryList.addItem(item)
-
-    def parseM3UContentWithGroup(self, content):
-        """
-        Parse M3U content, dynamically adding group-title if #EXTGRP is present.
-        Updates categories and channels without altering the existing parseM3UContent logic.
-        """
-        # Temporary storage for categories and channels
-        updated_categories = {}
-        updated_lines = []
-
-        lines = content.splitlines()
-        current_group = None  # To track the current group from #EXTGRP
-
-        for line in lines:
-            if line.startswith("#EXTGRP:"):
-                # Extract the group name from the #EXTGRP line
-                current_group = line.split(":", 1)[1].strip()
-            elif line.startswith("#EXTINF:") and "group-title=" not in line:
-                # If group-title is missing, add it using the current_group
-                if current_group:
-                    line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
             updated_lines.append(line)
 
         # Combine updated lines into a modified M3U content
         updated_content = "\n".join(updated_lines)
-
-        # Extract categories and channels from the updated content
+        # Parse categories and channels from the updated content
         category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
         for match in category_pattern.findall(updated_content):
             group_title, channel_name, channel_url = match
-            if group_title not in updated_categories:
-                updated_categories[group_title] = []
-            updated_categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
-
-        # Update the instance's categories and channels
-        self.categories = updated_categories
+            if group_title not in self.categories:
+                self.categories[group_title] = []
+            self.categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
 
         # Update the QTextEdit and the category list
         self.textEdit.setPlainText(updated_content)
