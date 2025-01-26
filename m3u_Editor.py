@@ -490,8 +490,15 @@ class M3UEditor(QWidget):
         channel_title.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(channel_title)
 
+        # Create the sorting combo box and add additional sorting options
         self.sortingComboBox = QComboBox(self)
-        self.sortingComboBox.addItems(["Sort by Name A-Z", "Sort by Name Z-A"])
+        self.sortingComboBox.addItems([
+            "Sort by Name A-Z",
+            "Sort by Name Z-A",
+            "Sort by Stream Type",
+            "Sort by Group Title",
+            "Sort by URL Length"
+        ])
         self.sortingComboBox.currentIndexChanged.connect(self.sortChannels)
         layout.addWidget(self.sortingComboBox)
 
@@ -531,12 +538,24 @@ class M3UEditor(QWidget):
         sort_option = self.sortingComboBox.currentText()
         current_category = self.categoryList.currentItem().text().split(" (")[
             0] if self.categoryList.currentItem() else None
+
         if current_category and current_category in self.categories:
             if sort_option == "Sort by Name A-Z":
                 self.categories[current_category].sort(key=lambda x: x.split(" (")[0])
             elif sort_option == "Sort by Name Z-A":
                 self.categories[current_category].sort(key=lambda x: x.split(" (")[0], reverse=True)
+            elif sort_option == "Sort by Stream Type":
+                self.categories[current_category].sort(
+                    key=lambda x: x.split(",")[-1])  # Assuming stream type can be parsed
+            elif sort_option == "Sort by Group Title":
+                self.categories[current_category].sort(
+                    key=lambda x: x.split("group-title=")[-1].split(",")[0])  # Assuming group title can be parsed
+            elif sort_option == "Sort by URL Length":
+                self.categories[current_category].sort(
+                    key=lambda x: len(x.split(",")[-1]))  # Assuming URL is the last part
+
             self.display_channels(self.categoryList.currentItem())
+
 
     def create_m3u_content_section(self):
         layout = QVBoxLayout()
@@ -1190,7 +1209,7 @@ class M3UEditor(QWidget):
                         filtered_channels['Other'].append(channel)
 
         # Add "Israel Radio" to categories
-        radio_category = " Israel Radio📻"
+        radio_category = "Israel Radio📻"
         if radio_category not in filtered_channels:
             filtered_channels[radio_category] = []
 
