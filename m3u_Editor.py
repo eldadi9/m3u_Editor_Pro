@@ -321,10 +321,7 @@ class M3UEditor(QWidget):
         self.channelCountLabel = QLabel("Total Channels: 0", self)
         self.channelCountLabel.setAlignment(Qt.AlignRight)
 
-        search_layout = QHBoxLayout()
-        search_layout.addWidget(self.search_input)
-        search_layout.addWidget(self.search_button)
-        main_layout.addLayout(search_layout)
+        
 
         # Change font size of 'Total Channels'
         self.channelCountLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
@@ -489,6 +486,16 @@ class M3UEditor(QWidget):
         channel_title.setAlignment(Qt.AlignCenter)
         channel_title.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(channel_title)
+
+        # Search components added here for channels
+        self.search_input = QLineEdit(self)
+        self.search_button = QPushButton('Search', self)
+        self.search_button.clicked.connect(
+            self.perform_search)  # Ensure this connects to a proper channel search method
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(self.search_input)
+        search_layout.addWidget(self.search_button)
+        layout.addLayout(search_layout)
 
         # Create the sorting combo box and add additional sorting options
         self.sortingComboBox = QComboBox(self)
