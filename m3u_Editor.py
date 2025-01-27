@@ -306,10 +306,6 @@ class M3UEditor(QWidget):
         title.setStyleSheet("font-size: 25px; font-weight: bold; background-color: black; color: white;")
         main_layout.addWidget(title)
 
-        # Search components
-        self.search_input = QLineEdit(self)
-        self.search_button = QPushButton('Search', self)
-        self.search_button.clicked.connect(self.perform_search)
 
         # File info layout
         file_info_layout = QHBoxLayout()
@@ -321,7 +317,6 @@ class M3UEditor(QWidget):
         self.channelCountLabel = QLabel("Total Channels: 0", self)
         self.channelCountLabel.setAlignment(Qt.AlignRight)
 
-        
 
         # Change font size of 'Total Channels'
         self.channelCountLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
