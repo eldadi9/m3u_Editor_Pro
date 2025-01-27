@@ -51,23 +51,32 @@ class MoveChannelsDialog(QDialog):
 class ExportGroupsDialog(QDialog):
     def __init__(self, categories, parent=None):
         super(ExportGroupsDialog, self).__init__(parent)
-        self.categories = categories  # Make sure categories are stored in the instance
-        self.parent = parent  # Reference to M3UEditor
+        self.categories = categories
+        self.parent = parent
         self.setupUI()
 
     def setupUI(self):
-        layout = QVBoxLayout(self)
+        self.setGeometry(100, 100, 500, 300)  # Adjust size as needed
         self.setWindowTitle("Export Groups")
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)  # Adjust spacing between widgets
+
+        # Styling the dialog frame and background
+        self.setStyleSheet("QDialog { border: 8px solid red; background-color: white;}")
 
         # Option to export selected groups
         self.exportSelectedButton = QPushButton("Export Selected Groups", self)
+        self.exportSelectedButton.setStyleSheet("background-color: red; color: white; font-weight: bold;")
         self.exportSelectedButton.clicked.connect(self.exportSelected)
         layout.addWidget(self.exportSelectedButton)
 
         # Option to export all groups
         self.exportAllButton = QPushButton("Export All Groups", self)
+        self.exportAllButton.setStyleSheet("background-color: black; color: white; font-weight: bold;")
         self.exportAllButton.clicked.connect(self.exportAll)
         layout.addWidget(self.exportAllButton)
+
+        self.setLayout(layout)
 
     def getUrl(self, channel):
         if self.parent:
@@ -81,12 +90,14 @@ class ExportGroupsDialog(QDialog):
             directory = QFileDialog.getExistingDirectory(self, "Select Directory")
             if directory:
                 self.exportGroup(selectedCategory, directory)
+                pass
 
     def exportAll(self):
         directory = QFileDialog.getExistingDirectory(self, "Select Directory")
         if directory:
             for category in self.categories.keys():
                 self.exportGroup(category, directory)
+                pass
 
     def exportGroup(self, category, directory):
         safe_category = "".join(c for c in category if c.isalnum() or c in " _-").rstrip()
@@ -132,48 +143,56 @@ class ExportGroupsDialog(QDialog):
 
 class M3UUrlConverterDialog(QDialog):
     def __init__(self, parent=None):
-            super().__init__(parent)
-            self.initUI()
+        super().__init__(parent)
+        self.initUI()
+
     def initUI(self):
-            self.setWindowTitle("M3U URL Converter")
-            layout = QVBoxLayout(self)
+        self.setWindowTitle("M3U URL Converter")
+        self.setGeometry(100, 200, 600, 300)  # Adjust size as needed
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)  # Adjust spacing between widgets
 
-            # Convert button
-            self.convertButton = QPushButton("Convert to M3U URL", self)
-            self.convertButton.clicked.connect(self.convertToM3U)
-            layout.addWidget(self.convertButton)
+        # Styling the dialog frame and background
+        self.setStyleSheet("QDialog { border: 5px solid red; background-color: white;}")
 
-            # New button for downloading M3U
-            self.downloadButton = QPushButton("Download M3U", self)
-            self.downloadButton.clicked.connect(self.downloadM3U)
-            self.downloadButton.hide()  # Initially hidden
-            layout.addWidget(self.downloadButton)
+        # Input fields setup
+        self.usernameInput = QLineEdit(self)
+        self.passwordInput = QLineEdit(self)
+        self.hostInput = QLineEdit(self)
 
-            # Result display, copy button etc...
-            self.resultLabel = QLabel("", self)
-            layout.addWidget(self.resultLabel)
-            self.copyButton = QPushButton("Copy Result", self)
-            self.copyButton.clicked.connect(self.copyResultToClipboard)
-            layout.addWidget(self.copyButton)
+        # Convert button
+        self.convertButton = QPushButton("Convert to M3U URL", self)
+        self.convertButton.setStyleSheet("background-color: black; color: white; font-weight: bold;")
+        self.convertButton.clicked.connect(self.convertToM3U)
+        layout.addWidget(self.convertButton)
 
-            # Input fields setup
-            self.usernameInput = QLineEdit(self)
-            self.passwordInput = QLineEdit(self)
-            self.hostInput = QLineEdit(self)
+        # Download button
+        self.downloadButton = QPushButton("Download M3U", self)
+        self.downloadButton.setStyleSheet("background-color: red; color: white; font-weight: bold;")
+        self.downloadButton.clicked.connect(self.downloadM3U)
+        layout.addWidget(self.downloadButton)
 
-            # Labels
-            usernameLabel = QLabel("Username:", self)
-            passwordLabel = QLabel("Password:", self)
-            hostLabel = QLabel("Host (e.g., EG.com:8080):", self)
+        # Result display
+        self.resultLabel = QLabel("", self)
+        layout.addWidget(self.resultLabel)
+        self.copyButton = QPushButton("Copy Result", self)
+        self.copyButton.setStyleSheet("background-color: black; color: white; font-weight: bold;")
+        self.copyButton.clicked.connect(self.copyResultToClipboard)
+        layout.addWidget(self.copyButton)
 
-            # Add widgets to layout
-            layout.addWidget(usernameLabel)
-            layout.addWidget(self.usernameInput)
-            layout.addWidget(passwordLabel)
-            layout.addWidget(self.passwordInput)
-            layout.addWidget(hostLabel)
-            layout.addWidget(self.hostInput)
+        # Labels and Inputs
+        usernameLabel = QLabel("Username:", self)
+        passwordLabel = QLabel("Password:", self)
+        hostLabel = QLabel("Host (e.g., example.com:8080):", self)
 
+        layout.addWidget(usernameLabel)
+        layout.addWidget(self.usernameInput)
+        layout.addWidget(passwordLabel)
+        layout.addWidget(self.passwordInput)
+        layout.addWidget(hostLabel)
+        layout.addWidget(self.hostInput)
+
+        self.setLayout(layout)
 
     def convertToM3U(self):
         username = self.usernameInput.text()
@@ -183,12 +202,13 @@ class M3UUrlConverterDialog(QDialog):
         self.resultLabel.setText(self.m3uURL)
         self.copyButton.show()
         self.downloadButton.show()  # Show the download button once URL is generated
+        pass
 
     def copyResultToClipboard(self):
         resultText = self.resultLabel.text()
         pyperclip.copy(resultText)
         QMessageBox.information(self, "Success", "Result copied to clipboard!")
-
+        pass
     def downloadM3U(self):
         try:
             response = requests.get(self.m3uURL)
@@ -207,6 +227,7 @@ class M3UUrlConverterDialog(QDialog):
                 QMessageBox.information(self, "Download Successful", "The M3U file has been downloaded successfully.")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to download M3U file: {str(e)}")
+            pass
 class M3UEditor(QWidget):
     def __init__(self):
         super().__init__()
