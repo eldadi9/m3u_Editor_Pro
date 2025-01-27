@@ -481,12 +481,7 @@ class M3UEditor(QWidget):
         self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
         buttons_layout.addWidget(self.filterIsraelChannelsButton)
 
-        # Add Filtered Category button
-        self.addFilteredCategoryButton = QPushButton('Add Filtered Category', self)
-        self.addFilteredCategoryButton.setStyleSheet("background-color: black; color: white;")
-        self.addFilteredCategoryButton.clicked.connect(self.addFilteredCategory)
-        buttons_layout.addWidget(self.addFilteredCategoryButton)
-
+       
         # Add the horizontal layout to the vertical layout
         layout.addLayout(buttons_layout)
 
@@ -1309,16 +1304,6 @@ class M3UEditor(QWidget):
             return 'world series'
         else:
             return 'Other'
-
-    def addFilteredCategory(self):
-        category_name, ok = QInputDialog.getText(self, 'Add Filtered Category', 'Enter new filtered category name:')
-        if ok and category_name:
-            if category_name not in self.categories:
-                self.categories[category_name] = []  # Initialize empty channel list for new category
-                QMessageBox.information(self, "Category Added", f"Category '{category_name}' has been added.")
-                self.updateCategoryList()  # Update the category list in the UI
-            else:
-                QMessageBox.warning(self, "Category Exists", f"The category '{category_name}' already exists.")
 
 
 def main():
