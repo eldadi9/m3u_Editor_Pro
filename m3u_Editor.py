@@ -41,12 +41,9 @@ class MoveChannelsDialog(QDialog):
         self.search_input = QLineEdit(self)
         self.search_button = QPushButton('Search', self)
 
-
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
-    def getSelectedCategory(self):
-        return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
 class ExportGroupsDialog(QDialog):
     def __init__(self, categories, parent=None):
@@ -1213,6 +1210,8 @@ class M3UEditor(QWidget):
 
         filtered_channels = {category: [] for category in category_keywords.keys()}
         filtered_channels['Other'] = []
+        filtered_channels['Israel Radio📻'] = []  # Prepare to load Israeli radio channels
+        filtered_channels['World Radio🌍'] = []  # Prepare to load World radio channels
 
         for category, channels in self.categories.items():
             for channel in channels:
@@ -1226,41 +1225,13 @@ class M3UEditor(QWidget):
                     if not placed:
                         filtered_channels['Other'].append(channel)
 
-        # Add "Israel Radio" to categories
-        radio_category = "Israel Radio📻"
-        if radio_category not in filtered_channels:
-            filtered_channels[radio_category] = []
+        # Load "Israeli Radios"
+        self.loadRadioChannels(filtered_channels, 'Israel Radio📻',
+                               r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\IsraeliRadios.m3u")
 
-        # Load additional Israeli radio channels
-        m3u_file_path = r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\IsraeliRadios.m3u"
-        try:
-            with open(m3u_file_path, 'r', encoding='utf-8') as file:
-                lines = file.readlines()
-
-            current_name = None
-            current_logo = None
-            for line in lines:
-                line = line.strip()
-                if line.startswith("#EXTINF:"):
-                    # Extract tvg-logo if it exists
-                    logo_match = re.search(r'tvg-logo="([^"]+)"', line)
-                    current_logo = logo_match.group(1) if logo_match else None
-                    # Extract channel name
-                    current_name = line.split(",")[-1].strip()
-                elif line.startswith("http") and current_name:
-                    # Add channel to the "Israel Radio" category
-                    channel_entry = f"{current_name} ({line})"
-                    if current_logo:
-                        channel_entry += f' tvg-logo="{current_logo}"'
-
-                    filtered_channels[radio_category].append(channel_entry)
-                    current_name = None
-                    current_logo = None
-
-        except FileNotFoundError:
-            QMessageBox.critical(self, "Error", f"The file {m3u_file_path} was not found.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"An error occurred while loading the M3U file: {e}")
+        # Load "World Radio"
+        self.loadRadioChannels(filtered_channels, 'World Radio🌍',
+                               r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\RADIO World.m3u")
 
         # Update categories and regenerate M3U content
         self.categories = filtered_channels
@@ -1272,6 +1243,32 @@ class M3UEditor(QWidget):
         for category, channels in self.categories.items():
             display_text = f"{category} ({len(channels)})"
             self.categoryList.addItem(QListWidgetItem(display_text))
+
+    def loadRadioChannels(self, filtered_channels, category, file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+
+            current_name = None
+            current_logo = None
+            for line in lines:
+                line = line.strip()
+                if line.startswith("#EXTINF:"):
+                    logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                    current_logo = logo_match.group(1) if logo_match else None
+                    current_name = line.split(",")[-1].strip()
+                elif line.startswith("http") and current_name:
+                    channel_entry = f"{current_name} ({line})"
+                    if current_logo:
+                        channel_entry += f' tvg-logo="{current_logo}"'
+                    filtered_channels[category].append(channel_entry)
+                    current_name = None
+                    current_logo = None
+
+        except FileNotFoundError:
+            QMessageBox.critical(self, "Error", f"The file {file_path} was not found.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An error occurred while loading the M3U file: {str(e)}")
 
     def getFilteredCategory(self, channel):
         if 'חדשות' in channel or 'News' in channel:
