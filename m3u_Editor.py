@@ -1,4 +1,3 @@
-
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,
@@ -12,6 +11,7 @@ import re
 import traceback
 import pyperclip
 import requests  # You need to import requests to handle downloading
+
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -138,6 +138,7 @@ class ExportGroupsDialog(QDialog):
             return name, url
         return "", ""
 
+
 class M3UUrlConverterDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -206,6 +207,7 @@ class M3UUrlConverterDialog(QDialog):
         pyperclip.copy(resultText)
         QMessageBox.information(self, "Success", "Result copied to clipboard!")
         pass
+
     def downloadM3U(self):
         try:
             response = requests.get(self.m3uURL)
@@ -225,6 +227,8 @@ class M3UUrlConverterDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to download M3U file: {str(e)}")
             pass
+
+
 class M3UEditor(QWidget):
     def __init__(self):
         super().__init__()
@@ -232,8 +236,8 @@ class M3UEditor(QWidget):
         self.initUI()
 
     def openM3UConverterDialog(self):
-            dialog = M3UUrlConverterDialog(self)
-            dialog.exec_()
+        dialog = M3UUrlConverterDialog(self)
+        dialog.exec_()
 
     def search_channels(self, query, filter_options):
         results = []
@@ -324,7 +328,6 @@ class M3UEditor(QWidget):
         title.setStyleSheet("font-size: 25px; font-weight: bold; background-color: black; color: white;")
         main_layout.addWidget(title)
 
-
         # File info layout
         file_info_layout = QHBoxLayout()
         self.fileNameLabel = QLabel("No file loaded", self)
@@ -335,12 +338,10 @@ class M3UEditor(QWidget):
         self.channelCountLabel = QLabel("Total Channels: 0", self)
         self.channelCountLabel.setAlignment(Qt.AlignRight)
 
-
         # Change font size of 'Total Channels'
         self.channelCountLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
         file_info_layout.addWidget(self.channelCountLabel)
         main_layout.addLayout(file_info_layout)
-
 
         # Add other sections
         main_layout.addLayout(self.create_category_section())
@@ -478,7 +479,6 @@ class M3UEditor(QWidget):
         self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
         buttons_layout.addWidget(self.filterIsraelChannelsButton)
 
-       
         # Add the horizontal layout to the vertical layout
         layout.addLayout(buttons_layout)
 
@@ -570,7 +570,6 @@ class M3UEditor(QWidget):
                     key=lambda x: len(x.split(",")[-1]))  # Assuming URL is the last part
 
             self.display_channels(self.categoryList.currentItem())
-
 
     def create_m3u_content_section(self):
         layout = QVBoxLayout()
@@ -831,7 +830,6 @@ class M3UEditor(QWidget):
         """
         return channel.split(' (')[1].strip(')')
 
-
     def moveChannelUp(self):
         """
         Moves the selected channel up in the list and updates the M3U content.
@@ -1077,7 +1075,6 @@ class M3UEditor(QWidget):
             with open(fileName, 'w', encoding='utf-8') as file:
                 file.write(self.textEdit.toPlainText())
 
-
     def openExportDialog(self):
         try:
             dialog = ExportGroupsDialog(self.categories, self)
@@ -1141,7 +1138,7 @@ class M3UEditor(QWidget):
     def filterIsraelChannels(self):
         israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il', 'IL HD',
                            'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'WWE ', 'nba tv',
-                             'music', 'IL:', 'Hebrew']
+                           'music', 'IL:', 'Hebrew']
         category_keywords = {
 
             'News📺': ['Keshet 12 IL', 'Channel 9 HD IL', '9 Channel IL', 'CHANNEL 9 HD IL', 'KAN 11 IL', '12 Keshet IL',
@@ -1165,9 +1162,13 @@ class M3UEditor(QWidget):
                          'Free Movies Action HD', 'Free Tv Cooking HD', 'Free Tv Doco HD', 'Free Tv Hatuna HD',
                          'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'],
             'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
-                        'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'EXTREME IL', 'Sport 5+ Live HD IL', 'ONE 2 HD IL', 'Sport 3 HD IL', 'Sport 5 HD IL ', 'SPORT 2 HD IL', 'Sport 1 HD IL', 'Sport 2 HD', 'Sport 3 HD', 'Sport 4 HD',
-                        'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'ESPN 2 HD USA', 'ESPN USA', 'Eurosport 1 HD', 'Red Bull TV HD',
-                        'WWE Russian', 'Red Bull TV', 'MMA-TV.com HD', 'MMA-TV.com', 'MMA-TV.com orig', 'NHL', 'nba', 'NBA', 'wwe', 'WWE Network HD', 'Eurosport 2',
+                        'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'EXTREME IL', 'Sport 5+ Live HD IL',
+                        'ONE 2 HD IL', 'Sport 3 HD IL', 'Sport 5 HD IL ', 'SPORT 2 HD IL', 'Sport 1 HD IL',
+                        'Sport 2 HD', 'Sport 3 HD', 'Sport 4 HD',
+                        'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'ESPN 2 HD USA', 'ESPN USA',
+                        'Eurosport 1 HD', 'Red Bull TV HD',
+                        'WWE Russian', 'Red Bull TV', 'MMA-TV.com HD', 'MMA-TV.com', 'MMA-TV.com orig', 'NHL', 'nba',
+                        'NBA', 'wwe', 'WWE Network HD', 'Eurosport 2',
                         'Eurosport 2', 'EXTREME', 'SPORT'],
             'Kids🍦': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'BABY TV IL', 'hop', 'HOT A+ Kids', 'Nick Jr',
                       'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut',
@@ -1188,11 +1189,26 @@ class M3UEditor(QWidget):
                                'Entertainment IL', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'],
             'Music🎵': ['music', 'MUSIC', 'MUSIC 24', 'MTV Hits', 'MTV Base HD', 'Stingray ', 'MTV Hits',
                        'Stingray Hot Country HD', 'Stingray Pop Adult HD', 'Stingray Hit List HD', 'MTV Hits',
-                       'MTV Club', 'Clubbing TV HD', 'IL: MTV HD', 'MTV 80s', 'MTV', 'MTV Pulse HD', 'IT: MTV HD', 'MTV Idol HD', 'VH1 Classic', 'Rock Classics', 'Europa Plus TV HD', 'Music Box Gold', 'music 24', 'MTV Hits orig',
-                       'Club MTV', 'Bridge Deluxe HD', 'Now 90s HD UK', 'Now 80s HD UK', 'NOW 70s UK', 'Bridge TV', 'Bridge Deluxe HD orig', 'Bridge Hits',
+                       'MTV Club', 'Clubbing TV HD', 'IL: MTV HD', 'MTV 80s', 'MTV', 'MTV Pulse HD', 'IT: MTV HD',
+                       'MTV Idol HD', 'VH1 Classic', 'Rock Classics', 'Europa Plus TV HD', 'Music Box Gold', 'music 24',
+                       'MTV Hits orig',
+                       'Club MTV', 'Bridge Deluxe HD', 'Now 90s HD UK', 'Now 80s HD UK', 'NOW 70s UK', 'Bridge TV',
+                       'Bridge Deluxe HD orig', 'Bridge Hits',
                        'Bridge Rock', 'Europa Plus TV', 'Europa Plus TV orig', 'MTV Live HD', 'MTV Live HD orig',
                        'MTV 90s', 'MUSIC 24', 'Yosso TV Music Hits', 'Fresh Concerts', 'Fresh Dance',
-                       'Sky High Concert HD', 'Movistar Musica HD', 'MTV' '1HD Music Television orig','4ever Music HD UA','4ever Music UA','B4U Music IN','BOX Music 4K HDR','Backus TV Music HD','Baraza Music HD','Biz Music HD UZ','CHANNEL 24 MUSIC HD IL','Classic Music','Classic Music HD','Disco Polo Music PL','EU Music HD UA','EU Music UA','FRESH Sad Music HD','HMTV IN','KLI Music HD',"MTV 00's PT",'MTV 00s RO', 'MTV 80s RO','MTV 90s','MTV Aitio HD SE','MTV Base UK','MTV Classic','MTV Classic USA','MTV Club','MTV HD CA','MTV Hits', 'MTV Hits RO','MTV India IN', 'MTV Live HD','MTV Live HD orig','MTV MUSIC IL','MTV Music UK','MTV POLSKA PL','MTV RO','MTV SE','MTV Viihde HD FI','MTV Viihde HD SE','MUSIC 24 IL','Music Box Gold','Music Box Russia','Music Box Russia HD','Music Box Russia orig','Music Channel RO','MusicBox GE','Prokop TV Music','Public Music IN','Retro Music TV HD CZ','SUN Music IN','Sochi Music HD','VB MTV Old Россия HD','VF Music','Vox Music TV PL','Yosso TV Music Hits','Z!Music HD','ТНТ Music','ТНТ Music HD','ТНТ Music orig' ],
+                       'Sky High Concert HD', 'Movistar Musica HD', 'MTV' '1HD Music Television orig',
+                       '4ever Music HD UA', '4ever Music UA', 'B4U Music IN', 'BOX Music 4K HDR', 'Backus TV Music HD',
+                       'Baraza Music HD', 'Biz Music HD UZ', 'CHANNEL 24 MUSIC HD IL', 'Classic Music',
+                       'Classic Music HD', 'Disco Polo Music PL', 'EU Music HD UA', 'EU Music UA', 'FRESH Sad Music HD',
+                       'HMTV IN', 'KLI Music HD', "MTV 00's PT", 'MTV 00s RO', 'MTV 80s RO', 'MTV 90s',
+                       'MTV Aitio HD SE', 'MTV Base UK', 'MTV Classic', 'MTV Classic USA', 'MTV Club', 'MTV HD CA',
+                       'MTV Hits', 'MTV Hits RO', 'MTV India IN', 'MTV Live HD', 'MTV Live HD orig', 'MTV MUSIC IL',
+                       'MTV Music UK', 'MTV POLSKA PL', 'MTV RO', 'MTV SE', 'MTV Viihde HD FI', 'MTV Viihde HD SE',
+                       'MUSIC 24 IL', 'Music Box Gold', 'Music Box Russia', 'Music Box Russia HD',
+                       'Music Box Russia orig', 'Music Channel RO', 'MusicBox GE', 'Prokop TV Music', 'Public Music IN',
+                       'Retro Music TV HD CZ', 'SUN Music IN', 'Sochi Music HD', 'VB MTV Old Россия HD', 'VF Music',
+                       'Vox Music TV PL', 'Yosso TV Music Hits', 'Z!Music HD', 'ТНТ Music', 'ТНТ Music HD',
+                       'ТНТ Music orig'],
             'Nature🌴': ['Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Travel Channel',
                         'DISCOVERY CHANNEL HD IL', 'Nat Geo HD', 'Nat Geo Wild', 'Animal Planet HD',
                         'DISCOVERY CHANNEL HD IL', 'NET GEO_WILD HD IL', 'Sky Select 5 HD', 'NAT GEO WILD IL',
