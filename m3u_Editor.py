@@ -235,58 +235,6 @@ class M3UEditor(QWidget):
         self.categories = {}
         self.initUI()
 
-    def openM3UConverterDialog(self):
-        dialog = M3UUrlConverterDialog(self)
-        dialog.exec_()
-
-    def search_channels(self, query, filter_options):
-        results = []
-        for category, channels in self.categories.items():
-            for channel in channels:
-                if query.lower() in channel.lower():
-                    results.append(channel)
-        return results
-
-    def perform_search(self):
-        query = self.search_input.text().strip()
-        if query:  # Check if the query is not empty
-            results = self.search_channels(query, {})
-            self.display_search_results(results)
-        else:
-            self.display_search_results([])  # Clear results if query is empty
-
-    def display_search_results(self, results):
-        self.channelList.clear()  # Clears the current list
-        self.textEdit.clear()  # Assuming 'textEdit' is your QTextEdit for M3U content
-        for channel in results:
-            self.channelList.addItem(channel)  # Adds channel to the list
-            self.textEdit.append(channel)  # Also append the full channel info to the M3U content area
-
-    def setup_channel_context_menu(self):
-        self.channelList.setContextMenuPolicy(Qt.ActionsContextMenu)
-        addToCategoryAction = QAction('Add to Category', self)
-        addToCategoryAction.triggered.connect(self.add_to_category)
-        self.channelList.addAction(addToCategoryAction)
-
-        newCategoryAction = QAction('Create New Category with Channel', self)
-        newCategoryAction.triggered.connect(self.create_new_category_with_channel)
-        self.channelList.addAction(newCategoryAction)
-
-    def add_to_category(self):
-        selected_channel = self.channelList.currentItem().text()
-        category, ok = QInputDialog.getItem(self, "Select Category", "Choose a category:", self.categories.keys(), 0,
-                                            False)
-        if ok and category:
-            self.categories[category].append(selected_channel)
-            self.updateCategoryList()  # Update your category view if necessary
-
-    def create_new_category_with_channel(self):
-        selected_channel = self.channelList.currentItem().text()
-        category_name, ok = QInputDialog.getText(self, "New Category", "Enter new category name:")
-        if ok and category_name:
-            self.categories[category_name] = [selected_channel]
-            self.updateCategoryList()  # Update your category view if necessary
-
     def initUI(self):
         self.setWindowTitle('M3U Playlist Editor')
         self.setGeometry(100, 100, 800, 600)
@@ -353,6 +301,59 @@ class M3UEditor(QWidget):
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
         # Ensure everything is added to main_layout
         self.setLayout(main_layout)
+    def openM3UConverterDialog(self):
+        dialog = M3UUrlConverterDialog(self)
+        dialog.exec_()
+
+    def search_channels(self, query, filter_options):
+        results = []
+        for category, channels in self.categories.items():
+            for channel in channels:
+                if query.lower() in channel.lower():
+                    results.append(channel)
+        return results
+
+    def perform_search(self):
+        query = self.search_input.text().strip()
+        if query:  # Check if the query is not empty
+            results = self.search_channels(query, {})
+            self.display_search_results(results)
+        else:
+            self.display_search_results([])  # Clear results if query is empty
+
+    def display_search_results(self, results):
+        self.channelList.clear()  # Clears the current list
+        self.textEdit.clear()  # Assuming 'textEdit' is your QTextEdit for M3U content
+        for channel in results:
+            self.channelList.addItem(channel)  # Adds channel to the list
+            self.textEdit.append(channel)  # Also append the full channel info to the M3U content area
+
+    def setup_channel_context_menu(self):
+        self.channelList.setContextMenuPolicy(Qt.ActionsContextMenu)
+        addToCategoryAction = QAction('Add to Category', self)
+        addToCategoryAction.triggered.connect(self.add_to_category)
+        self.channelList.addAction(addToCategoryAction)
+
+        newCategoryAction = QAction('Create New Category with Channel', self)
+        newCategoryAction.triggered.connect(self.create_new_category_with_channel)
+        self.channelList.addAction(newCategoryAction)
+
+    def add_to_category(self):
+        selected_channel = self.channelList.currentItem().text()
+        category, ok = QInputDialog.getItem(self, "Select Category", "Choose a category:", self.categories.keys(), 0,
+                                            False)
+        if ok and category:
+            self.categories[category].append(selected_channel)
+            self.updateCategoryList()  # Update your category view if necessary
+
+    def create_new_category_with_channel(self):
+        selected_channel = self.channelList.currentItem().text()
+        category_name, ok = QInputDialog.getText(self, "New Category", "Enter new category name:")
+        if ok and category_name:
+            self.categories[category_name] = [selected_channel]
+            self.updateCategoryList()  # Update your category view if necessary
+
+
 
     def mergeM3Us(self):
         options = QFileDialog.Options()
@@ -1317,7 +1318,6 @@ class M3UEditor(QWidget):
             return 'world series'
         else:
             return 'Other'
-
 
 def main():
     app = QApplication(sys.argv)
