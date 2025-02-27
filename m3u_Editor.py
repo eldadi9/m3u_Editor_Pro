@@ -561,16 +561,14 @@ class M3UEditor(QWidget):
             elif sort_option == "Sort by Name Z-A":
                 self.categories[current_category].sort(key=lambda x: x.split(" (")[0], reverse=True)
             elif sort_option == "Sort by Stream Type":
-                self.categories[current_category].sort(
-                    key=lambda x: x.split(",")[-1])  # Assuming stream type can be parsed
+                self.categories[current_category].sort(key=lambda x: x.split(",")[-1])
             elif sort_option == "Sort by Group Title":
-                self.categories[current_category].sort(
-                    key=lambda x: x.split("group-title=")[-1].split(",")[0])  # Assuming group title can be parsed
+                self.categories[current_category].sort(key=lambda x: x.split("group-title=")[-1].split(",")[0])
             elif sort_option == "Sort by URL Length":
-                self.categories[current_category].sort(
-                    key=lambda x: len(x.split(",")[-1]))  # Assuming URL is the last part
+                self.categories[current_category].sort(key=lambda x: len(x.split(",")[-1]))
 
             self.display_channels(self.categoryList.currentItem())
+            self.updateM3UContent()  # <-- Add this line
 
     def create_m3u_content_section(self):
         layout = QVBoxLayout()
