@@ -527,6 +527,8 @@ class M3UEditor(QWidget):
         self.clearChannelsSelectionButton = QPushButton('Deselect All')
         self.moveSelectedChannelButton = QPushButton('Move Selected')
         self.editSelectedChannelButton = QPushButton('Edit Selected')
+        self.checkDoublesButton = QPushButton('Check Doubles')
+        self.checkDoublesButton.clicked.connect(self.checkDoubles)
         button_layout.addWidget(self.addChannelButton)
         button_layout.addWidget(self.deleteChannelButton)
         button_layout.addWidget(self.moveChannelUpButton)
@@ -535,6 +537,7 @@ class M3UEditor(QWidget):
         button_layout.addWidget(self.clearChannelsSelectionButton)
         button_layout.addWidget(self.moveSelectedChannelButton)
         button_layout.addWidget(self.editSelectedChannelButton)
+        button_layout.addWidget(self.checkDoublesButton)  # Add it to the button row
         layout.addLayout(button_layout)
 
         self.channelList = QListWidget(self)
@@ -802,6 +805,7 @@ class M3UEditor(QWidget):
 
         QMessageBox.information(self, "Success", "Selected channels have been deleted.")
 
+
     def updateM3UContent(self):
         """
         Regenerates the M3U content based on the current state of self.categories,
@@ -1036,6 +1040,48 @@ class M3UEditor(QWidget):
 
         # Update the total channel count label
         self.channelCountLabel.setText(f"Channels in '{category}': {len(channels)}")
+
+    def checkDoubles(self):
+        """
+        Check for duplicate channel names in the current category.
+        Marks (selects) duplicate channels in the channel list.
+        Does not modify channel names, just highlights them.
+        """
+        current_category_item = self.categoryList.currentItem()
+        if not current_category_item:
+            QMessageBox.warning(self, "Warning", "No category selected.")
+            return
+
+        current_category = current_category_item.text().split(" (")[0]
+        if current_category not in self.categories:
+            QMessageBox.warning(self, "Warning", "Category not found.")
+            return
+
+        # Clear any existing selection
+        self.channelList.clearSelection()
+
+        # Track occurrences of each channel name
+        channel_names = {}
+        duplicate_indexes = set()
+
+        channels = self.categories[current_category]
+
+        for i, channel in enumerate(channels):
+            channel_name = channel.split(" (")[0].strip()
+
+            if channel_name in channel_names:
+                # This is a duplicate - mark both the original and the duplicate
+                duplicate_indexes.add(channel_names[channel_name])  # first occurrence
+                duplicate_indexes.add(i)  # current duplicate
+            else:
+                channel_names[channel_name] = i  # Store first occurrence
+
+        # Apply selection to all duplicates in the list
+        for index in duplicate_indexes:
+            self.channelList.item(index).setSelected(True)
+
+        QMessageBox.information(self, "Check Complete",
+                                f"Found and selected {len(duplicate_indexes)} duplicate channels.")
 
     def getUrl(self, channel_info):
         try:
