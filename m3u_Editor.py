@@ -758,53 +758,43 @@ class M3UEditor(QWidget):
 
     def deleteSelectedChannels(self):
         """
-        Deletes the selected channels from the current category and updates the M3U content.
+        Deletes only the channels that are explicitly selected in the channel list.
+        Works with the exact position (index) in the current category.
+        Shows a message at the end with the count of deleted channels.
         """
-        selected_items = self.channelList.selectedItems()
-        if not selected_items:
-            QMessageBox.warning(self, "Warning", "No channels selected for deletion.")
-            return
-
-        # Get the current category
-        selected_category_item = self.categoryList.currentItem()
-        if not selected_category_item:
+        current_category_item = self.categoryList.currentItem()
+        if not current_category_item:
             QMessageBox.warning(self, "Warning", "No category selected.")
             return
 
-        current_category = selected_category_item.text().split(" (")[0]
+        current_category = current_category_item.text().split(" (")[0]
         if current_category not in self.categories:
             QMessageBox.warning(self, "Warning", "Category not found.")
             return
 
-        # List of channel names to delete
-        channels_to_delete = [item.text() for item in selected_items]
+        selected_items = self.channelList.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "Info", "No channels selected for deletion.")
+            return
 
-        # Remove channels from the categories dictionary
-        self.categories[current_category] = [
-            channel for channel in self.categories[current_category]
-            if channel.split(" (")[0] not in channels_to_delete
-        ]
+        # We need to find the actual index positions of selected channels
+        selected_indexes = [self.channelList.row(item) for item in selected_items]
 
-        # Update the M3U content to remove the deleted channels
-        updated_lines = []
-        skip_next_line = False
-        for line in self.textEdit.toPlainText().splitlines():
-            if skip_next_line:
-                skip_next_line = False
-                continue
-            if line.startswith("#EXTINF") and any(chan in line for chan in channels_to_delete):
-                skip_next_line = True  # Skip the URL line as well
-                continue
-            updated_lines.append(line)
+        # Delete by index — reverse so deletion does not shift indexes
+        selected_indexes.sort(reverse=True)
 
-        # Update the QTextEdit with the modified content
-        self.textEdit.setPlainText("\n".join(updated_lines))
+        deleted_count = 0
 
-        # Refresh the channel list in the UI
-        self.display_channels(selected_category_item)
+        for index in selected_indexes:
+            if 0 <= index < len(self.categories[current_category]):
+                del self.categories[current_category][index]
+                deleted_count += 1
 
-        QMessageBox.information(self, "Success", "Selected channels have been deleted.")
+        # Update the UI and M3U content
+        self.updateM3UContent()
+        self.display_channels(self.categoryList.currentItem())
 
+        QMessageBox.information(self, "Success", f"Deleted {deleted_count} channel(s).")
 
     def updateM3UContent(self):
         """
@@ -1044,8 +1034,7 @@ class M3UEditor(QWidget):
     def checkDoubles(self):
         """
         Check for duplicate channel names in the current category.
-        Marks (selects) duplicate channels in the channel list.
-        Does not modify channel names, just highlights them.
+        Select only *one* of each duplicate pair (the second occurrence), so one channel always remains.
         """
         current_category_item = self.categoryList.currentItem()
         if not current_category_item:
@@ -1057,31 +1046,32 @@ class M3UEditor(QWidget):
             QMessageBox.warning(self, "Warning", "Category not found.")
             return
 
-        # Clear any existing selection
+        # Clear all current selections first
         self.channelList.clearSelection()
 
-        # Track occurrences of each channel name
+        # Track channel occurrences by name
         channel_names = {}
-        duplicate_indexes = set()
-
         channels = self.categories[current_category]
+
+        # Track which indexes to select (the duplicate copies, not the first)
+        duplicate_indexes = set()
 
         for i, channel in enumerate(channels):
             channel_name = channel.split(" (")[0].strip()
 
             if channel_name in channel_names:
-                # This is a duplicate - mark both the original and the duplicate
-                duplicate_indexes.add(channel_names[channel_name])  # first occurrence
-                duplicate_indexes.add(i)  # current duplicate
+                # Found a duplicate - mark the second occurrence (i.e., this one)
+                duplicate_indexes.add(i)
             else:
-                channel_names[channel_name] = i  # Store first occurrence
+                # First occurrence - remember its index
+                channel_names[channel_name] = i
 
-        # Apply selection to all duplicates in the list
+        # Select only the duplicate channels (leaving the first copy unselected)
         for index in duplicate_indexes:
             self.channelList.item(index).setSelected(True)
 
         QMessageBox.information(self, "Check Complete",
-                                f"Found and selected {len(duplicate_indexes)} duplicate channels.")
+                                f"Found {len(duplicate_indexes)} duplicate channels (one copy kept).")
 
     def getUrl(self, channel_info):
         try:
