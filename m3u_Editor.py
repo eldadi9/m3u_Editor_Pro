@@ -527,7 +527,7 @@ class M3UEditor(QWidget):
         self.clearChannelsSelectionButton = QPushButton('Deselect All')
         self.moveSelectedChannelButton = QPushButton('Move Selected')
         self.editSelectedChannelButton = QPushButton('Edit Selected')
-        self.checkDoublesButton = QPushButton('Check Doubles')
+        self.checkDoublesButton = QPushButton('Check Duplicate')
         self.checkDoublesButton.clicked.connect(self.checkDoubles)
         button_layout.addWidget(self.addChannelButton)
         button_layout.addWidget(self.deleteChannelButton)
