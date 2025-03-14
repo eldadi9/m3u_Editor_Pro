@@ -468,6 +468,11 @@ class M3UEditor(QWidget):
         self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
         buttons_layout.addWidget(self.m3uUrlConverterButton)
 
+        self.convertPortalButton = QPushButton('Convert Portal MAC to M3U', self)
+        self.convertPortalButton.setStyleSheet("background-color: green; color: white;")
+        self.convertPortalButton.clicked.connect(self.convertPortalToM3U)
+        buttons_layout.addWidget(self.convertPortalButton)
+
         # Export Groups button
         self.exportGroupButton = QPushButton('Export Groups', self)
         self.exportGroupButton.setStyleSheet("background-color: black; color: white;")
@@ -484,6 +489,72 @@ class M3UEditor(QWidget):
         layout.addLayout(buttons_layout)
 
         return layout
+
+    def convertPortalToM3U(self):
+        mac_address, ok_mac = QInputDialog.getText(self, 'Enter MAC Address', 'Enter your MAC Address:')
+        portal_url, ok_portal = QInputDialog.getText(self, 'Enter Portal URL', 'Enter your Portal URL:')
+
+        if ok_mac and ok_portal and mac_address and portal_url:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
+                "Referer": portal_url,
+                "X-User-Agent": "Model: MAG254; Link: Ethernet"
+            }
+
+            try:
+                # Step 1: Authentication (Handshake)
+                handshake_url = f"{portal_url}server/load.php"
+                handshake_data = {"type": "stb", "action": "handshake", "token": "", "mac": mac_address}
+                response = requests.post(handshake_url, headers=headers, json=handshake_data)
+
+                # Debugging print
+                print("Handshake Response:", response.text)
+
+                # Validate JSON response
+                if response.status_code != 200 or not response.text.strip():
+                    QMessageBox.critical(self, "Error", "Failed to connect to portal. Check the Portal URL.")
+                    return
+
+                token = response.json().get("js", {}).get("token", None)
+
+                if not token:
+                    QMessageBox.critical(self, "Error", "Authentication failed. Check your MAC address and Portal URL.")
+                    return
+
+                # Step 2: Fetch Channels
+                channels_url = f"{portal_url}stalker_portal/server/load.php?type=itv&action=get_all_channels&mac={mac_address}&token={token}"
+                channels_response = requests.get(channels_url, headers=headers)
+
+                # Debugging print
+                print("Channels Response:", channels_response.text)
+
+                # Validate JSON response
+                if channels_response.status_code != 200 or not channels_response.text.strip():
+                    QMessageBox.critical(self, "Error", "Failed to retrieve channel list. Check your Portal URL.")
+                    return
+
+                channels = channels_response.json().get("js", {}).get("data", [])
+
+                if not channels:
+                    QMessageBox.critical(self, "Error", "No channels found. Check your MAC and Portal URL.")
+                    return
+
+                # Step 3: Generate M3U File
+                m3u_content = "#EXTM3U\n"
+                for channel in channels:
+                    name = channel.get("name", "Unknown Channel")
+                    stream_url = channel.get("cmd", "")
+                    m3u_content += f"#EXTINF:-1,{name}\n{stream_url}\n"
+
+                file_path, _ = QFileDialog.getSaveFileName(self, "Save M3U File", "playlist.m3u",
+                                                           "M3U Files (*.m3u);;All Files (*)")
+                if file_path:
+                    with open(file_path, "w", encoding="utf-8") as file:
+                        file.write(m3u_content)
+                    QMessageBox.information(self, "Success", "M3U file successfully created!")
+
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to convert Portal MAC to M3U: {str(e)}")
 
     def displayTotalChannels(self):
         total_channels = sum(len(channels) for channels in self.categories.values())
