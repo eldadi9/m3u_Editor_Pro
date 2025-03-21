@@ -44,6 +44,95 @@ class MoveChannelsDialog(QDialog):
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
+class URLCheckerDialog(QDialog):
+    def __init__(self, channels, parent=None):
+        super().__init__(parent)
+        self.channels = channels  # channels should be a list of tuples (name, url)
+        self.results = []
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle("URL Checker")
+        self.setGeometry(200, 200, 900, 600)
+
+        layout = QVBoxLayout(self)
+
+        # Results summary labels
+        self.checkedLabel = QLabel("Checked: 0", self)
+        self.onlineLabel = QLabel("Online: 0", self)
+        self.offlineLabel = QLabel("Offline: 0", self)
+
+        summaryLayout = QHBoxLayout()
+        summaryLayout.addWidget(self.checkedLabel)
+        summaryLayout.addWidget(self.onlineLabel)
+        summaryLayout.addWidget(self.offlineLabel)
+        layout.addLayout(summaryLayout)
+
+        # Channel list
+        self.channelTable = QListWidget(self)
+        layout.addWidget(self.channelTable)
+
+        # Search input and status filter
+        controlLayout = QHBoxLayout()
+        self.searchInput = QLineEdit(self)
+        self.searchInput.setPlaceholderText("Search Channels...")
+        self.searchInput.textChanged.connect(self.updateFilter)
+
+        self.statusFilter = QComboBox(self)
+        self.statusFilter.addItems(["All", "Online", "Offline"])
+        self.statusFilter.currentIndexChanged.connect(self.updateFilter)
+
+        controlLayout.addWidget(self.searchInput)
+        controlLayout.addWidget(self.statusFilter)
+        layout.addLayout(controlLayout)
+
+        # Button to start checking URLs
+        self.startButton = QPushButton("Start Checking URLs", self)
+        self.startButton.clicked.connect(self.checkUrls)
+        layout.addWidget(self.startButton)
+
+    def checkUrls(self):
+        self.channelTable.clear()
+        online = 0
+        offline = 0
+        self.results.clear()
+
+        for name, url in self.channels:
+            try:
+                res = requests.head(url, timeout=3)
+                status = "Online" if res.status_code < 400 else "Offline"
+            except:
+                status = "Offline"
+
+            if status == "Online":
+                online += 1
+            else:
+                offline += 1
+
+            self.results.append((name, url, status))
+
+            item = QListWidgetItem(f"{name} [{status}]")
+            item.setBackground(Qt.green if status == "Online" else Qt.red)
+            self.channelTable.addItem(item)
+
+            QApplication.processEvents()  # Keep UI responsive
+
+        self.checkedLabel.setText(f"Checked: {len(self.channels)}")
+        self.onlineLabel.setText(f"Online: {online}")
+        self.offlineLabel.setText(f"Offline: {offline}")
+
+    def updateFilter(self):
+        query = self.searchInput.text().lower()
+        status_filter = self.statusFilter.currentText()
+
+        self.channelTable.clear()
+
+        for name, url, status in self.results:
+            if query in name.lower() and (status_filter == "All" or status == status_filter):
+                item = QListWidgetItem(f"{name} [{status}]")
+                item.setBackground(Qt.green if status == "Online" else Qt.red)
+                self.channelTable.addItem(item)
+
 
 class ExportGroupsDialog(QDialog):
     def __init__(self, categories, parent=None):
@@ -297,10 +386,16 @@ class M3UEditor(QWidget):
         main_layout.addLayout(self.create_m3u_content_section())
         main_layout.addLayout(self.create_Tools())
 
+        self.urlCheckButton = QPushButton('URL Checker', self)
+        self.urlCheckButton.setStyleSheet("background-color: purple; color: white;")
+        self.urlCheckButton.clicked.connect(self.openURLCheckerDialog)
+        main_layout.addWidget(self.urlCheckButton)
+
         # Ensure EXTM3U header
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
         # Ensure everything is added to main_layout
         self.setLayout(main_layout)
+
     def openM3UConverterDialog(self):
         dialog = M3UUrlConverterDialog(self)
         dialog.exec_()
@@ -353,7 +448,16 @@ class M3UEditor(QWidget):
             self.categories[category_name] = [selected_channel]
             self.updateCategoryList()  # Update your category view if necessary
 
+    def openURLCheckerDialog(self):
+        channels = []
+        for category, channel_list in self.categories.items():
+            for ch in channel_list:
+                channel_name = ch.split(' (')[0]
+                channel_url = self.getUrl(ch)
+                channels.append((channel_name, channel_url))
 
+        dialog = URLCheckerDialog(channels, self)
+        dialog.exec_()
 
     def mergeM3Us(self):
         options = QFileDialog.Options()
