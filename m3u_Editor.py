@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
-    QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,
+    QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,QTableWidget, QTableWidgetItem, QHeaderView,
     QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView, QAction
 )
 from PyQt5.QtCore import Qt
@@ -11,6 +11,7 @@ import re
 import traceback
 import pyperclip
 import requests  # You need to import requests to handle downloading
+from urllib.parse import urlparse
 
 
 class MoveChannelsDialog(QDialog):
@@ -47,185 +48,127 @@ class MoveChannelsDialog(QDialog):
 class URLCheckerDialog(QDialog):
     def __init__(self, channels, parent=None):
         super().__init__(parent)
-        self.channels = channels  # channels should be a list of tuples (name, url)
+        self.channels = channels  # list of tuples (name, url)
         self.results = []
         self.initUI()
 
     def initUI(self):
         self.setWindowTitle("URL Checker")
-        self.setGeometry(200, 200, 900, 600)
+        self.setGeometry(150, 150, 1000, 600)
 
         layout = QVBoxLayout(self)
 
-        # Results summary labels
-        self.checkedLabel = QLabel("Checked: 0", self)
-        self.onlineLabel = QLabel("Online: 0", self)
-        self.offlineLabel = QLabel("Offline: 0", self)
-
+        # Status summary layout
         summaryLayout = QHBoxLayout()
-        summaryLayout.addWidget(self.checkedLabel)
-        summaryLayout.addWidget(self.onlineLabel)
-        summaryLayout.addWidget(self.offlineLabel)
+
+        self.checkedLabel = QLabel("Checked\n0", self)
+        self.onlineLabel = QLabel("Online\n0", self)
+        self.offlineLabel = QLabel("Offline\n0", self)
+
+        for label, color in zip([self.checkedLabel, self.onlineLabel, self.offlineLabel], ['#6A1B9A', '#6A1B9A', '#6A1B9A']):
+            label.setAlignment(Qt.AlignCenter)
+            label.setStyleSheet(f"font-size: 24px; background-color: {color}; color: white; padding: 20px; border-radius: 5px;")
+            summaryLayout.addWidget(label)
+
         layout.addLayout(summaryLayout)
 
-        # Channel list
-        self.channelTable = QListWidget(self)
-        layout.addWidget(self.channelTable)
+        # Progress bar/status line
+        self.statusLine = QLabel("Status: Waiting", self)
+        layout.addWidget(self.statusLine)
 
-        # Search input and status filter
+        # Channel count, search bar, and filter by status
         controlLayout = QHBoxLayout()
+
+        self.channelCountLabel = QLabel("Channels Count: 0", self)
+        controlLayout.addWidget(self.channelCountLabel)
+
         self.searchInput = QLineEdit(self)
         self.searchInput.setPlaceholderText("Search Channels...")
         self.searchInput.textChanged.connect(self.updateFilter)
+        controlLayout.addWidget(self.searchInput)
 
         self.statusFilter = QComboBox(self)
         self.statusFilter.addItems(["All", "Online", "Offline"])
         self.statusFilter.currentIndexChanged.connect(self.updateFilter)
-
-        controlLayout.addWidget(self.searchInput)
         controlLayout.addWidget(self.statusFilter)
+
         layout.addLayout(controlLayout)
 
-        # Button to start checking URLs
-        self.startButton = QPushButton("Start Checking URLs", self)
-        self.startButton.clicked.connect(self.checkUrls)
-        layout.addWidget(self.startButton)
+        # Channel details table
+        self.channelTable = QTableWidget(self)
+        self.channelTable.setColumnCount(4)
+        self.channelTable.setHorizontalHeaderLabels(["Channel Name", "Status", "Server", "URL"])
+        header = self.channelTable.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+        layout.addWidget(self.channelTable)
+
+        # Check button
+        self.checkBtn = QPushButton("Check URLs", self)
+        self.checkBtn.setStyleSheet("background-color: purple; color: white; font-size: 16px; padding: 10px;")
+        self.checkBtn.clicked.connect(self.checkUrls)
+        layout.addWidget(self.checkBtn)
+
+        self.channelCountLabel.setText(f"Channels Count: {len(self.channels)}")
 
     def checkUrls(self):
-        self.channelTable.clear()
-        online = 0
-        offline = 0
         self.results.clear()
+        online, offline = 0, 0
+        total = len(self.channels)
 
-        for name, url in self.channels:
+        self.channelTable.setRowCount(0)  # clear table before populating
+
+        for idx, (name, url) in enumerate(self.channels, 1):
+            self.statusLine.setText(f"Checking ({idx}/{total}): {name}")
+            QApplication.processEvents()
+
             try:
                 res = requests.head(url, timeout=3)
                 status = "Online" if res.status_code < 400 else "Offline"
             except:
                 status = "Offline"
 
+            parsed_url = urlparse(url)
+            server = parsed_url.hostname or "Unknown"
+
             if status == "Online":
                 online += 1
             else:
                 offline += 1
 
-            self.results.append((name, url, status))
+            self.results.append((name, status, server, url))
 
-            item = QListWidgetItem(f"{name} [{status}]")
-            item.setBackground(Qt.green if status == "Online" else Qt.red)
-            self.channelTable.addItem(item)
+            self.addChannelToTable(name, status, server, url)
 
-            QApplication.processEvents()  # Keep UI responsive
+            self.checkedLabel.setText(f"Checked\n{idx}")
+            self.onlineLabel.setText(f"Online\n{online}")
+            self.offlineLabel.setText(f"Offline\n{offline}")
 
-        self.checkedLabel.setText(f"Checked: {len(self.channels)}")
-        self.onlineLabel.setText(f"Online: {online}")
-        self.offlineLabel.setText(f"Offline: {offline}")
+        self.statusLine.setText("Status: Finished")
+
+    def addChannelToTable(self, name, status, server, url):
+        row_position = self.channelTable.rowCount()
+        self.channelTable.insertRow(row_position)
+
+        color = "#66BB6A" if status == "Online" else "#EF5350"
+
+        for col, data in enumerate([name, status, server, url]):
+            item = QTableWidgetItem(data)
+            if col == 1:  # Status column color
+                item.setBackground(Qt.green if status == "Online" else Qt.red)
+            else:
+                item.setBackground(Qt.white)
+            item.setFlags(item.flags() ^ Qt.ItemIsEditable)
+            self.channelTable.setItem(row_position, col, item)
 
     def updateFilter(self):
-        query = self.searchInput.text().lower()
+        search_text = self.searchInput.text().lower()
         status_filter = self.statusFilter.currentText()
 
-        self.channelTable.clear()
+        self.channelTable.setRowCount(0)
 
-        for name, url, status in self.results:
-            if query in name.lower() and (status_filter == "All" or status == status_filter):
-                item = QListWidgetItem(f"{name} [{status}]")
-                item.setBackground(Qt.green if status == "Online" else Qt.red)
-                self.channelTable.addItem(item)
-
-
-class ExportGroupsDialog(QDialog):
-    def __init__(self, categories, parent=None):
-        super(ExportGroupsDialog, self).__init__(parent)
-        self.categories = categories
-        self.parent = parent
-        self.setupUI()
-
-    def setupUI(self):
-        self.setGeometry(100, 100, 500, 300)  # Adjust size as needed
-        self.setWindowTitle("Export Groups")
-        layout = QVBoxLayout(self)
-        layout.setSpacing(10)  # Adjust spacing between widgets
-
-        # Styling the dialog frame and background
-        self.setStyleSheet("QDialog { border: 8px solid red; background-color: white;}")
-
-        # Option to export selected groups
-        self.exportSelectedButton = QPushButton("Export Selected Groups", self)
-        self.exportSelectedButton.setStyleSheet("background-color: red; color: white; font-weight: bold;")
-        self.exportSelectedButton.clicked.connect(self.exportSelected)
-        layout.addWidget(self.exportSelectedButton)
-
-        # Option to export all groups
-        self.exportAllButton = QPushButton("Export All Groups", self)
-        self.exportAllButton.setStyleSheet("background-color: black; color: white; font-weight: bold;")
-        self.exportAllButton.clicked.connect(self.exportAll)
-        layout.addWidget(self.exportAllButton)
-
-        self.setLayout(layout)
-
-    def getUrl(self, channel):
-        if self.parent:
-            return self.parent.getUrl(channel)  # Call getUrl of M3UEditor
-        return ""  # Default or error handling
-
-    def exportSelected(self):
-        selectedCategory, ok = QInputDialog.getItem(self, "Select Group", "Choose a group to export:",
-                                                    list(self.categories.keys()), 0, False)
-        if ok and selectedCategory:
-            directory = QFileDialog.getExistingDirectory(self, "Select Directory")
-            if directory:
-                self.exportGroup(selectedCategory, directory)
-                pass
-
-    def exportAll(self):
-        directory = QFileDialog.getExistingDirectory(self, "Select Directory")
-        if directory:
-            for category in self.categories.keys():
-                self.exportGroup(category, directory)
-                pass
-
-    def exportGroup(self, category, directory):
-        safe_category = "".join(c for c in category if c.isalnum() or c in " _-").rstrip()
-        file_path = os.path.join(directory, f"{safe_category}.m3u")
-
-        try:
-            with open(file_path, 'w', encoding='utf-8') as file:
-                file.write("#EXTM3U\n")
-                for channel in self.categories[category]:
-                    extinf_line = self.getFullExtInfLine(channel, category)
-                    url = self.getUrl(channel)  # Correctly extracts URL
-                    file.write(f"{extinf_line}\n{url}\n")  # Newline between properties and URL
-        except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {str(e)}")
-
-    def getFullExtInfLine(self, channel, category="Default Category"):
-        """
-        Constructs the full EXTINF line from channel information,
-        preserving all properties such as tvg-logo, tvg-id, catchup-days, etc.
-        The category parameter is optional and will default to 'Default Category' if not provided.
-        """
-        # Assume the channel format includes the full EXTINF line with properties followed by URL in parentheses
-        properties_part = channel.split(' (')[0]  # Separate properties from URL
-        channel_name = properties_part.split(',')[
-            -1] if ',' in properties_part else properties_part  # Get last part after comma as channel name
-
-        # Check if "group-title" is included and add it if missing
-        if "group-title=" not in properties_part:
-            properties_part = f"#EXTINF:-1, group-title=\"{category}\", {channel_name}"
-        else:
-            properties_part = f"#EXTINF:-1, {properties_part}"
-
-        return properties_part
-
-    def parseChannelInfo(self, channel):
-        # Regex to extract name, url and optional tvg-logo
-        match = re.search(r'^(.+) \((http.+)\)$', channel)
-        if match:
-            name = match.group(1)
-            url = match.group(2)
-            return name, url
-        return "", ""
+        for name, status, server, url in self.results:
+            if (search_text in name.lower()) and (status_filter in [status, "All"]):
+                self.addChannelToTable(name, status, server, url)
 
 
 class M3UUrlConverterDialog(QDialog):
