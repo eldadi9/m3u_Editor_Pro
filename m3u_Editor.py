@@ -41,6 +41,7 @@ class MoveChannelsDialog(QDialog):
         # Add a search bar and search button to the layout
         self.search_input = QLineEdit(self)
         self.search_button = QPushButton('Search', self)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
@@ -1421,8 +1422,8 @@ class M3UEditor(QWidget):
 
         filtered_channels = {category: [] for category in category_keywords.keys()}
         filtered_channels['Other'] = []
-        filtered_channels['Israel Radio📻'] = []  # Prepare to load Israeli radio channels
-        filtered_channels['World Radio🌍'] = []  # Prepare to load World radio channels
+        filtered_channels['Israel Radio📻'] = []
+        filtered_channels['World Radio🌍'] = []
 
         for category, channels in self.categories.items():
             for channel in channels:
@@ -1436,24 +1437,59 @@ class M3UEditor(QWidget):
                     if not placed:
                         filtered_channels['Other'].append(channel)
 
-        # Load "Israeli Radios"
+        # Load Israeli and World Radios as usual
         self.loadRadioChannels(filtered_channels, 'Israel Radio📻',
                                r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\IsraeliRadios.m3u")
 
-        # Load "World Radio"
         self.loadRadioChannels(filtered_channels, 'World Radio🌍',
                                r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\RADIO World.m3u")
 
+        # Load your Radio_By_Category.m3u with dynamic categories
+        self.loadRadioCategories(filtered_channels,
+                                 r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\Radio_By_Category.m3u")
+
         # Update categories and regenerate M3U content
         self.categories = filtered_channels
-        self.updateCategoryList()  # Ensure category list is updated with counts
-        self.updateM3UContent()  # Regenerate M3U content for correct order
+        self.updateCategoryList()
+        self.updateM3UContent()
 
-        # Ensure categories are refreshed in the UI
+        # Refresh the UI category list
         self.categoryList.clear()
         for category, channels in self.categories.items():
             display_text = f"{category} ({len(channels)})"
             self.categoryList.addItem(QListWidgetItem(display_text))
+
+    def loadRadioCategories(self, filtered_channels, file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+
+            current_name, current_logo, current_group = None, None, "Uncategorized📻"
+
+            for line in lines:
+                line = line.strip()
+                if line.startswith("#EXTINF:"):
+                    logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                    group_match = re.search(r'group-title="([^"]+)"', line)
+                    current_logo = logo_match.group(1) if logo_match else None
+                    current_group = group_match.group(1) if group_match else "Uncategorized📻"
+                    current_name = line.split(",")[-1].strip()
+                elif line.startswith("http") and current_name:
+                    channel_entry = f"{current_name} ({line})"
+                    if current_logo:
+                        channel_entry += f' tvg-logo="{current_logo}"'
+
+                    if current_group not in filtered_channels:
+                        filtered_channels[current_group] = []
+
+                    filtered_channels[current_group].append(channel_entry)
+
+                    current_name, current_logo, current_group = None, None, "Uncategorized📻"
+
+        except FileNotFoundError:
+            QMessageBox.critical(self, "Error", f"The file {file_path} was not found.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An error occurred while loading the M3U file: {str(e)}")
 
     def loadRadioChannels(self, filtered_channels, category, file_path):
         try:
