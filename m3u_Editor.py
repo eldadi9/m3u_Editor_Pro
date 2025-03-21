@@ -1444,9 +1444,20 @@ class M3UEditor(QWidget):
         self.loadRadioChannels(filtered_channels, 'World Radio🌍',
                                r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\RADIO World.m3u")
 
-        # Load your Radio_By_Category.m3u with dynamic categories
-        self.loadRadioCategories(filtered_channels,
-                                 r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\Radio_By_Category.m3u")
+        # Ask user whether to load radio channels together or separately
+        user_reply = QMessageBox.question(self, 'Load Radio by Category',
+                                          'Do you want to upload all channels together (Radio_By_Category.m3u)?',
+                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if user_reply == QMessageBox.Yes:
+            # Load all channels together into one category
+            filtered_channels['Radio by Category📡'] = []
+            self.loadRadioChannels(filtered_channels, 'Radio by Category📡',
+                                   r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\Radio_By_Category.m3u")
+        else:
+            # Load channels separated by categories dynamically
+            self.loadRadioCategories(filtered_channels,
+                                     r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\Radio_By_Category.m3u")
 
         # Update categories and regenerate M3U content
         self.categories = filtered_channels
