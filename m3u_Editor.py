@@ -55,6 +55,7 @@ class URLCheckerDialog(QDialog):
     def initUI(self):
         self.setWindowTitle("URL Checker")
         self.setGeometry(150, 150, 1000, 600)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         layout = QVBoxLayout(self)
 
