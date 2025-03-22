@@ -94,7 +94,7 @@ class URLCheckerDialog(QDialog):
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle("URL Checker")
+        self.setWindowTitle("IPTV Checker")
         self.setGeometry(150, 150, 1000, 600)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
@@ -144,12 +144,12 @@ class URLCheckerDialog(QDialog):
         buttonsLayout = QHBoxLayout()
 
         self.checkBtn = QPushButton("Check URLs", self)
-        self.checkBtn.setStyleSheet("background-color: purple; color: white; font-size: 16px; padding: 10px;")
+        self.checkBtn.setStyleSheet("background-color: purple; color: white; font-size: 18px; padding: 10px;")
         self.checkBtn.clicked.connect(self.startChecking)
         buttonsLayout.addWidget(self.checkBtn)
 
         self.stopBtn = QPushButton("Stop Checking", self)
-        self.stopBtn.setStyleSheet("background-color: purple; color: white; font-size: 16px; padding: 10px;")
+        self.stopBtn.setStyleSheet("background-color: purple; color: white; font-size: 18px; padding: 10px;")
         self.stopBtn.clicked.connect(self.stopChecking)
         self.stopBtn.setEnabled(False)
         buttonsLayout.addWidget(self.stopBtn)
@@ -158,7 +158,7 @@ class URLCheckerDialog(QDialog):
 
         self.selectOfflineBtn = QPushButton("Select Offline Channels", self)
         self.selectOfflineBtn.setStyleSheet(
-            "background-color: purple; color: white; font-size: 16px; padding: 10px;"
+            "background-color: purple; color: white; font-size: 18px; padding: 10px;"
         )
         self.selectOfflineBtn.clicked.connect(self.selectOfflineChannels)
         buttonsLayout.addWidget(self.selectOfflineBtn)
@@ -198,13 +198,57 @@ class URLCheckerDialog(QDialog):
             )
 
     def startChecking(self):
+        choice, ok = QInputDialog.getItem(
+            self, "Check URLs",
+            "Choose channels to check:",
+            ["Check All Channels", "Check Channels from Selected Category"],
+            editable=False
+        )
+
+        if not ok:
+            return  # User cancelled
+
+        channels_to_check = []
+
+        if choice == "Check All Channels":
+            channels_to_check = self.channels
+        elif choice == "Check Channels from Selected Category":
+            parent_editor = self.parent()
+            if hasattr(parent_editor, 'categories'):
+                categories = list(parent_editor.categories.keys())
+                category, ok_category = QInputDialog.getItem(
+                    self, "Select Category", "Choose category to check URLs from:",
+                    categories, editable=False
+                )
+                if not ok_category:
+                    return  # User cancelled category selection
+
+                channels_in_category = parent_editor.categories.get(category, [])
+                for channel_entry in channels_in_category:
+                    channel_name = channel_entry.split(' (')[0]
+                    channel_url = channel_entry.split('(')[-1].rstrip(')')
+                    channels_to_check.append((channel_name, channel_url))
+            else:
+                QMessageBox.warning(self, "Error", "Cannot access categories from main editor.")
+                return
+
+        if not channels_to_check:
+            QMessageBox.information(self, "No Channels", "No channels found to check.")
+            return
+
+        # Clear previous results and prepare UI
         self.results.clear()
         self.channelTable.setRowCount(0)
+        self.checkedLabel.setText("Checked\n0")
+        self.onlineLabel.setText("Online\n0")
+        self.offlineLabel.setText("Offline\n0")
+        self.channelCountLabel.setText(f"Channels Count: {len(channels_to_check)}")
         self.checkBtn.setEnabled(False)
         self.stopBtn.setEnabled(True)
         self.statusLine.setText("Status: Checking URLs...")
 
-        self.thread = URLCheckThread(self.channels)
+        # Start thread to check URLs
+        self.thread = URLCheckThread(channels_to_check)
         self.thread.progress_signal.connect(self.updateProgress)
         self.thread.finished_signal.connect(self.checkingFinished)
         self.thread.start()
@@ -413,7 +457,7 @@ class M3UEditor(QWidget):
         main_layout.addLayout(self.create_m3u_content_section())
         main_layout.addLayout(self.create_Tools())
 
-        self.urlCheckButton = QPushButton('URL Checker', self)
+        self.urlCheckButton = QPushButton('IPTV Checker', self)
         self.urlCheckButton.setStyleSheet("background-color: purple; color: white;")
         self.urlCheckButton.clicked.connect(self.openURLCheckerDialog)
         main_layout.addWidget(self.urlCheckButton)
