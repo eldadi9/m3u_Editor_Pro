@@ -109,7 +109,7 @@ class URLCheckerDialog(QDialog):
 
         for label in [self.checkedLabel, self.onlineLabel, self.offlineLabel]:
             label.setAlignment(Qt.AlignCenter)
-            label.setStyleSheet("font-size: 24px; background-color: #6A1B9A; color: white; padding: 20px; border-radius: 5px;")
+            label.setStyleSheet("font-size: 24px; background-color: #6A1B9A; color: white; padddef removeOfflineChannels(self, offline_channel_names):def removeOfflineChannels(self, offline_channel_names):ing: 20px; border-radius: 5px;")
             summaryLayout.addWidget(label)
 
         layout.addLayout(summaryLayout)
@@ -149,56 +149,52 @@ class URLCheckerDialog(QDialog):
         buttonsLayout.addWidget(self.checkBtn)
 
         self.stopBtn = QPushButton("Stop Checking", self)
-        self.stopBtn.setStyleSheet("background-color: gray; color: white; font-size: 16px; padding: 10px;")
+        self.stopBtn.setStyleSheet("background-color: purple; color: white; font-size: 16px; padding: 10px;")
         self.stopBtn.clicked.connect(self.stopChecking)
         self.stopBtn.setEnabled(False)
         buttonsLayout.addWidget(self.stopBtn)
 
         layout.addLayout(buttonsLayout)
 
-        self.deleteOfflineBtn = QPushButton("Delete Offline Channels", self)
-        self.deleteOfflineBtn.setStyleSheet("background-color: #FF5722; color: white; font-size: 16px; padding: 10px;")
-        self.deleteOfflineBtn.clicked.connect(self.deleteOfflineChannels)
-        buttonsLayout.addWidget(self.deleteOfflineBtn)
+        self.selectOfflineBtn = QPushButton("Select Offline Channels", self)
+        self.selectOfflineBtn.setStyleSheet(
+            "background-color: purple; color: white; font-size: 16px; padding: 10px;"
+        )
+        self.selectOfflineBtn.clicked.connect(self.selectOfflineChannels)
+        buttonsLayout.addWidget(self.selectOfflineBtn)
 
-    def deleteOfflineChannels(self):
-        offline_rows = []
-        offline_channel_names = []
+    def selectOfflineChannels(self):
+        offline_channels = []
+
+        # Clear previous selection in URL checker table
+        self.channelTable.clearSelection()
 
         # Collect offline channels
         for row in range(self.channelTable.rowCount()):
             status_item = self.channelTable.item(row, 1)
-            if status_item and status_item.text().lower() == 'offline':
-                offline_rows.append(row)
-                offline_channel_names.append(self.channelTable.item(row, 0).text())
+            if status_item.text().lower() == 'offline':
+                channel_name = self.channelTable.item(row, 0).text()
+                offline_channels.append(channel_name)
+                self.channelTable.selectRow(row)
 
-        offline_count = len(offline_rows)
-
-        if offline_count == 0:
-            QMessageBox.information(self, "No Offline Channels", "There are no offline channels to delete.")
+        if not offline_channels:
+            QMessageBox.information(
+                self, "No Offline Channels",
+                "There are no offline channels to select."
+            )
             return
 
-        # Confirmation dialog
-        reply = QMessageBox.question(
-            self,
-            'Delete Offline Channels',
-            f"Are you sure you want to delete {offline_count} offline channel(s)?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-
-        if reply == QMessageBox.Yes:
-            # Delete from channel table (UI)
-            for row in sorted(offline_rows, reverse=True):
-                self.channelTable.removeRow(row)
-
-            # Emit signal or directly delete from main M3U Content
-            self.removeOfflineFromM3UContent(offline_channel_names)
-
+        # Call parent method to select these offline channels in main list
+        if hasattr(self.parent(), 'selectChannelsByNames'):
+            self.parent().selectChannelsByNames(offline_channels)
             QMessageBox.information(
-                self,
-                "Offline Channels Deleted",
-                f"{offline_count} offline channel(s) successfully deleted."
+                self, "Offline Channels Selected",
+                f"{len(offline_channels)} offline channels have been selected both here and in the main list."
+            )
+        else:
+            QMessageBox.warning(
+                self, "Selection Failed",
+                "Could not find main editor method to select channels."
             )
 
     def startChecking(self):
@@ -1279,37 +1275,31 @@ class M3UEditor(QWidget):
         QMessageBox.information(self, "Check Complete",
                                 f"Found {len(duplicate_indexes)} duplicate channels (one copy kept).")
 
-    def removeOfflineFromM3UContent(self, offline_channel_names):
-        parent_editor = self.parent()
-        if not hasattr(parent_editor, 'textEdit'):
-            QMessageBox.warning(self, "Error", "Cannot access main M3U editor.")
+    def selectChannelsByNames(self, channel_names):
+        self.channelList.clearSelection()
+
+        # Make sure a category is selected
+        current_category_item = self.categoryList.currentItem()
+        if not current_category_item:
+            QMessageBox.warning(self, "Warning", "No category selected.")
             return
 
-        content_lines = parent_editor.textEdit.toPlainText().splitlines()
-        updated_content = []
+        current_category = current_category_item.text().split(" (")[0]
+        if current_category not in self.categories:
+            QMessageBox.warning(self, "Warning", "Category not found.")
+            return
 
-        skip_next = False
-        removed_count = 0
+        # Select channels in the current category matching offline names
+        count_selected = 0
+        for index in range(self.channelList.count()):
+            item = self.channelList.item(index)
+            if item.text() in channel_names:
+                item.setSelected(True)
+                count_selected += 1
 
-        for line in content_lines:
-            if skip_next:
-                skip_next = False
-                continue
-
-            if line.startswith("#EXTINF:"):
-                current_channel_name = line.split(",")[-1].strip()
-                if current_channel_name in offline_channel_names:
-                    # Skip this and the next line (the URL)
-                    removed_count += 1
-                    skip_next = True
-                    continue
-
-            updated_content.append(line)
-
-        parent_editor.textEdit.setPlainText("\n".join(updated_content))
-
-        # Update categories after deleting channels
-        parent_editor.parseM3UContentEnhanced("\n".join(updated_content))
+        if count_selected == 0:
+            QMessageBox.information(self, "Channels Not Found",
+                                    "None of the offline channels were found in the current category.")
 
     def getUrl(self, channel_info):
         try:
