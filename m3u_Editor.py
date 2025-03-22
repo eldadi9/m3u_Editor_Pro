@@ -156,6 +156,51 @@ class URLCheckerDialog(QDialog):
 
         layout.addLayout(buttonsLayout)
 
+        self.deleteOfflineBtn = QPushButton("Delete Offline Channels", self)
+        self.deleteOfflineBtn.setStyleSheet("background-color: #FF5722; color: white; font-size: 16px; padding: 10px;")
+        self.deleteOfflineBtn.clicked.connect(self.deleteOfflineChannels)
+        buttonsLayout.addWidget(self.deleteOfflineBtn)
+
+    def deleteOfflineChannels(self):
+        offline_rows = []
+        offline_channel_names = []
+
+        # Collect offline channels
+        for row in range(self.channelTable.rowCount()):
+            status_item = self.channelTable.item(row, 1)
+            if status_item and status_item.text().lower() == 'offline':
+                offline_rows.append(row)
+                offline_channel_names.append(self.channelTable.item(row, 0).text())
+
+        offline_count = len(offline_rows)
+
+        if offline_count == 0:
+            QMessageBox.information(self, "No Offline Channels", "There are no offline channels to delete.")
+            return
+
+        # Confirmation dialog
+        reply = QMessageBox.question(
+            self,
+            'Delete Offline Channels',
+            f"Are you sure you want to delete {offline_count} offline channel(s)?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            # Delete from channel table (UI)
+            for row in sorted(offline_rows, reverse=True):
+                self.channelTable.removeRow(row)
+
+            # Emit signal or directly delete from main M3U Content
+            self.removeOfflineFromM3UContent(offline_channel_names)
+
+            QMessageBox.information(
+                self,
+                "Offline Channels Deleted",
+                f"{offline_count} offline channel(s) successfully deleted."
+            )
+
     def startChecking(self):
         self.results.clear()
         self.channelTable.setRowCount(0)
@@ -1233,6 +1278,38 @@ class M3UEditor(QWidget):
 
         QMessageBox.information(self, "Check Complete",
                                 f"Found {len(duplicate_indexes)} duplicate channels (one copy kept).")
+
+    def removeOfflineFromM3UContent(self, offline_channel_names):
+        parent_editor = self.parent()
+        if not hasattr(parent_editor, 'textEdit'):
+            QMessageBox.warning(self, "Error", "Cannot access main M3U editor.")
+            return
+
+        content_lines = parent_editor.textEdit.toPlainText().splitlines()
+        updated_content = []
+
+        skip_next = False
+        removed_count = 0
+
+        for line in content_lines:
+            if skip_next:
+                skip_next = False
+                continue
+
+            if line.startswith("#EXTINF:"):
+                current_channel_name = line.split(",")[-1].strip()
+                if current_channel_name in offline_channel_names:
+                    # Skip this and the next line (the URL)
+                    removed_count += 1
+                    skip_next = True
+                    continue
+
+            updated_content.append(line)
+
+        parent_editor.textEdit.setPlainText("\n".join(updated_content))
+
+        # Update categories after deleting channels
+        parent_editor.parseM3UContentEnhanced("\n".join(updated_content))
 
     def getUrl(self, channel_info):
         try:
