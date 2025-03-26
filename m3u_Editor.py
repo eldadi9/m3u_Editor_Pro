@@ -101,6 +101,12 @@ class URLCheckerDialog(QDialog):
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         layout = QVBoxLayout(self)
+        self.setStyleSheet("""
+            QDialog {
+                border: 5px solid red;
+                background-color: white;
+            }
+        """)
 
         # Status summary layout
         summaryLayout = QHBoxLayout()
@@ -275,6 +281,7 @@ class ExportGroupsDialog(QDialog):
         self.exportSelectedButton = QPushButton("Export Selected Groups", self)
         self.exportSelectedButton.setStyleSheet("background-color: red; color: white; font-weight: bold;")
         self.exportSelectedButton.clicked.connect(self.exportSelected)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         layout.addWidget(self.exportSelectedButton)
 
         # Option to export all groups
@@ -447,6 +454,7 @@ class SmartScanDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Smart Scan")
         self.setGeometry(300, 300, 300, 150)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         layout = QVBoxLayout(self)
         label = QLabel("Choose scan type:", self)
@@ -530,6 +538,7 @@ class M3UEditor(QWidget):
         self.urlCheckButton = QPushButton('URL Checker', self)
         self.urlCheckButton.setStyleSheet("background-color: purple; color: white;")
         self.urlCheckButton.clicked.connect(self.openURLCheckerDialog)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         main_layout.addWidget(self.urlCheckButton)
 
         # Ensure EXTM3U header
@@ -591,6 +600,7 @@ class M3UEditor(QWidget):
 
     def openURLCheckerDialog(self):
         self.showURLScanChoiceDialog()
+
 
     def mergeM3Us(self):
         options = QFileDialog.Options()
@@ -1389,21 +1399,58 @@ class M3UEditor(QWidget):
     def showURLScanChoiceDialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("URL Scan Options")
+
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        # Apply red border and white background to dialog
+        dialog.setStyleSheet("""
+            QDialog {
+                border: 5px solid red;
+                background-color: white;
+            }
+        """)
+
         layout = QVBoxLayout(dialog)
 
         label = QLabel("Choose what to scan:")
+        label.setAlignment(Qt.AlignCenter)
         layout.addWidget(label)
 
+
         category_btn = QPushButton("Scan Current Category")
+        category_btn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
+
         all_btn = QPushButton("Scan All Channels")
+        all_btn.setStyleSheet("background-color: red; color: white; font-weight: bold;")
+
         layout.addWidget(category_btn)
         layout.addWidget(all_btn)
 
-        category_btn.clicked.connect(lambda: self.runURLChecker(True, dialog))
+        category_btn.clicked.connect(lambda: [dialog.accept(), self.showCategoryPickerDialog()])
         all_btn.clicked.connect(lambda: self.runURLChecker(False, dialog))
 
         dialog.setLayout(layout)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         dialog.exec_()
+
+    def runURLCheckerFromCategory(self, category_name, dialog=None):
+        if dialog:
+            dialog.accept()
+
+        if category_name not in self.categories:
+            QMessageBox.warning(self, "Warning", "Selected category not found.")
+            return
+
+        channels = []
+        for ch in self.categories[category_name]:
+            name = ch.split(" (")[0]
+            url = self.getUrl(ch)
+            channels.append((name, url))
+
+        if channels:
+            dialog = URLCheckerDialog(channels, self)
+            dialog.exec_()
+        else:
+            QMessageBox.information(self, "Info", "No channels found in this category.")
 
     def runURLChecker(self, scan_current_category, dialog):
             dialog.close()
@@ -1432,10 +1479,42 @@ class M3UEditor(QWidget):
             else:
                 QMessageBox.information(self, "Info", "No channels found to scan.")
 
+    def showCategoryPickerDialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Category to Scan")
+
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        dialog.setStyleSheet("""
+            QDialog {
+                border: 5px solid red;
+                background-color: white;
+            }
+        """)
+
+        layout = QVBoxLayout(dialog)
+
+        label = QLabel("Choose a category to scan:")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+
+        combo = QComboBox(dialog)
+        combo.addItems(self.categories.keys())
+        layout.addWidget(combo)
+
+        scan_button = QPushButton("Start Scan")
+        scan_button.setStyleSheet("background-color: black; color: white; font-weight: bold;")
+        layout.addWidget(scan_button)
+
+        scan_button.clicked.connect(lambda: self.runURLCheckerFromCategory(combo.currentText(), dialog))
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
     def openSmartScanDialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Smart Scan")
         layout = QVBoxLayout(dialog)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         label = QLabel("Choose scan type:")
         layout.addWidget(label)
