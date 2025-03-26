@@ -465,6 +465,167 @@ class SmartScanDialog(QDialog):
 
         layout.addWidget(self.categoryScanButton)
         layout.addWidget(self.allScanButton)
+class SmartScanThread(QThread):
+    progress = pyqtSignal(int, int, int, tuple)  # checked, offline, duplicates, (name, url, status, reason)
+    finished = pyqtSignal()
+
+    def __init__(self, channels, duplicate_names):
+        super().__init__()
+        self.channels = channels
+        self.duplicate_names = duplicate_names
+        self.stop_requested = False
+
+    def run(self):
+        checked = offline = duplicate = 0
+
+        for name, url in self.channels:
+            if self.stop_requested:
+                break
+
+            status = "Online"
+            reason = ""
+
+            try:
+                res = requests.head(url, timeout=2)
+                if res.status_code >= 400:
+                    status = "Offline"
+                    reason = "Bad Response"
+                    offline += 1
+            except:
+                status = "Offline"
+                reason = "Connection Error"
+                offline += 1
+
+            if name in self.duplicate_names:
+                reason = "Duplicate" if not reason else reason + " & Duplicate"
+                duplicate += 1
+
+            checked += 1
+            self.progress.emit(checked, offline, duplicate, (name, url, status, reason))
+
+        self.finished.emit()
+
+    def stop(self):
+        self.stop_requested = True
+class SmartScanStatusDialog(QDialog):
+    def __init__(self, channels, duplicates, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Smart Scan In Progress")
+        self.setGeometry(200, 200, 1000, 600)
+
+        self.setStyleSheet("QDialog { border: 5px solid red; background-color: white; }")
+        self.channels = channels
+        self.duplicates = duplicates
+
+        layout = QVBoxLayout(self)
+
+        # Top Stats
+        self.labelStats = QLabel("Starting scan...")
+        self.labelStats.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(self.labelStats)
+
+        # Table
+        self.table = QTableWidget(self)
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["Channel", "Status", "Reason", "URL"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        layout.addWidget(self.table)
+
+        # Buttons
+        # Buttons
+        btnLayout = QHBoxLayout()
+
+        self.deleteOfflineBtn = QPushButton("Delete Offline")
+        self.deleteOfflineBtn.setStyleSheet("background-color: red; color: white; font-weight: bold;")
+        self.deleteOfflineBtn.clicked.connect(self.deleteOffline)
+
+        self.deleteDuplicatesBtn = QPushButton("Delete Duplicates")
+        self.deleteDuplicatesBtn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
+        self.deleteDuplicatesBtn.clicked.connect(self.deleteDuplicates)
+
+        self.stopBtn = QPushButton("Stop Scan")
+        self.stopBtn.setStyleSheet("background-color: purple; color: white; font-weight: bold;")
+        self.stopBtn.clicked.connect(self.stopScan)
+
+        btnLayout.addWidget(self.deleteOfflineBtn)
+        btnLayout.addWidget(self.deleteDuplicatesBtn)
+        btnLayout.addWidget(self.stopBtn)
+        layout.addLayout(btnLayout)
+
+        self.stopBtn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
+        self.stopBtn.clicked.connect(self.stopScan)
+        btnLayout.addWidget(self.stopBtn)
+
+        layout.addLayout(btnLayout)
+
+        # Thread
+        self.thread = SmartScanThread(channels, duplicates)
+        self.thread.progress.connect(self.updateProgress)
+        self.thread.finished.connect(self.scanFinished)
+        self.thread.start()
+
+    def deleteOffline(self):
+        self.deleteByReason(match_offline=True, match_duplicate=False)
+
+    def deleteDuplicates(self):
+        self.deleteByReason(match_offline=False, match_duplicate=True)
+
+    def deleteByReason(self, match_offline=False, match_duplicate=False):
+        names_to_delete = []
+        urls_to_delete = []
+
+        for row in range(self.table.rowCount()):
+            name = self.table.item(row, 0).text()
+            url = self.table.item(row, 3).text()
+            reason = self.table.item(row, 2).text().lower()
+
+            if (match_offline and "offline" in reason) or (match_duplicate and "duplicate" in reason):
+                names_to_delete.append(name)
+                urls_to_delete.append(url)
+
+        if hasattr(self.parent(), "deleteChannelsByNames"):
+            removed_count = self.parent().deleteChannelsByNames(names_to_delete, urls_to_delete)
+            QMessageBox.information(self, "Deleted", f"{removed_count} channels deleted.")
+
+    def scanFinished(self):
+        self.labelStats.setText(self.labelStats.text() + " ✅ Done.")
+        self.stopBtn.setEnabled(False)
+
+        # Collect duplicate/offline names from table
+        to_select_names = set()
+        for row in range(self.table.rowCount()):
+            name = self.table.item(row, 0).text()
+            status = self.table.item(row, 1).text()
+            reason = self.table.item(row, 2).text().lower()
+
+            if "offline" in status.lower() or "duplicate" in reason:
+                to_select_names.add(name)
+
+        # Call parent to select them in channelList
+        if hasattr(self.parent(), "selectChannelsByNames"):
+            self.parent().selectChannelsByNames(to_select_names)
+            QMessageBox.information(self, "Selected in List", f"{len(to_select_names)} problematic channels selected.")
+
+    def updateProgress(self, checked, offline, duplicate, data):
+        name, url, status, reason = data
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+
+        self.table.setItem(row, 0, QTableWidgetItem(name))
+        self.table.setItem(row, 1, QTableWidgetItem(status))
+        self.table.setItem(row, 2, QTableWidgetItem(reason))
+        self.table.setItem(row, 3, QTableWidgetItem(url))
+
+        self.labelStats.setText(f"Scanned: {checked} | Offline: {offline} | Duplicates: {duplicate}")
+
+    def stopScan(self):
+        self.thread.stop()
+        self.labelStats.setText("Scan stopped by user.")
+        self.stopBtn.setEnabled(False)
+
+    def scanFinished(self):
+        self.labelStats.setText(self.labelStats.text() + " ✅ Done.")
+        self.stopBtn.setEnabled(False)
 
 
 class M3UEditor(QWidget):
@@ -535,7 +696,7 @@ class M3UEditor(QWidget):
         main_layout.addLayout(self.create_m3u_content_section())
         main_layout.addLayout(self.create_Tools())
 
-        self.urlCheckButton = QPushButton('URL Checker', self)
+        self.urlCheckButton = QPushButton('IPTV Checker', self)
         self.urlCheckButton.setStyleSheet("background-color: purple; color: white;")
         self.urlCheckButton.clicked.connect(self.openURLCheckerDialog)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
@@ -1416,7 +1577,7 @@ class M3UEditor(QWidget):
         layout.addWidget(label)
 
 
-        category_btn = QPushButton("Scan Current Category")
+        category_btn = QPushButton("Choose Category")
         category_btn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
 
         all_btn = QPushButton("Scan All Channels")
@@ -1513,19 +1674,30 @@ class M3UEditor(QWidget):
     def openSmartScanDialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Smart Scan")
-        layout = QVBoxLayout(dialog)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        dialog.setStyleSheet("""
+            QDialog {
+                border: 5px solid red;
+                background-color: white;
+            }
+        """)
 
+        layout = QVBoxLayout(dialog)
         label = QLabel("Choose scan type:")
+        label.setAlignment(Qt.AlignCenter)
         layout.addWidget(label)
 
-        category_btn = QPushButton("Scan Current Category")
-        all_btn = QPushButton("Scan All Categories")
+        category_btn = QPushButton("Scan Selected Category")
+        all_btn = QPushButton("Scan All Channels")
+
+        category_btn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
+        all_btn.setStyleSheet("background-color: red; color: white; font-weight: bold;")
+
         layout.addWidget(category_btn)
         layout.addWidget(all_btn)
 
-        category_btn.clicked.connect(lambda: self.smartScan(True, dialog))
-        all_btn.clicked.connect(lambda: self.smartScan(False, dialog))
+        category_btn.clicked.connect(lambda: [dialog.accept(), self.showSmartScanCategoryPicker()])
+        all_btn.clicked.connect(lambda: [dialog.accept(), self.startSmartScan(all_categories=True)])
 
         dialog.setLayout(layout)
         dialog.exec_()
@@ -1591,6 +1763,69 @@ class M3UEditor(QWidget):
                     item.setSelected(True)
 
             QMessageBox.information(self, "Duplicates", f"Found {len(duplicate_names)} duplicate names.")
+
+    def startSmartScan(self, all_categories=False, category=None):
+        # Build full channel list
+        channels = []
+        seen_names = set()
+        duplicate_names = set()
+
+        if all_categories:
+            for ch_list in self.categories.values():
+                for ch in ch_list:
+                    name = ch.split(" (")[0].strip()
+                    url = self.getUrl(ch)
+                    channels.append((name, url))
+
+                    if name in seen_names:
+                        duplicate_names.add(name)
+                    else:
+                        seen_names.add(name)
+        else:
+            if not category:
+                QMessageBox.warning(self, "Error", "No category selected.")
+                return
+
+            for ch in self.categories.get(category, []):
+                name = ch.split(" (")[0].strip()
+                url = self.getUrl(ch)
+                channels.append((name, url))
+
+                if name in seen_names:
+                    duplicate_names.add(name)
+                else:
+                    seen_names.add(name)
+
+        if not channels:
+            QMessageBox.information(self, "Info", "No channels to scan.")
+            return
+
+        # Show the scan dialog
+        dialog = SmartScanStatusDialog(channels, duplicate_names, self)
+        dialog.exec_()
+
+    def showSmartScanCategoryPicker(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Category to Scan")
+        dialog.setStyleSheet("QDialog { border: 5px solid red; background-color: white; }")
+        layout = QVBoxLayout(dialog)
+
+        label = QLabel("Pick a category:")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+
+        combo = QComboBox()
+        combo.addItems(self.categories.keys())
+        layout.addWidget(combo)
+
+        start_btn = QPushButton("Start Scan")
+        start_btn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
+        layout.addWidget(start_btn)
+
+        start_btn.clicked.connect(lambda: [dialog.accept(), self.startSmartScan(category=combo.currentText())])
+
+        dialog.setLayout(layout)
+        dialog.exec_()
 
     def smartScan(self, category_only=True, dialog=None):
         if dialog:
@@ -1672,6 +1907,28 @@ class M3UEditor(QWidget):
         if count_selected == 0:
             QMessageBox.information(self, "Channels Not Found",
                                     "None of the offline channels were found in the current category.")
+
+    def deleteChannelsByNames(self, names_to_delete, urls_to_delete):
+        removed = 0
+        for category, ch_list in self.categories.items():
+            original_len = len(ch_list)
+
+            self.categories[category] = [
+                ch for ch in ch_list
+                if not any(
+                    ch.startswith(name) and self.getUrl(ch) == url
+                    for name, url in zip(names_to_delete, urls_to_delete)
+                )
+            ]
+
+            removed += original_len - len(self.categories[category])
+
+        self.updateCategoryList()
+        self.updateM3UContent()
+        if self.categoryList.currentItem():
+            self.display_channels(self.categoryList.currentItem())
+
+        return removed
 
     def getUrl(self, channel_info):
         try:
