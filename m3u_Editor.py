@@ -1,9 +1,9 @@
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
-    QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox,QTableWidget, QTableWidgetItem, QHeaderView,
+    QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView, QAction
 )
-from PyQt5.QtCore import Qt,  QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont  # Add this line
 import sys
 import os
@@ -46,6 +46,7 @@ class MoveChannelsDialog(QDialog):
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
+
 class URLCheckThread(QThread):
     progress_signal = pyqtSignal(int, int, int, tuple)
     finished_signal = pyqtSignal()
@@ -85,6 +86,7 @@ class URLCheckThread(QThread):
     def stop(self):
         self.stop_requested = True
 
+
 class URLCheckerDialog(QDialog):
     def __init__(self, channels, parent=None):
         super().__init__(parent)
@@ -109,7 +111,8 @@ class URLCheckerDialog(QDialog):
 
         for label in [self.checkedLabel, self.onlineLabel, self.offlineLabel]:
             label.setAlignment(Qt.AlignCenter)
-            label.setStyleSheet("font-size: 24px; background-color: #6A1B9A; color: white; padddef removeOfflineChannels(self, offline_channel_names):def removeOfflineChannels(self, offline_channel_names):ing: 20px; border-radius: 5px;")
+            label.setStyleSheet(
+                "font-size: 24px; background-color: #6A1B9A; color: white; padddef removeOfflineChannels(self, offline_channel_names):def removeOfflineChannels(self, offline_channel_names):ing: 20px; border-radius: 5px;")
             summaryLayout.addWidget(label)
 
         layout.addLayout(summaryLayout)
@@ -251,6 +254,7 @@ class URLCheckerDialog(QDialog):
             if (search_text in name.lower()) and (status_filter in [status, "All"]):
                 self.addChannelToTable(name, status, server, url)
 
+
 class ExportGroupsDialog(QDialog):
     def __init__(self, categories, parent=None):
         super(ExportGroupsDialog, self).__init__(parent)
@@ -343,6 +347,8 @@ class ExportGroupsDialog(QDialog):
             url = match.group(2)
             return name, url
         return "", ""
+
+
 class M3UUrlConverterDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -435,6 +441,7 @@ class M3UUrlConverterDialog(QDialog):
             QMessageBox.critical(self, "Error", f"Failed to download M3U file: {str(e)}")
             pass
 
+
 class SmartScanDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -450,7 +457,6 @@ class SmartScanDialog(QDialog):
 
         layout.addWidget(self.categoryScanButton)
         layout.addWidget(self.allScanButton)
-
 
 
 class M3UEditor(QWidget):
@@ -583,18 +589,8 @@ class M3UEditor(QWidget):
             self.categories[category_name] = [selected_channel]
             self.updateCategoryList()  # Update your category view if necessary
 
-
-
     def openURLCheckerDialog(self):
-        channels = []
-        for category, channel_list in self.categories.items():
-            for ch in channel_list:
-                channel_name = ch.split(' (')[0]
-                channel_url = self.getUrl(ch)
-                channels.append((channel_name, channel_url))
-
-        dialog = URLCheckerDialog(channels, self)
-        dialog.exec_()
+        self.showURLScanChoiceDialog()
 
     def mergeM3Us(self):
         options = QFileDialog.Options()
@@ -1390,6 +1386,52 @@ class M3UEditor(QWidget):
         QMessageBox.information(self, "Check Complete",
                                 f"Found {len(duplicate_indexes)} duplicate channels (one copy kept).")
 
+    def showURLScanChoiceDialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("URL Scan Options")
+        layout = QVBoxLayout(dialog)
+
+        label = QLabel("Choose what to scan:")
+        layout.addWidget(label)
+
+        category_btn = QPushButton("Scan Current Category")
+        all_btn = QPushButton("Scan All Channels")
+        layout.addWidget(category_btn)
+        layout.addWidget(all_btn)
+
+        category_btn.clicked.connect(lambda: self.runURLChecker(True, dialog))
+        all_btn.clicked.connect(lambda: self.runURLChecker(False, dialog))
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def runURLChecker(self, scan_current_category, dialog):
+            dialog.close()
+            channels = []
+
+            if scan_current_category:
+                category_item = self.categoryList.currentItem()
+                if not category_item:
+                    QMessageBox.warning(self, "Warning", "Please select a category.")
+                    return
+                category_name = category_item.text().split(" (")[0]
+                for ch in self.categories.get(category_name, []):
+                    name = ch.split(" (")[0]
+                    url = self.getUrl(ch)
+                    channels.append((name, url))
+            else:
+                for channel_list in self.categories.values():
+                    for ch in channel_list:
+                        name = ch.split(" (")[0]
+                        url = self.getUrl(ch)
+                        channels.append((name, url))
+
+            if channels:
+                dialog = URLCheckerDialog(channels, self)
+                dialog.exec_()
+            else:
+                QMessageBox.information(self, "Info", "No channels found to scan.")
+
     def openSmartScanDialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Smart Scan")
@@ -1878,7 +1920,7 @@ class M3UEditor(QWidget):
         else:
             return 'Other'
 
-        
+
 def main():
     app = QApplication(sys.argv)
     editor = M3UEditor()
