@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView, QAction
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QPixmap, QFont  # Add this line
+from PyQt5.QtGui import QPixmap, QFont, QColor  # Add this line
 import sys
 import os
 import re
@@ -466,7 +466,7 @@ class SmartScanDialog(QDialog):
         layout.addWidget(self.categoryScanButton)
         layout.addWidget(self.allScanButton)
 class SmartScanThread(QThread):
-    progress = pyqtSignal(int, int, int, tuple)  # checked, offline, duplicates, (name, url, status, reason)
+    progress = pyqtSignal(list, int, int)  # Emit (results list, offline count, duplicate count)
     finished = pyqtSignal()
 
     def __init__(self, channels, duplicate_names):
@@ -477,6 +477,8 @@ class SmartScanThread(QThread):
 
     def run(self):
         checked = offline = duplicate = 0
+        marked_duplicates = set()
+        results = []
 
         for name, url in self.channels:
             if self.stop_requested:
@@ -497,21 +499,25 @@ class SmartScanThread(QThread):
                 offline += 1
 
             if name in self.duplicate_names:
-                reason = "Duplicate" if not reason else reason + " & Duplicate"
-                duplicate += 1
+                if name not in marked_duplicates:
+                    reason = reason + " & Duplicate" if reason else "Duplicate"
+                    duplicate += 1
+                    marked_duplicates.add(name)
 
-            checked += 1
-            self.progress.emit(checked, offline, duplicate, (name, url, status, reason))
+            results.append((name, status, reason, url))
 
+        self.progress.emit(results, offline, duplicate)
         self.finished.emit()
 
     def stop(self):
         self.stop_requested = True
+
 class SmartScanStatusDialog(QDialog):
     def __init__(self, channels, duplicates, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Smart Scan In Progress")
-        self.setGeometry(200, 200, 1000, 600)
+        self.resize(800, 400)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         self.setStyleSheet("QDialog { border: 5px solid red; background-color: white; }")
         self.channels = channels
@@ -535,20 +541,12 @@ class SmartScanStatusDialog(QDialog):
         # Buttons
         btnLayout = QHBoxLayout()
 
-        self.deleteOfflineBtn = QPushButton("Delete Offline")
-        self.deleteOfflineBtn.setStyleSheet("background-color: red; color: white; font-weight: bold;")
-        self.deleteOfflineBtn.clicked.connect(self.deleteOffline)
-
-        self.deleteDuplicatesBtn = QPushButton("Delete Duplicates")
-        self.deleteDuplicatesBtn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
-        self.deleteDuplicatesBtn.clicked.connect(self.deleteDuplicates)
 
         self.stopBtn = QPushButton("Stop Scan")
         self.stopBtn.setStyleSheet("background-color: purple; color: white; font-weight: bold;")
         self.stopBtn.clicked.connect(self.stopScan)
 
-        btnLayout.addWidget(self.deleteOfflineBtn)
-        btnLayout.addWidget(self.deleteDuplicatesBtn)
+
         btnLayout.addWidget(self.stopBtn)
         layout.addLayout(btnLayout)
 
@@ -558,34 +556,30 @@ class SmartScanStatusDialog(QDialog):
 
         layout.addLayout(btnLayout)
 
+        self.selectBtn = QPushButton("Select in Channel List")
+        self.selectBtn.setStyleSheet("background-color: #0078D7; color: white; font-weight: bold;")
+        self.selectBtn.clicked.connect(self.selectProblematic)
+
+        btnLayout.addWidget(self.selectBtn)
+
         # Thread
         self.thread = SmartScanThread(channels, duplicates)
         self.thread.progress.connect(self.updateProgress)
         self.thread.finished.connect(self.scanFinished)
         self.thread.start()
 
-    def deleteOffline(self):
-        self.deleteByReason(match_offline=True, match_duplicate=False)
+        # Filter Dropdown
+        filter_layout = QHBoxLayout()
+        filter_label = QLabel("Show:")
+        self.filterCombo = QComboBox()
+        self.filterCombo.addItems(["All", "Online", "Offline", "Duplicate"])
+        self.filterCombo.currentIndexChanged.connect(self.applyFilter)
 
-    def deleteDuplicates(self):
-        self.deleteByReason(match_offline=False, match_duplicate=True)
+        filter_layout.addWidget(filter_label)
+        filter_layout.addWidget(self.filterCombo)
+        layout.addLayout(filter_layout)
 
-    def deleteByReason(self, match_offline=False, match_duplicate=False):
-        names_to_delete = []
-        urls_to_delete = []
-
-        for row in range(self.table.rowCount()):
-            name = self.table.item(row, 0).text()
-            url = self.table.item(row, 3).text()
-            reason = self.table.item(row, 2).text().lower()
-
-            if (match_offline and "offline" in reason) or (match_duplicate and "duplicate" in reason):
-                names_to_delete.append(name)
-                urls_to_delete.append(url)
-
-        if hasattr(self.parent(), "deleteChannelsByNames"):
-            removed_count = self.parent().deleteChannelsByNames(names_to_delete, urls_to_delete)
-            QMessageBox.information(self, "Deleted", f"{removed_count} channels deleted.")
+        self.scan_results = []  # [(name, status, reason, url)]
 
     def scanFinished(self):
         self.labelStats.setText(self.labelStats.text() + " ✅ Done.")
@@ -595,28 +589,53 @@ class SmartScanStatusDialog(QDialog):
         to_select_names = set()
         for row in range(self.table.rowCount()):
             name = self.table.item(row, 0).text()
-            status = self.table.item(row, 1).text()
+            status = self.table.item(row, 1).text().lower()
             reason = self.table.item(row, 2).text().lower()
 
-            if "offline" in status.lower() or "duplicate" in reason:
+            if "offline" in status or "duplicate" in reason:
                 to_select_names.add(name)
 
-        # Call parent to select them in channelList
+        # Call parent to select in the list
         if hasattr(self.parent(), "selectChannelsByNames"):
             self.parent().selectChannelsByNames(to_select_names)
-            QMessageBox.information(self, "Selected in List", f"{len(to_select_names)} problematic channels selected.")
+            QMessageBox.information(self, "Marked",
+                                    f"{len(to_select_names)} problematic channels marked in your list.\nNow you can delete them manually.")
 
-    def updateProgress(self, checked, offline, duplicate, data):
-        name, url, status, reason = data
-        row = self.table.rowCount()
-        self.table.insertRow(row)
+    def updateProgress(self, results, offline, duplicate):
+        self.scan_results = results
+        self.labelStats.setText(f"Scanned: {len(results)} | Offline: {offline} | Duplicates: {duplicate}")
+        self.refreshTable()
 
-        self.table.setItem(row, 0, QTableWidgetItem(name))
-        self.table.setItem(row, 1, QTableWidgetItem(status))
-        self.table.setItem(row, 2, QTableWidgetItem(reason))
-        self.table.setItem(row, 3, QTableWidgetItem(url))
+    def refreshTable(self):
+        self.table.setRowCount(0)
+        selected_filter = self.filterCombo.currentText().lower()
 
-        self.labelStats.setText(f"Scanned: {checked} | Offline: {offline} | Duplicates: {duplicate}")
+        for name, status, reason, url in self.scan_results:
+            if selected_filter != "all":
+                if selected_filter == "offline" and "offline" not in status.lower():
+                    continue
+                elif selected_filter == "online" and "online" not in status.lower():
+                    continue
+                elif selected_filter == "duplicate" and "duplicate" not in reason.lower():
+                    continue
+
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+
+            self.table.setItem(row, 0, QTableWidgetItem(name))
+            status_item = QTableWidgetItem(status)
+            if "offline" in status.lower():
+                status_item.setBackground(QColor("#ffcccc"))
+            elif "duplicate" in reason.lower():
+                status_item.setBackground(QColor("#ffffcc"))
+            else:
+                status_item.setBackground(QColor("#ccffcc"))
+            self.table.setItem(row, 1, status_item)
+            self.table.setItem(row, 2, QTableWidgetItem(reason))
+            self.table.setItem(row, 3, QTableWidgetItem(url))
+
+    def applyFilter(self):
+        self.refreshTable()
 
     def stopScan(self):
         self.thread.stop()
@@ -626,6 +645,21 @@ class SmartScanStatusDialog(QDialog):
     def scanFinished(self):
         self.labelStats.setText(self.labelStats.text() + " ✅ Done.")
         self.stopBtn.setEnabled(False)
+
+    def selectProblematic(self):
+        to_select_names = set()
+        for row in range(self.table.rowCount()):
+            name = self.table.item(row, 0).text()
+            status = self.table.item(row, 1).text().lower()
+            reason = self.table.item(row, 2).text().lower()
+
+            if "offline" in status or "duplicate" in reason:
+                to_select_names.add(name)
+
+        if hasattr(self.parent(), "selectChannelsByNames"):
+            self.parent().selectChannelsByNames(to_select_names)
+            QMessageBox.information(self, "Marked",
+                                    f"{len(to_select_names)} problematic channels marked in your channel list.")
 
 
 class M3UEditor(QWidget):
@@ -637,6 +671,7 @@ class M3UEditor(QWidget):
     def initUI(self):
         self.setWindowTitle('M3U Playlist Editor')
         self.setGeometry(100, 100, 800, 600)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         # Setup the horizontal layout for top buttons
         top_buttons_layout = QHBoxLayout()
