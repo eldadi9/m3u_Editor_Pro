@@ -12,7 +12,7 @@ import traceback
 import pyperclip
 import requests  # You need to import requests to handle downloading
 from urllib.parse import urlparse
-from PyQt5.QtWidgets import QProgressBar
+
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -45,6 +45,221 @@ class MoveChannelsDialog(QDialog):
 
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
+
+
+class URLCheckThread(QThread):
+    progress_signal = pyqtSignal(int, int, int, tuple)
+    finished_signal = pyqtSignal()
+
+    def __init__(self, channels):
+        super().__init__()
+        self.channels = channels
+        self.stop_requested = False
+
+    def run(self):
+        online, offline, checked = 0, 0, 0
+        total = len(self.channels)
+
+        for name, url in self.channels:
+            if self.stop_requested:
+                break
+
+            try:
+                res = requests.head(url, timeout=3)
+                status = "Online" if res.status_code < 400 else "Offline"
+            except:
+                status = "Offline"
+
+            parsed_url = urlparse(url)
+            server = parsed_url.hostname or "Unknown"
+
+            if status == "Online":
+                online += 1
+            else:
+                offline += 1
+
+            checked += 1
+            self.progress_signal.emit(checked, online, offline, (name, status, server, url))
+
+        self.finished_signal.emit()
+
+    def stop(self):
+        self.stop_requested = True
+
+
+class URLCheckerDialog(QDialog):
+    def __init__(self, channels, parent=None):
+        super().__init__(parent)
+        self.channels = channels
+        self.results = []
+        self.thread = None
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle("URL Checker")
+        self.setGeometry(150, 150, 1000, 600)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+        layout = QVBoxLayout(self)
+        self.setStyleSheet("""
+            QDialog {
+                border: 5px solid red;
+                background-color: white;
+            }
+        """)
+
+        # Status summary layout
+        summaryLayout = QHBoxLayout()
+
+        self.checkedLabel = QLabel("Checked\n0", self)
+        self.onlineLabel = QLabel("Online\n0", self)
+        self.offlineLabel = QLabel("Offline\n0", self)
+
+        for label in [self.checkedLabel, self.onlineLabel, self.offlineLabel]:
+            label.setAlignment(Qt.AlignCenter)
+            label.setStyleSheet(
+                "font-size: 24px; background-color: #6A1B9A; color: white; padddef removeOfflineChannels(self, offline_channel_names):def removeOfflineChannels(self, offline_channel_names):ing: 20px; border-radius: 5px;")
+            summaryLayout.addWidget(label)
+
+        layout.addLayout(summaryLayout)
+
+        self.statusLine = QLabel("Status: Waiting", self)
+        layout.addWidget(self.statusLine)
+
+        controlLayout = QHBoxLayout()
+
+        self.channelCountLabel = QLabel(f"Channels Count: {len(self.channels)}", self)
+        controlLayout.addWidget(self.channelCountLabel)
+
+        self.searchInput = QLineEdit(self)
+        self.searchInput.setPlaceholderText("Search Channels...")
+        self.searchInput.textChanged.connect(self.updateFilter)
+        controlLayout.addWidget(self.searchInput)
+
+        self.statusFilter = QComboBox(self)
+        self.statusFilter.addItems(["All", "Online", "Offline"])
+        self.statusFilter.currentIndexChanged.connect(self.updateFilter)
+        controlLayout.addWidget(self.statusFilter)
+
+        layout.addLayout(controlLayout)
+
+        self.channelTable = QTableWidget(self)
+        self.channelTable.setColumnCount(4)
+        self.channelTable.setHorizontalHeaderLabels(["Channel Name", "Status", "Server", "URL"])
+        header = self.channelTable.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+        layout.addWidget(self.channelTable)
+
+        buttonsLayout = QHBoxLayout()
+
+        self.checkBtn = QPushButton("Check URLs", self)
+        self.checkBtn.setStyleSheet("background-color: purple; color: white; font-size: 16px; padding: 10px;")
+        self.checkBtn.clicked.connect(self.startChecking)
+        buttonsLayout.addWidget(self.checkBtn)
+
+        self.stopBtn = QPushButton("Stop Checking", self)
+        self.stopBtn.setStyleSheet("background-color: purple; color: white; font-size: 16px; padding: 10px;")
+        self.stopBtn.clicked.connect(self.stopChecking)
+        self.stopBtn.setEnabled(False)
+        buttonsLayout.addWidget(self.stopBtn)
+
+        layout.addLayout(buttonsLayout)
+
+        self.selectOfflineBtn = QPushButton("Select Offline Channels", self)
+        self.selectOfflineBtn.setStyleSheet(
+            "background-color: purple; color: white; font-size: 16px; padding: 10px;"
+        )
+        self.selectOfflineBtn.clicked.connect(self.selectOfflineChannels)
+        buttonsLayout.addWidget(self.selectOfflineBtn)
+
+    def selectOfflineChannels(self):
+        offline_channels = []
+
+        # Clear previous selection in URL checker table
+        self.channelTable.clearSelection()
+
+        # Collect offline channels
+        for row in range(self.channelTable.rowCount()):
+            status_item = self.channelTable.item(row, 1)
+            if status_item.text().lower() == 'offline':
+                channel_name = self.channelTable.item(row, 0).text()
+                offline_channels.append(channel_name)
+                self.channelTable.selectRow(row)
+
+        if not offline_channels:
+            QMessageBox.information(
+                self, "No Offline Channels",
+                "There are no offline channels to select."
+            )
+            return
+
+        # Call parent method to select these offline channels in main list
+        if hasattr(self.parent(), 'selectChannelsByNames'):
+            self.parent().selectChannelsByNames(offline_channels)
+            QMessageBox.information(
+                self, "Offline Channels Selected",
+                f"{len(offline_channels)} offline channels have been selected both here and in the main list."
+            )
+        else:
+            QMessageBox.warning(
+                self, "Selection Failed",
+                "Could not find main editor method to select channels."
+            )
+
+    def startChecking(self):
+        self.results.clear()
+        self.channelTable.setRowCount(0)
+        self.checkBtn.setEnabled(False)
+        self.stopBtn.setEnabled(True)
+        self.statusLine.setText("Status: Checking URLs...")
+
+        self.thread = URLCheckThread(self.channels)
+        self.thread.progress_signal.connect(self.updateProgress)
+        self.thread.finished_signal.connect(self.checkingFinished)
+        self.thread.start()
+
+    def updateProgress(self, checked, online, offline, data):
+        name, status, server, url = data
+        self.results.append(data)
+        self.addChannelToTable(name, status, server, url)
+        self.checkedLabel.setText(f"Checked\n{checked}")
+        self.onlineLabel.setText(f"Online\n{online}")
+        self.offlineLabel.setText(f"Offline\n{offline}")
+        self.statusLine.setText(f"Checking: {name}")
+
+    def checkingFinished(self):
+        self.checkBtn.setEnabled(True)
+        self.stopBtn.setEnabled(False)
+        self.statusLine.setText("Status: Finished")
+
+    def stopChecking(self):
+        if self.thread:
+            self.thread.stop()
+            self.statusLine.setText("Status: Stopping...")
+
+    def addChannelToTable(self, name, status, server, url):
+        row_position = self.channelTable.rowCount()
+        self.channelTable.insertRow(row_position)
+
+        for col, data in enumerate([name, status, server, url]):
+            item = QTableWidgetItem(data)
+            if col == 1:
+                item.setBackground(Qt.green if status == "Online" else Qt.red)
+            else:
+                item.setBackground(Qt.white)
+            item.setFlags(item.flags() ^ Qt.ItemIsEditable)
+            self.channelTable.setItem(row_position, col, item)
+
+    def updateFilter(self):
+        search_text = self.searchInput.text().lower()
+        status_filter = self.statusFilter.currentText()
+
+        self.channelTable.setRowCount(0)
+
+        for name, status, server, url in self.results:
+            if (search_text in name.lower()) and (status_filter in [status, "All"]):
+                self.addChannelToTable(name, status, server, url)
+
 
 class ExportGroupsDialog(QDialog):
     def __init__(self, categories, parent=None):
@@ -251,7 +466,7 @@ class SmartScanDialog(QDialog):
         layout.addWidget(self.categoryScanButton)
         layout.addWidget(self.allScanButton)
 class SmartScanThread(QThread):
-    progress = pyqtSignal(int, int, int, tuple)  # checked, offline, duplicate, (name, url, status, reason)
+    progress = pyqtSignal(list, int, int)  # Emit (results list, offline count, duplicate count)
     finished = pyqtSignal()
 
     def __init__(self, channels, duplicate_names):
@@ -263,6 +478,7 @@ class SmartScanThread(QThread):
     def run(self):
         checked = offline = duplicate = 0
         marked_duplicates = set()
+        results = []
 
         for name, url in self.channels:
             if self.stop_requested:
@@ -288,265 +504,31 @@ class SmartScanThread(QThread):
                     duplicate += 1
                     marked_duplicates.add(name)
 
-            checked += 1
-            self.progress.emit(checked, offline, duplicate, (name, url, status, reason))
-
-        self.finished.emit()
-
-    def stop(self):
-        self.stop_requested = True
-
-
-
-class URLCheckThread(QThread):
-    progress_signal = pyqtSignal(int, int, int, tuple)
-    finished_signal = pyqtSignal()
-
-    def __init__(self, channels):
-        super().__init__()
-        self.channels = channels
-        self.stop_requested = False
-
-    def run(self):
-        checked = offline = duplicate = 0
-        name_occurrences = {}
-        results = []
-
-        for name, url in self.channels:
-            if self.stop_requested:
-                break
-
-            status = "Online"
-            reason = ""
-
-            # URL check
-            try:
-                res = requests.head(url, timeout=2)
-                if res.status_code >= 400:
-                    status = "Offline"
-                    reason = "Bad Response"
-                    offline += 1
-            except:
-                status = "Offline"
-                reason = "Connection Error"
-                offline += 1
-
-            # Count name appearances
-            if name not in name_occurrences:
-                name_occurrences[name] = 1
-            else:
-                name_occurrences[name] += 1
-                reason = "Duplicate"
-                duplicate += 1
-
-            checked += 1
-            self.progress.emit(checked, offline, duplicate, (name, url, status, reason))
             results.append((name, status, reason, url))
 
-        self.results = results
+        self.progress.emit(results, offline, duplicate)
         self.finished.emit()
 
     def stop(self):
         self.stop_requested = True
 
-
-class URLCheckerDialog(QDialog):
-    def __init__(self, channels, parent=None):
-        super().__init__(parent)
-        self.channels = channels
-        self.results = []
-        self.thread = None
-        self.initUI()
-
-    def initUI(self):
-        self.setWindowTitle("URL Checker")
-        self.setGeometry(150, 150, 1000, 600)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-
-        layout = QVBoxLayout(self)
-        self.setStyleSheet("""
-            QDialog {
-                border: 5px solid red;
-                background-color: white;
-            }
-        """)
-
-        # Status summary layout
-        summaryLayout = QHBoxLayout()
-
-        self.checkedLabel = QLabel("Checked\n0", self)
-        self.onlineLabel = QLabel("Online\n0", self)
-        self.offlineLabel = QLabel("Offline\n0", self)
-
-        for label in [self.checkedLabel, self.onlineLabel, self.offlineLabel]:
-            label.setAlignment(Qt.AlignCenter)
-            label.setStyleSheet(
-                "font-size: 24px; background-color: #6A1B9A; color: white; padddef removeOfflineChannels(self, offline_channel_names):def removeOfflineChannels(self, offline_channel_names):ing: 20px; border-radius: 5px;")
-            summaryLayout.addWidget(label)
-
-        layout.addLayout(summaryLayout)
-
-        self.statusLine = QLabel("Status: Waiting", self)
-        layout.addWidget(self.statusLine)
-
-        controlLayout = QHBoxLayout()
-
-        self.channelCountLabel = QLabel(f"Channels Count: {len(self.channels)}", self)
-        controlLayout.addWidget(self.channelCountLabel)
-
-        self.searchInput = QLineEdit(self)
-        self.searchInput.setPlaceholderText("Search Channels...")
-        self.searchInput.textChanged.connect(self.updateFilter)
-        controlLayout.addWidget(self.searchInput)
-
-        self.statusFilter = QComboBox(self)
-        self.statusFilter.addItems(["All", "Online", "Offline"])
-        self.statusFilter.currentIndexChanged.connect(self.updateFilter)
-        controlLayout.addWidget(self.statusFilter)
-
-        layout.addLayout(controlLayout)
-
-        self.channelTable = QTableWidget(self)
-        self.channelTable.setColumnCount(4)
-        self.channelTable.setHorizontalHeaderLabels(["Channel Name", "Status", "Server", "URL"])
-        header = self.channelTable.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.Stretch)
-        layout.addWidget(self.channelTable)
-
-        buttonsLayout = QHBoxLayout()
-
-        self.checkBtn = QPushButton("Check URLs", self)
-        self.checkBtn.setStyleSheet("background-color: purple; color: white; font-size: 16px; padding: 10px;")
-        self.checkBtn.clicked.connect(self.startChecking)
-        buttonsLayout.addWidget(self.checkBtn)
-
-        self.stopBtn = QPushButton("Stop Checking", self)
-        self.stopBtn.setStyleSheet("background-color: purple; color: white; font-size: 16px; padding: 10px;")
-        self.stopBtn.clicked.connect(self.stopChecking)
-        self.stopBtn.setEnabled(False)
-        buttonsLayout.addWidget(self.stopBtn)
-
-        layout.addLayout(buttonsLayout)
-
-        self.selectOfflineBtn = QPushButton("Select Offline Channels", self)
-        self.selectOfflineBtn.setStyleSheet(
-            "background-color: purple; color: white; font-size: 16px; padding: 10px;"
-        )
-        self.selectOfflineBtn.clicked.connect(self.selectOfflineChannels)
-        buttonsLayout.addWidget(self.selectOfflineBtn)
-
-    def selectOfflineChannels(self):
-        offline_channels = []
-
-        # Clear previous selection in URL checker table
-        self.channelTable.clearSelection()
-
-        # Collect offline channels
-        for row in range(self.channelTable.rowCount()):
-            status_item = self.channelTable.item(row, 1)
-            if status_item.text().lower() == 'offline':
-                channel_name = self.channelTable.item(row, 0).text()
-                offline_channels.append(channel_name)
-                self.channelTable.selectRow(row)
-
-        if not offline_channels:
-            QMessageBox.information(
-                self, "No Offline Channels",
-                "There are no offline channels to select."
-            )
-            return
-
-        # Call parent method to select these offline channels in main list
-        if hasattr(self.parent(), 'selectChannelsByNames'):
-            self.parent().selectChannelsByNames(offline_channels)
-            QMessageBox.information(
-                self, "Offline Channels Selected",
-                f"{len(offline_channels)} offline channels have been selected both here and in the main list."
-            )
-        else:
-            QMessageBox.warning(
-                self, "Selection Failed",
-                "Could not find main editor method to select channels."
-            )
-
-    def startChecking(self):
-        self.results.clear()
-        self.channelTable.setRowCount(0)
-        self.checkBtn.setEnabled(False)
-        self.stopBtn.setEnabled(True)
-        self.statusLine.setText("Status: Checking URLs...")
-
-        self.thread = URLCheckThread(self.channels)
-        self.thread.progress_signal.connect(self.updateProgress)
-        self.thread.finished_signal.connect(self.checkingFinished)
-        self.thread.start()
-
-    def updateProgress(self, checked, online, offline, data):
-        name, status, server, url = data
-        self.results.append(data)
-        self.addChannelToTable(name, status, server, url)
-        self.checkedLabel.setText(f"Checked\n{checked}")
-        self.onlineLabel.setText(f"Online\n{online}")
-        self.offlineLabel.setText(f"Offline\n{offline}")
-        self.statusLine.setText(f"Checking: {name}")
-
-    def checkingFinished(self):
-        self.checkBtn.setEnabled(True)
-        self.stopBtn.setEnabled(False)
-        self.statusLine.setText("Status: Finished")
-
-    def stopChecking(self):
-        if self.thread:
-            self.thread.stop()
-            self.statusLine.setText("Status: Stopping...")
-
-    def addChannelToTable(self, name, status, server, url):
-        row_position = self.channelTable.rowCount()
-        self.channelTable.insertRow(row_position)
-
-        for col, data in enumerate([name, status, server, url]):
-            item = QTableWidgetItem(data)
-            if col == 1:
-                item.setBackground(Qt.green if status == "Online" else Qt.red)
-            else:
-                item.setBackground(Qt.white)
-            item.setFlags(item.flags() ^ Qt.ItemIsEditable)
-            self.channelTable.setItem(row_position, col, item)
-
-    def updateFilter(self):
-        search_text = self.searchInput.text().lower()
-        status_filter = self.statusFilter.currentText()
-
-        self.channelTable.setRowCount(0)
-
-        for name, status, server, url in self.results:
-            if (search_text in name.lower()) and (status_filter in [status, "All"]):
-                self.addChannelToTable(name, status, server, url)
 class SmartScanStatusDialog(QDialog):
     def __init__(self, channels, duplicates, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Smart Scan In Progress")
         self.resize(800, 400)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-        self.setStyleSheet("QDialog { border: 5px solid red; background-color: white; }")
 
+        self.setStyleSheet("QDialog { border: 5px solid red; background-color: white; }")
         self.channels = channels
         self.duplicates = duplicates
-        self.scan_results = []  # To support filtering
 
         layout = QVBoxLayout(self)
 
-        # Label
+        # Top Stats
         self.labelStats = QLabel("Starting scan...")
         self.labelStats.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(self.labelStats)
-
-        # Progress bar
-        self.progressBar = QProgressBar(self)
-        self.progressBar.setMinimum(0)
-        self.progressBar.setMaximum(len(channels))
-        self.progressBar.setValue(0)
-        layout.addWidget(self.progressBar)
 
         # Table
         self.table = QTableWidget(self)
@@ -556,59 +538,73 @@ class SmartScanStatusDialog(QDialog):
         layout.addWidget(self.table)
 
         # Buttons
+        # Buttons
         btnLayout = QHBoxLayout()
+
+
         self.stopBtn = QPushButton("Stop Scan")
+        self.stopBtn.setStyleSheet("background-color: purple; color: white; font-weight: bold;")
+        self.stopBtn.clicked.connect(self.stopScan)
+
+
+        btnLayout.addWidget(self.stopBtn)
+        layout.addLayout(btnLayout)
+
         self.stopBtn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
         self.stopBtn.clicked.connect(self.stopScan)
         btnLayout.addWidget(self.stopBtn)
 
+        layout.addLayout(btnLayout)
+
         self.selectBtn = QPushButton("Select in Channel List")
         self.selectBtn.setStyleSheet("background-color: #0078D7; color: white; font-weight: bold;")
         self.selectBtn.clicked.connect(self.selectProblematic)
+
         btnLayout.addWidget(self.selectBtn)
 
-        layout.addLayout(btnLayout)
-
-        # Filter
-        filter_layout = QHBoxLayout()
-        filter_label = QLabel("Show:")
-        self.filterCombo = QComboBox()
-        self.filterCombo.addItems(["All", "Online", "Offline", "Duplicate"])
-        self.filterCombo.currentIndexChanged.connect(self.applyFilter)
-        filter_layout.addWidget(filter_label)
-        filter_layout.addWidget(self.filterCombo)
-        layout.addLayout(filter_layout)
-
-        # Thread must be created **after all setup**
+        # Thread
         self.thread = SmartScanThread(channels, duplicates)
         self.thread.progress.connect(self.updateProgress)
         self.thread.finished.connect(self.scanFinished)
         self.thread.start()
 
-    def updateProgress(self, checked, offline, duplicate, data):
-        name, url, status, reason = data
-        self.labelStats.setText(f"Scanned: {checked} | Offline: {offline} | Duplicates: {duplicate}")
-        self.progressBar.setValue(checked)
+        # Filter Dropdown
+        filter_layout = QHBoxLayout()
+        filter_label = QLabel("Show:")
+        self.filterCombo = QComboBox()
+        self.filterCombo.addItems(["All", "Online", "Offline", "Duplicate"])
+        self.filterCombo.currentIndexChanged.connect(self.applyFilter)
 
-        self.scan_results.append((name, status, reason, url))
+        filter_layout.addWidget(filter_label)
+        filter_layout.addWidget(self.filterCombo)
+        layout.addLayout(filter_layout)
 
-        row = self.table.rowCount()
-        self.table.insertRow(row)
+        self.scan_results = []  # [(name, status, reason, url)]
 
-        self.table.setItem(row, 0, QTableWidgetItem(name))
+    def scanFinished(self):
+        self.labelStats.setText(self.labelStats.text() + " ✅ Done.")
+        self.stopBtn.setEnabled(False)
 
-        # Set status and apply color
-        status_item = QTableWidgetItem(status)
-        if "offline" in status.lower():
-            status_item.setBackground(QColor("#ffcccc"))  # red
-        elif "duplicate" in reason.lower():
-            status_item.setBackground(QColor("#ffffcc"))  # yellow
-        else:
-            status_item.setBackground(QColor("#ccffcc"))  # green
+        # Collect duplicate/offline names from table
+        to_select_names = set()
+        for row in range(self.table.rowCount()):
+            name = self.table.item(row, 0).text()
+            status = self.table.item(row, 1).text().lower()
+            reason = self.table.item(row, 2).text().lower()
 
-        self.table.setItem(row, 1, status_item)
-        self.table.setItem(row, 2, QTableWidgetItem(reason))
-        self.table.setItem(row, 3, QTableWidgetItem(url))
+            if "offline" in status or "duplicate" in reason:
+                to_select_names.add(name)
+
+        # Call parent to select in the list
+        if hasattr(self.parent(), "selectChannelsByNames"):
+            self.parent().selectChannelsByNames(to_select_names)
+            QMessageBox.information(self, "Marked",
+                                    f"{len(to_select_names)} problematic channels marked in your list.\nNow you can delete them manually.")
+
+    def updateProgress(self, results, offline, duplicate):
+        self.scan_results = results
+        self.labelStats.setText(f"Scanned: {len(results)} | Offline: {offline} | Duplicates: {duplicate}")
+        self.refreshTable()
 
     def refreshTable(self):
         self.table.setRowCount(0)
@@ -625,8 +621,8 @@ class SmartScanStatusDialog(QDialog):
 
             row = self.table.rowCount()
             self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(name))
 
+            self.table.setItem(row, 0, QTableWidgetItem(name))
             status_item = QTableWidgetItem(status)
             if "offline" in status.lower():
                 status_item.setBackground(QColor("#ffcccc"))
@@ -634,7 +630,6 @@ class SmartScanStatusDialog(QDialog):
                 status_item.setBackground(QColor("#ffffcc"))
             else:
                 status_item.setBackground(QColor("#ccffcc"))
-
             self.table.setItem(row, 1, status_item)
             self.table.setItem(row, 2, QTableWidgetItem(reason))
             self.table.setItem(row, 3, QTableWidgetItem(url))
@@ -642,15 +637,13 @@ class SmartScanStatusDialog(QDialog):
     def applyFilter(self):
         self.refreshTable()
 
-    def scanFinished(self):
-        self.labelStats.setText(self.labelStats.text() + " ✅ Done.")
-        self.stopBtn.setEnabled(False)
-        self.progressBar.setValue(self.progressBar.maximum())
-        self.progressBar.setStyleSheet("QProgressBar::chunk { background-color: green; }")
-
     def stopScan(self):
         self.thread.stop()
         self.labelStats.setText("Scan stopped by user.")
+        self.stopBtn.setEnabled(False)
+
+    def scanFinished(self):
+        self.labelStats.setText(self.labelStats.text() + " ✅ Done.")
         self.stopBtn.setEnabled(False)
 
     def selectProblematic(self):
@@ -667,6 +660,7 @@ class SmartScanStatusDialog(QDialog):
             self.parent().selectChannelsByNames(to_select_names)
             QMessageBox.information(self, "Marked",
                                     f"{len(to_select_names)} problematic channels marked in your channel list.")
+
 
 class M3UEditor(QWidget):
     def __init__(self):
