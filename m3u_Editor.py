@@ -308,43 +308,31 @@ class URLCheckThread(QThread):
         self.stop_requested = False
 
     def run(self):
-        checked = offline = duplicate = 0
-        name_occurrences = {}
-        results = []
+        online, offline, checked = 0, 0, 0
+        total = len(self.channels)
 
         for name, url in self.channels:
             if self.stop_requested:
                 break
 
-            status = "Online"
-            reason = ""
-
-            # URL check
             try:
-                res = requests.head(url, timeout=2)
-                if res.status_code >= 400:
-                    status = "Offline"
-                    reason = "Bad Response"
-                    offline += 1
+                res = requests.head(url, timeout=3)
+                status = "Online" if res.status_code < 400 else "Offline"
             except:
                 status = "Offline"
-                reason = "Connection Error"
+
+            parsed_url = urlparse(url)
+            server = parsed_url.hostname or "Unknown"
+
+            if status == "Online":
+                online += 1
+            else:
                 offline += 1
 
-            # Count name appearances
-            if name not in name_occurrences:
-                name_occurrences[name] = 1
-            else:
-                name_occurrences[name] += 1
-                reason = "Duplicate"
-                duplicate += 1
-
             checked += 1
-            self.progress.emit(checked, offline, duplicate, (name, url, status, reason))
-            results.append((name, status, reason, url))
+            self.progress_signal.emit(checked, online, offline, (name, status, server, url))
 
-        self.results = results
-        self.finished.emit()
+        self.finished_signal.emit()
 
     def stop(self):
         self.stop_requested = True
