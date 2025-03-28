@@ -573,12 +573,12 @@ class SmartScanStatusDialog(QDialog):
         # Buttons
         btnLayout = QHBoxLayout()
         self.stopBtn = QPushButton("Stop Scan")
-        self.stopBtn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
+        self.stopBtn.setStyleSheet("background-color: purple; color: white;")
         self.stopBtn.clicked.connect(self.stopScan)
         btnLayout.addWidget(self.stopBtn)
 
         self.markProblematicBtn = QPushButton("Mark Problematic Channels")
-        self.markProblematicBtn.setStyleSheet("background-color: #FFA500; color: black; font-weight: bold;")
+        self.markProblematicBtn.setStyleSheet("background-color: purple; color: white;")
         self.markProblematicBtn.clicked.connect(self.markProblematicChannels)
         btnLayout.addWidget(self.markProblematicBtn)
 
@@ -1014,7 +1014,7 @@ class M3UEditor(QWidget):
         buttons_layout.addWidget(self.m3uUrlConverterButton)
 
         self.convertPortalButton = QPushButton('Convert Portal MAC to M3U', self)
-        self.convertPortalButton.setStyleSheet("background-color: green; color: white;")
+        self.convertPortalButton.setStyleSheet("background-color: black; color: white;")
         self.convertPortalButton.clicked.connect(self.convertPortalToM3U)
         buttons_layout.addWidget(self.convertPortalButton)
 
@@ -1031,7 +1031,7 @@ class M3UEditor(QWidget):
         buttons_layout.addWidget(self.filterIsraelChannelsButton)
 
         self.smartScanButton = QPushButton('Smart Scan', self)
-        self.smartScanButton.setStyleSheet("background-color: purple; color: white; font-size: 16px;")
+        self.smartScanButton.setStyleSheet("background-color: black; color: white; font-weight: ;")
         self.smartScanButton.clicked.connect(self.openSmartScanDialog)
         buttons_layout.addWidget(self.smartScanButton)
 
@@ -1842,10 +1842,11 @@ class M3UEditor(QWidget):
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         dialog.setStyleSheet("""
             QDialog {
-                border: 5px solid red;
+                border: 6px solid red;
                 background-color: white;
             }
         """)
+
 
         layout = QVBoxLayout(dialog)
         label = QLabel("Choose scan type:")
