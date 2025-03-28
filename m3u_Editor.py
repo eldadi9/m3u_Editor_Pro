@@ -563,6 +563,7 @@ class SmartScanStatusDialog(QDialog):
         self.progressBar.setValue(0)
         layout.addWidget(self.progressBar)
 
+
         # Table
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)
@@ -577,22 +578,33 @@ class SmartScanStatusDialog(QDialog):
         self.stopBtn.clicked.connect(self.stopScan)
         btnLayout.addWidget(self.stopBtn)
 
-        self.markProblematicBtn = QPushButton("Mark Problematic Channels")
-        self.markProblematicBtn.setStyleSheet("background-color: purple; color: white;")
-        self.markProblematicBtn.clicked.connect(self.markProblematicChannels)
-        btnLayout.addWidget(self.markProblematicBtn)
+
+        self.markBtn = QPushButton("Mark Channels (Duplicates + Offline)")
+        self.markBtn.setStyleSheet("background-color: purple; color: white; font-weight: bold;")
+        self.markBtn.clicked.connect(self.markProblematicChannels)
+        btnLayout.addWidget(self.markBtn)
 
         layout.addLayout(btnLayout)
 
         # Filter
+        # Filter (dropdown) – reposition to top right with smaller size
         filter_layout = QHBoxLayout()
+        filter_layout.setAlignment(Qt.AlignRight)  # Align to right
+
         filter_label = QLabel("Show:")
+        filter_label.setStyleSheet("font-size: 10px;")
+
         self.filterCombo = QComboBox()
+        self.filterCombo.setFixedWidth(120)  # Small width
         self.filterCombo.addItems(["All", "Online", "Offline", "Duplicate"])
         self.filterCombo.currentIndexChanged.connect(self.applyFilter)
+        self.filterCombo.setStyleSheet("font-size: 10px; padding: 2px;")
+
         filter_layout.addWidget(filter_label)
         filter_layout.addWidget(self.filterCombo)
-        layout.addLayout(filter_layout)
+
+        # Insert filter layout at the top (just under the progress bar)
+        layout.insertLayout(2, filter_layout)  # Adjust index if needed
 
         # Thread must be created **after all setup**
         self.thread = SmartScanThread(channels, duplicates)
@@ -668,9 +680,8 @@ class SmartScanStatusDialog(QDialog):
         self.stopBtn.setEnabled(False)
 
     def markProblematicChannels(self):
-        urls_to_mark = set()
+        channels_to_mark = set()  # (name, url)
         seen_names = set()
-        marked_duplicates = set()
 
         for row in range(self.table.rowCount()):
             channel_name = self.table.item(row, 0).text().strip()
@@ -678,32 +689,24 @@ class SmartScanStatusDialog(QDialog):
             reason = self.table.item(row, 2).text().lower()
             url = self.table.item(row, 3).text().strip()
 
-            # סימון ערוצים לא תקינים (Offline)
             if "offline" in status:
-                urls_to_mark.add(url)
-                continue  # אין צורך לבדוק כפילות אם הערוץ כבר סומן כלא תקין
-
-            # סימון ערוץ אחד בלבד מכל קבוצה של ערוצים כפולים
-            if "duplicate" in reason:
+                channels_to_mark.add((channel_name, url))
+            elif "duplicate" in reason:
                 if channel_name in seen_names:
-                    # מסמן רק את העותק השני (הראשון כבר נצפה, זה העותק השני ואילך)
-                    if channel_name not in marked_duplicates:
-                        urls_to_mark.add(url)
-                        marked_duplicates.add(channel_name)  # מוודא שלא יסומן שוב
+                    channels_to_mark.add((channel_name, url))  # זה העותק הנוסף
                 else:
-                    seen_names.add(channel_name)  # זוהי הפעם הראשונה שראינו את הערוץ הזה
+                    seen_names.add(channel_name)
 
-        # קריאה לפונקציה לסימון לפי URL
-        if hasattr(self.parent(), "selectChannelsByUrls"):
-            self.parent().selectChannelsByUrls(urls_to_mark)
+        if hasattr(self.parent(), "selectChannelsByNameAndUrl"):
+            self.parent().selectChannelsByNameAndUrl(channels_to_mark)
             QMessageBox.information(
                 self, "Marked",
-                f"{len(urls_to_mark)} problematic channels (Offline & Duplicates) have been marked."
+                f"{len(channels_to_mark)} problematic channels (Offline or Duplicates) have been marked."
             )
         else:
             QMessageBox.warning(
                 self, "Error",
-                "Method selectChannelsByUrls not found."
+                "Method selectChannelsByNameAndUrl not found."
             )
 
     def selectProblematic(self):
@@ -888,7 +891,7 @@ class M3UEditor(QWidget):
         layout.addWidget(label)
 
         btn_scan_category = QPushButton("Scan Selected Category", dialog)
-        btn_scan_category.setStyleSheet("background-color: black; color: white; font-weight: bold; padding: 5px;")
+        btn_scan_category.setStyleSheet("background-color: purple; color: white; font-weight: bold; padding: 5px;")
         btn_scan_all = QPushButton("Scan All Channels", dialog)
         btn_scan_all.setStyleSheet("background-color: red; color: white; font-weight: bold; padding: 5px;")
 
@@ -1784,7 +1787,7 @@ class M3UEditor(QWidget):
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         dialog.setStyleSheet("""
             QDialog {
-                border: 3px solid #FF0000;
+                border: 3px solid purple;
                 background-color: white;
             }
         """)
@@ -1976,7 +1979,7 @@ class M3UEditor(QWidget):
     def showSmartScanCategoryPicker(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Category to Scan")
-        dialog.setStyleSheet("QDialog { border: 5px solid red; background-color: white; }")
+        dialog.setStyleSheet("QDialog { border: 5px solid purple; background-color: white; }")
         layout = QVBoxLayout(dialog)
 
         label = QLabel("Pick a category:")
@@ -1996,8 +1999,6 @@ class M3UEditor(QWidget):
         dialog.setLayout(layout)
         dialog.exec_()
 
-
-
     def selectChannelsByUrls(self, urls_set):
         self.channelList.clearSelection()
 
@@ -2006,13 +2007,20 @@ class M3UEditor(QWidget):
             return
 
         category_name = selected_category_item.text().split(" (")[0]
-
         channels_in_category = self.categories.get(category_name, [])
 
+        seen_names = set()
         for idx, channel in enumerate(channels_in_category):
-            channel_url = self.getUrl(channel).strip()
-            if channel_url in urls_set:
-                self.channelList.item(idx).setSelected(True)
+            name = channel.split(" (")[0].strip()
+            url = self.getUrl(channel).strip()
+
+            if url in urls_set:
+                if name not in seen_names:
+                    # זה הראשון – תשמור אותו ותדלג
+                    seen_names.add(name)
+                else:
+                    # זה השני או יותר – תבחר למחיקה
+                    self.channelList.item(idx).setSelected(True)
 
     def removeChannelsByUrls(self, urls_set):
         removed_count = 0
@@ -2080,6 +2088,23 @@ class M3UEditor(QWidget):
             self.display_channels(self.categoryList.currentItem())
 
         return removed
+
+    def selectChannelsByNameAndUrl(self, name_url_set):
+        self.channelList.clearSelection()
+
+        selected_category_item = self.categoryList.currentItem()
+        if not selected_category_item:
+            return
+
+        category_name = selected_category_item.text().split(" (")[0]
+        channels_in_category = self.categories.get(category_name, [])
+
+        for idx, channel in enumerate(channels_in_category):
+            name = channel.split(" (")[0].strip()
+            url = self.getUrl(channel).strip()
+
+            if (name, url) in name_url_set:
+                self.channelList.item(idx).setSelected(True)
 
     def getUrl(self, channel_info):
         try:
