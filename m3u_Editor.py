@@ -871,18 +871,33 @@ class M3UEditor(QWidget):
             self.updateCategoryList()  # Update your category view if necessary
 
     def openURLCheckerDialog(self):
-        channels = []
-        channel_category_mapping = {}
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Choose scan type")
+        dialog.setFixedSize(250, 130)
+        dialog.setStyleSheet("""
+            QDialog {
+                border: 4px solid red;
+                background-color: white;
+            }
+        """)
 
-        for category, ch_list in self.categories.items():
-            for ch in ch_list:
-                name = ch.split(" (")[0].strip()
-                url = self.getUrl(ch)
-                channels.append((name, url))
-                channel_category_mapping[name.lower()] = category  # lower() להתאמה קלה
+        layout = QVBoxLayout(dialog)
 
-        # מעבירים את המידע המוכן מראש לדיאלוג:
-        dialog = URLCheckerDialog(channels, channel_category_mapping, self)
+        label = QLabel("Choose scan type:", dialog)
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+
+        btn_scan_category = QPushButton("Scan Selected Category", dialog)
+        btn_scan_category.setStyleSheet("background-color: black; color: white; font-weight: bold; padding: 5px;")
+        btn_scan_all = QPushButton("Scan All Channels", dialog)
+        btn_scan_all.setStyleSheet("background-color: red; color: white; font-weight: bold; padding: 5px;")
+
+        layout.addWidget(btn_scan_category)
+        layout.addWidget(btn_scan_all)
+
+        btn_scan_category.clicked.connect(lambda: [dialog.accept(), self.showCategoryPickerDialog()])
+        btn_scan_all.clicked.connect(lambda: [dialog.accept(), self.startURLCheckAllChannels()])
+
         dialog.exec_()
 
     def mergeM3Us(self):
@@ -1764,34 +1779,62 @@ class M3UEditor(QWidget):
 
     def showCategoryPickerDialog(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle("Select Category to Scan")
-
+        dialog.setWindowTitle("Select Category")
+        dialog.setFixedSize(250, 120)
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         dialog.setStyleSheet("""
             QDialog {
-                border: 5px solid red;
+                border: 3px solid #FF0000;
                 background-color: white;
             }
         """)
 
         layout = QVBoxLayout(dialog)
-
-        label = QLabel("Choose a category to scan:")
-        label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(label)
-
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         combo = QComboBox(dialog)
-        combo.addItems(self.categories.keys())
+        categories = list(self.categories.keys())
+        combo.addItems(categories)
         layout.addWidget(combo)
 
-        scan_button = QPushButton("Start Scan")
-        scan_button.setStyleSheet("background-color: black; color: white; font-weight: bold;")
-        layout.addWidget(scan_button)
+        btn_ok = QPushButton("Start Scan", dialog)
+        btn_ok.setStyleSheet("background-color: purple; color: white; font-weight: bold; padding: 5px;")
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        layout.addWidget(btn_ok)
 
-        scan_button.clicked.connect(lambda: self.runURLCheckerFromCategory(combo.currentText(), dialog))
+        btn_ok.clicked.connect(lambda: [
+            dialog.accept(),
+            self.startURLCheckForCategory(combo.currentText())
+        ])
 
-        dialog.setLayout(layout)
         dialog.exec_()
+
+    def startURLCheckForCategory(self, category_name):
+        channels = []
+        channel_category_mapping = {}
+
+        for ch in self.categories.get(category_name, []):
+            name = ch.split(" (")[0].strip()
+            url = self.getUrl(ch)
+            channels.append((name, url))
+            channel_category_mapping[name.lower()] = category_name
+
+        dialog = URLCheckerDialog(channels, channel_category_mapping, self)
+        dialog.exec_()
+
+    def startURLCheckAllChannels(self):
+        channels = []
+        channel_category_mapping = {}
+
+        for category, ch_list in self.categories.items():
+            for ch in ch_list:
+                name = ch.split(" (")[0].strip()
+                url = self.getUrl(ch)
+                channels.append((name, url))
+                channel_category_mapping[name.lower()] = category
+
+        dialog = URLCheckerDialog(channels, channel_category_mapping, self)
+        dialog.exec_()
+
 
     def openSmartScanDialog(self):
         dialog = QDialog(self)
@@ -1806,11 +1849,14 @@ class M3UEditor(QWidget):
 
         layout = QVBoxLayout(dialog)
         label = QLabel("Choose scan type:")
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         label.setAlignment(Qt.AlignCenter)
         layout.addWidget(label)
 
+
         category_btn = QPushButton("Scan Selected Category")
         all_btn = QPushButton("Scan All Channels")
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         category_btn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
         all_btn.setStyleSheet("background-color: red; color: white; font-weight: bold;")
