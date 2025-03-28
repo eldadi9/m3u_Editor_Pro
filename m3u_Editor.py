@@ -262,7 +262,7 @@ class SmartScanThread(QThread):
 
     def run(self):
         checked = offline = duplicate = 0
-        marked_duplicates = set()
+        duplicates_count = {}
 
         for name, url in self.channels:
             if self.stop_requested:
@@ -282,11 +282,10 @@ class SmartScanThread(QThread):
                 reason = "Connection Error"
                 offline += 1
 
-            if name in self.duplicate_names:
-                if name not in marked_duplicates:
-                    reason = reason + " & Duplicate" if reason else "Duplicate"
-                    duplicate += 1
-                    marked_duplicates.add(name)
+            duplicates_count[name] = duplicates_count.get(name, 0) + 1
+            if duplicates_count[name] > 1:  # החל מהשני מסומן ככפול
+                reason = reason + " & Duplicate" if reason else "Duplicate"
+                duplicate += 1
 
             checked += 1
             self.progress.emit(checked, offline, duplicate, (name, url, status, reason))
@@ -295,7 +294,6 @@ class SmartScanThread(QThread):
 
     def stop(self):
         self.stop_requested = True
-
 
 
 class URLCheckThread(QThread):
@@ -550,10 +548,10 @@ class SmartScanStatusDialog(QDialog):
         self.stopBtn.clicked.connect(self.stopScan)
         btnLayout.addWidget(self.stopBtn)
 
-        self.selectBtn = QPushButton("Select in Channel List")
-        self.selectBtn.setStyleSheet("background-color: #0078D7; color: white; font-weight: bold;")
-        self.selectBtn.clicked.connect(self.selectProblematic)
-        btnLayout.addWidget(self.selectBtn)
+        self.markProblematicBtn = QPushButton("Mark Problematic Channels")
+        self.markProblematicBtn.setStyleSheet("background-color: #FFA500; color: black; font-weight: bold;")
+        self.markProblematicBtn.clicked.connect(self.markProblematicChannels)
+        btnLayout.addWidget(self.markProblematicBtn)
 
         layout.addLayout(btnLayout)
 
@@ -575,7 +573,8 @@ class SmartScanStatusDialog(QDialog):
 
     def updateProgress(self, checked, offline, duplicate, data):
         name, url, status, reason = data
-        self.labelStats.setText(f"Scanned: {checked} | Offline: {offline} | Duplicates: {duplicate}")
+        total = self.progressBar.maximum()
+        self.labelStats.setText(f"Scanned: {checked}/{total} | Offline: {offline} | Duplicates: {duplicate}")
         self.progressBar.setValue(checked)
 
         self.scan_results.append((name, status, reason, url))
@@ -584,8 +583,6 @@ class SmartScanStatusDialog(QDialog):
         self.table.insertRow(row)
 
         self.table.setItem(row, 0, QTableWidgetItem(name))
-
-        # Set status and apply color
         status_item = QTableWidgetItem(status)
         if "offline" in status.lower():
             status_item.setBackground(QColor("#ffcccc"))  # red
@@ -641,20 +638,67 @@ class SmartScanStatusDialog(QDialog):
         self.labelStats.setText("Scan stopped by user.")
         self.stopBtn.setEnabled(False)
 
-    def selectProblematic(self):
-        to_select_names = set()
+    def markProblematicChannels(self):
+        urls_to_mark = set()
+        seen_names = set()
+
         for row in range(self.table.rowCount()):
-            name = self.table.item(row, 0).text()
+            channel_name = self.table.item(row, 0).text()
             status = self.table.item(row, 1).text().lower()
-            reason = self.table.item(row, 2).text().lower()
+            url = self.table.item(row, 3).text()
 
-            if "offline" in status or "duplicate" in reason:
-                to_select_names.add(name)
+            if "offline" in status:
+                urls_to_mark.add(url)
+            elif "duplicate" in self.table.item(row, 2).text().lower():
+                # מסמן רק את העותק השני ואילך
+                if channel_name in seen_names:
+                    urls_to_mark.add(url)
+                else:
+                    seen_names.add(channel_name)
 
-        if hasattr(self.parent(), "selectChannelsByNames"):
-            self.parent().selectChannelsByNames(to_select_names)
-            QMessageBox.information(self, "Marked",
-                                    f"{len(to_select_names)} problematic channels marked in your channel list.")
+        if hasattr(self.parent(), "selectChannelsByUrls"):
+            self.parent().selectChannelsByUrls(urls_to_mark)
+            QMessageBox.information(
+                self, "Marked",
+                f"{len(urls_to_mark)} problematic channels (Offline & Duplicates) have been marked."
+            )
+        else:
+            QMessageBox.warning(
+                self, "Error",
+                "Method selectChannelsByUrls not found."
+            )
+
+    def selectProblematic(self):
+        urls_to_mark = set()
+        duplicate_tracker = {}
+
+        for row in range(self.table.rowCount()):
+            channel_name = self.table.item(row, 0).text()
+            status = self.table.item(row, 1).text().lower()
+            url = self.table.item(row, 3).text()
+
+            if "offline" in status:
+                urls_to_mark.add(url)
+            else:
+                # במקרה של כפולים נסמן רק את השני והלאה
+                if channel_name not in duplicate_tracker:
+                    duplicate_tracker[channel_name] = url
+                else:
+                    urls_to_mark.add(url)
+
+        # סימון סופי לפי URL ייחודי, לא לפי שם בלבד
+        if hasattr(self.parent(), "selectChannelsByUrls"):
+            self.parent().selectChannelsByUrls(urls_to_mark)
+            QMessageBox.information(
+                self, "Marked",
+                f"{len(urls_to_mark)} problematic channels marked in your channel list."
+            )
+        else:
+            QMessageBox.warning(
+                self, "Error",
+                "Method selectChannelsByUrls not found."
+            )
+
 
 class M3UEditor(QWidget):
     def __init__(self):
@@ -1910,6 +1954,41 @@ class M3UEditor(QWidget):
 
         QMessageBox.information(self, "Smart Scan Complete",
                                 f"✔️ Duplicate channels: {len(duplicate_names)}\n❌ Offline channels: {len(offline_names)}\n🎯 Total marked: {len(final_selection)}")
+
+    def selectChannelsByUrls(self, urls_set):
+        self.channelList.clearSelection()
+
+        selected_category_item = self.categoryList.currentItem()
+        if not selected_category_item:
+            return
+
+        category_name = selected_category_item.text().split(" (")[0]
+
+        channels_in_category = self.categories.get(category_name, [])
+
+        for idx, channel in enumerate(channels_in_category):
+            channel_url = self.getUrl(channel).strip()
+            if channel_url in urls_set:
+                self.channelList.item(idx).setSelected(True)
+
+    def removeChannelsByUrls(self, urls_set):
+        removed_count = 0
+        for category in self.categories.keys():
+            original_channels = self.categories[category]
+            new_channels = []
+
+            for channel in original_channels:
+                url = self.getUrl(channel).strip()
+                if url in urls_set:
+                    removed_count += 1  # ערוץ יימחק
+                else:
+                    new_channels.append(channel)
+
+            self.categories[category] = new_channels
+
+        self.updateM3UContent()
+        self.display_channels(self.categoryList.currentItem())  # רענון התצוגה לאחר המחיקה
+        return removed_count
 
     def selectChannelsByNames(self, channel_names):
         self.channelList.clearSelection()
