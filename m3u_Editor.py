@@ -307,7 +307,6 @@ class URLCheckThread(QThread):
 
     def run(self):
         online, offline, checked = 0, 0, 0
-        total = len(self.channels)
 
         for name, url in self.channels:
             if self.stop_requested:
@@ -328,6 +327,7 @@ class URLCheckThread(QThread):
                 offline += 1
 
             checked += 1
+            # כאן לא מחפשים קטגוריה – רק שם, סטטוס, שרת וכתובת
             self.progress_signal.emit(checked, online, offline, (name, status, server, url))
 
         self.finished_signal.emit()
@@ -337,12 +337,14 @@ class URLCheckThread(QThread):
 
 
 class URLCheckerDialog(QDialog):
-    def __init__(self, channels, parent=None):
+    def __init__(self, channels, channel_category_mapping, parent=None):
         super().__init__(parent)
         self.channels = channels
+        self.channel_category_mapping = channel_category_mapping  # שמירת המידע
         self.results = []
         self.thread = None
         self.initUI()
+
 
     def initUI(self):
         self.setWindowTitle("URL Checker")
@@ -393,8 +395,8 @@ class URLCheckerDialog(QDialog):
         layout.addLayout(controlLayout)
 
         self.channelTable = QTableWidget(self)
-        self.channelTable.setColumnCount(4)
-        self.channelTable.setHorizontalHeaderLabels(["Channel Name", "Status", "Server", "URL"])
+        self.channelTable.setColumnCount(5)
+        self.channelTable.setHorizontalHeaderLabels(["Channel Name", "Category", "Status", "Server", "URL"])
         header = self.channelTable.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.channelTable)
@@ -490,9 +492,34 @@ class URLCheckerDialog(QDialog):
         row_position = self.channelTable.rowCount()
         self.channelTable.insertRow(row_position)
 
-        for col, data in enumerate([name, status, server, url]):
+        # קבלת קטגוריה בצורה בטוחה בצד ה־GUI בלבד!
+        category_name = self.getCategoryByChannelName(name)
+
+        data_columns = [name, category_name, status, server, url]
+
+        for col, data in enumerate(data_columns):
             item = QTableWidgetItem(data)
-            if col == 1:
+            if col == 2:  # Status
+                item.setBackground(Qt.green if status == "Online" else Qt.red)
+            else:
+                item.setBackground(Qt.white)
+            item.setFlags(item.flags() ^ Qt.ItemIsEditable)
+            self.channelTable.setItem(row_position, col, item)
+
+    def getCategoryByChannelName(self, channel_name):
+        return self.channel_category_mapping.get(channel_name.lower().strip(), "Unknown")
+
+    def addChannelToTable(self, name, status, server, url):
+        row_position = self.channelTable.rowCount()
+        self.channelTable.insertRow(row_position)
+
+        category_name = self.getCategoryByChannelName(name)
+
+        data_columns = [name, category_name, status, server, url]
+
+        for col, data in enumerate(data_columns):
+            item = QTableWidgetItem(data)
+            if col == 2:  # Status
                 item.setBackground(Qt.green if status == "Online" else Qt.red)
             else:
                 item.setBackground(Qt.white)
@@ -508,6 +535,8 @@ class URLCheckerDialog(QDialog):
         for name, status, server, url in self.results:
             if (search_text in name.lower()) and (status_filter in [status, "All"]):
                 self.addChannelToTable(name, status, server, url)
+
+
 class SmartScanStatusDialog(QDialog):
     def __init__(self, channels, duplicates, parent=None):
         super().__init__(parent)
@@ -641,21 +670,30 @@ class SmartScanStatusDialog(QDialog):
     def markProblematicChannels(self):
         urls_to_mark = set()
         seen_names = set()
+        marked_duplicates = set()
 
         for row in range(self.table.rowCount()):
-            channel_name = self.table.item(row, 0).text()
+            channel_name = self.table.item(row, 0).text().strip()
             status = self.table.item(row, 1).text().lower()
-            url = self.table.item(row, 3).text()
+            reason = self.table.item(row, 2).text().lower()
+            url = self.table.item(row, 3).text().strip()
 
+            # סימון ערוצים לא תקינים (Offline)
             if "offline" in status:
                 urls_to_mark.add(url)
-            elif "duplicate" in self.table.item(row, 2).text().lower():
-                # מסמן רק את העותק השני ואילך
-                if channel_name in seen_names:
-                    urls_to_mark.add(url)
-                else:
-                    seen_names.add(channel_name)
+                continue  # אין צורך לבדוק כפילות אם הערוץ כבר סומן כלא תקין
 
+            # סימון ערוץ אחד בלבד מכל קבוצה של ערוצים כפולים
+            if "duplicate" in reason:
+                if channel_name in seen_names:
+                    # מסמן רק את העותק השני (הראשון כבר נצפה, זה העותק השני ואילך)
+                    if channel_name not in marked_duplicates:
+                        urls_to_mark.add(url)
+                        marked_duplicates.add(channel_name)  # מוודא שלא יסומן שוב
+                else:
+                    seen_names.add(channel_name)  # זוהי הפעם הראשונה שראינו את הערוץ הזה
+
+        # קריאה לפונקציה לסימון לפי URL
         if hasattr(self.parent(), "selectChannelsByUrls"):
             self.parent().selectChannelsByUrls(urls_to_mark)
             QMessageBox.information(
@@ -833,8 +871,19 @@ class M3UEditor(QWidget):
             self.updateCategoryList()  # Update your category view if necessary
 
     def openURLCheckerDialog(self):
-        self.showURLScanChoiceDialog()
+        channels = []
+        channel_category_mapping = {}
 
+        for category, ch_list in self.categories.items():
+            for ch in ch_list:
+                name = ch.split(" (")[0].strip()
+                url = self.getUrl(ch)
+                channels.append((name, url))
+                channel_category_mapping[name.lower()] = category  # lower() להתאמה קלה
+
+        # מעבירים את המידע המוכן מראש לדיאלוג:
+        dialog = URLCheckerDialog(channels, channel_category_mapping, self)
+        dialog.exec_()
 
     def mergeM3Us(self):
         options = QFileDialog.Options()
@@ -1900,60 +1949,7 @@ class M3UEditor(QWidget):
         dialog.setLayout(layout)
         dialog.exec_()
 
-    def smartScan(self, category_only=True, dialog=None):
-        if dialog:
-            dialog.close()
 
-        duplicate_names = set()
-        seen_names = set()
-        channels_to_check = []
-
-        if category_only:
-            item = self.categoryList.currentItem()
-            if not item:
-                QMessageBox.warning(self, "Warning", "Please select a category.")
-                return
-            category = item.text().split(" (")[0]
-            source = self.categories.get(category, [])
-        else:
-            # כל הערוצים מכל הקטגוריות
-            source = []
-            for ch_list in self.categories.values():
-                source.extend(ch_list)
-
-        # מציאת כפולים ואיסוף קישורים לבדיקה
-        for ch in source:
-            name = ch.split(" (")[0].strip()
-            url = self.getUrl(ch)
-            channels_to_check.append((name, url))
-
-            if name in seen_names:
-                duplicate_names.add(name)
-            else:
-                seen_names.add(name)
-
-        # בדיקת תקינות URL
-        offline_names = []
-        for name, url in channels_to_check:
-            try:
-                res = requests.head(url, timeout=2)
-                if res.status_code >= 400:
-                    offline_names.append(name)
-            except:
-                offline_names.append(name)
-
-        # איחוד רשימת שמות כפולים ולא תקינים
-        final_selection = set(offline_names).union(duplicate_names)
-
-        # סימון ברשימת הערוצים
-        self.channelList.clearSelection()
-        for i in range(self.channelList.count()):
-            item = self.channelList.item(i)
-            if item.text() in final_selection:
-                item.setSelected(True)
-
-        QMessageBox.information(self, "Smart Scan Complete",
-                                f"✔️ Duplicate channels: {len(duplicate_names)}\n❌ Offline channels: {len(offline_names)}\n🎯 Total marked: {len(final_selection)}")
 
     def selectChannelsByUrls(self, urls_set):
         self.channelList.clearSelection()
@@ -2143,9 +2139,9 @@ class M3UEditor(QWidget):
 
             'News📺': ['Keshet 12 IL', 'Channel 9 HD IL', '9 Channel IL', 'CHANNEL 9 HD IL', 'KAN 11 IL', '12 Keshet IL',
                       'C13 Keshet IL', 'KAN 14 IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
-                      'MAKAN HD IL', 'i24 IL', 'Channel 14', 'Kan Educational HD IL', 'Reshet 13 IL', 'KHAN 11',
-                      'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13', 'Makan 33 HD', 'Reshet 13 IL',
-                      'Kan Chinuchit 23', 'i24 News', 'Channel 9', 'Channel 11', 'Channel 12', 'Channel 13',
+                      'MAKAN HD IL', 'i24 IL', 'Channel 14', 'Kan Educational HD IL', 'Reshet 13 IL', 'KHAN 11','CBS reality [IL]',
+                      'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13',  'Reshet 13 [IL]', 'Knesset [IL]', 'I24 News [IL]','Keshet 12 HD [IL]','Keshet 12 [IL]','Reshet 13 HD [IL]','13 Keshet IL','KAN 11 HD [IL]','KAN 11 [IL]','Makan 33 HD', 'Reshet 13 IL',
+                      'Kan Chinuchit 23', 'i24 News', 'Channel 9','Now 14 HD [IL]','Mikan 33 [IL]','Kabbalah channel [IL]', 'Channel 11','KAN23 [IL]','Kan Educational HD [IL]', 'Channel 12', 'Channel 13',
                       'Channel 24', 'Channel 14', 'ערוץ 14', 'ערוץ 24', 'Channel 98 IL', 'CHANNEL 12 HD IL',
                       'CHANNEL 13 HD'],
             'Hot🔥': ['HOT', 'HOT CINEMA', 'HOT Cinema 1 HD IL', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4',
@@ -2164,15 +2160,15 @@ class M3UEditor(QWidget):
             'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
                         'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'EXTREME IL', 'Sport 5+ Live HD IL',
                         'ONE 2 HD IL', 'Sport 3 HD IL', 'Sport 5 HD IL ', 'SPORT 2 HD IL', 'Sport 1 HD IL',
-                        'Sport 2 HD', 'Sport 3 HD', 'Sport 4 HD',
+                        'Sport 2 HD', 'Sport 3 HD', 'Sport 4 HD','5 Live IL','ONE1 HD IL','ONE2 HD IL','ONE2 HD [IL]','ONE2  [IL]','Sport 4 HD','Sport 4 HD',
                         'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'ESPN 2 HD USA', 'ESPN USA',
                         'Eurosport 1 HD', 'Red Bull TV HD',
                         'WWE Russian', 'Red Bull TV', 'MMA-TV.com HD', 'MMA-TV.com', 'MMA-TV.com orig', 'NHL', 'nba',
                         'NBA', 'wwe', 'WWE Network HD', 'Eurosport 2',
                         'Eurosport 2', 'EXTREME', 'SPORT'],
             'Kids🍦': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'BABY TV IL', 'hop', 'HOT A+ Kids', 'Nick Jr',
-                      'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut',
-                      'ZOOM', 'Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL',
+                      'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut','Disney Jr [IL]',
+                      'ZOOM', 'Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL','FOMO [IL]','HOP [IL]','Yoyo [IL]','Disney [IL]',
                       'Junior IL', 'hop IL', 'HOP HD IL', 'JUNIOR IL', 'Zoom', 'Zoom Toon HD', 'Wiz', 'Yalduti',
                       'TeenNick', 'Nick HD', 'Nick Jr HD', 'Luli', 'Logi', 'Junior', 'Jim Jam', 'Disney Jr.', 'LULI IL',
                       'Disney Jr IL', 'Baby TV', 'DISNEY JR IL', 'TeenNick IL',
@@ -2184,14 +2180,14 @@ class M3UEditor(QWidget):
                                'A+ HD IL', 'LIFETIME HD IL', 'STARS HD IL',
                                'Ego Total', 'Food Network', 'Game Show Channel HD IL', 'Health', 'E!',
                                'Horse and Country TV', 'ZONE HD', 'Good Life', 'TLC HD', 'Horse and Country TV',
-                               'Home Plus', 'Love Island', 'History HD', 'Humor Channel', 'Fomo', 'Fashion',
+                               'Home Plus', 'Love Island', 'History HD', 'Humor Channel', 'Fomo', 'Fashion','Holiday channel [IL]',
                                'Food Channel HD', 'Foody HD', 'Erez Nehederet HD', 'Big', 'CBS Reality', 'Boomerang',
                                'Entertainment IL', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'],
             'Music🎵': ['music', 'MUSIC', 'MUSIC 24', 'MTV Hits', 'MTV Base HD', 'Stingray ', 'MTV Hits',
                        'Stingray Hot Country HD', 'Stingray Pop Adult HD', 'Stingray Hit List HD', 'MTV Hits',
                        'MTV Club', 'Clubbing TV HD', 'IL: MTV HD', 'MTV 80s', 'MTV', 'MTV Pulse HD', 'IT: MTV HD',
                        'MTV Idol HD', 'VH1 Classic', 'Rock Classics', 'Europa Plus TV HD', 'Music Box Gold', 'music 24',
-                       'MTV Hits orig',
+                       'MTV Hits orig', 'Music Channel [IL]',
                        'Club MTV', 'Bridge Deluxe HD', 'Now 90s HD UK', 'Now 80s HD UK', 'NOW 70s UK', 'Bridge TV',
                        'Bridge Deluxe HD orig', 'Bridge Hits',
                        'Bridge Rock', 'Europa Plus TV', 'Europa Plus TV orig', 'MTV Live HD', 'MTV Live HD orig',
@@ -2211,15 +2207,15 @@ class M3UEditor(QWidget):
                        'ТНТ Music orig'],
             'Nature🌴': ['Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Travel Channel',
                         'DISCOVERY CHANNEL HD IL', 'Nat Geo HD', 'Nat Geo Wild', 'Animal Planet HD',
-                        'DISCOVERY CHANNEL HD IL', 'NET GEO_WILD HD IL', 'Sky Select 5 HD', 'NAT GEO WILD IL',
-                        'TRAVEL CHANNEL IL',
+                        'National Geographic [IL]', 'NET GEO_WILD HD IL', 'Sky Select 5 HD', 'NAT GEO WILD IL','History [IL]','IETV [IL]','ZEE TV [IL]',
+                        'TRAVEL CHANNEL IL','Animal Planet [IL]','National Geographic HD [IL]',
                         'NATIONAL GEOGRAPHICS HD IL'],
             'world series🌍': ['Viva Premium HD IL', 'Turkish Dramas 3 HD IL', 'Turkish Dramas 2 HD IL',
                               'Turkish Dramas Plus HD IL', 'Viva', 'Turkish Dramas 3 HD IL', 'Yam Tihoni 25',
                               'Viva plus', 'Aruch Sdarot Hahodiot', 'Aruch Sdarot Hahodiot 2', 'Yam Tihoni Plus',
-                              'Vamos HD', 'Yam Tihoni HD', 'Yam Tihoni 2', 'Viva+ IL', 'Viva+', 'Viva Vintage',
-                              'Viva Premium HD', 'VIVA IL', 'Yamtihoni IL', 'VIVA HD IL', 'VIVA+ IL',
-                              'YAM TIHONI HD IL', 'HALA TV IL', 'BOLLYWOOD HD IL', 'BOLLYSHOW HD IL', 'Bollywood HD',
+                              'Vamos HD', 'Yam Tihoni HD', 'Yam Tihoni 2', 'Viva+ IL', 'Viva+', 'Viva Vintage','Star channel [IL]','Mediterranean [IL]','Bollywood [IL]','Turkish Dramas Plus HD [IL]',
+                              'Viva Premium HD', 'VIVA IL', 'Yamtihoni IL', 'VIVA HD IL', 'VIVA+ IL','The Mediterranean HD [IL]','The Mediterranean [IL]','The Mediterranean+ HD [IL]','The Mediterranean+ [IL]',
+                              'YAM TIHONI HD IL', 'HALA TV IL', 'BOLLYWOOD HD IL', 'BOLLYSHOW HD IL', 'Bollywood HD','Turkish Dramas Plus [IL]','Turkish Dramas 2 HD [IL]','Turkish Dramas 2 [IL]','Turkish Dramas 3 HD [IL]',
                               'Turkish Drama Plus', 'Turkish Drama 2', 'Turkish Drama 3', 'Viva'],
 
         }
@@ -2241,27 +2237,12 @@ class M3UEditor(QWidget):
                     if not placed:
                         filtered_channels['Other'].append(channel)
 
-        # Load Israeli and World Radios as usual
+        # טוען רק את תחנות הרדיו מישראל ומעולם, ללא Radio by Category
         self.loadRadioChannels(filtered_channels, 'Israel Radio📻',
                                r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\IsraeliRadios.m3u")
 
         self.loadRadioChannels(filtered_channels, 'World Radio🌍',
                                r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\RADIO World.m3u")
-
-        # Ask user whether to load radio channels together or separately
-        user_reply = QMessageBox.question(self, 'Load Radio by Category',
-                                          'Do you want to upload all channels together (Radio_By_Category.m3u)?',
-                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-
-        if user_reply == QMessageBox.Yes:
-            # Load all channels together into one category
-            filtered_channels['Radio by Category📡'] = []
-            self.loadRadioChannels(filtered_channels, 'Radio by Category📡',
-                                   r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\Radio_By_Category.m3u")
-        else:
-            # Load channels separated by categories dynamically
-            self.loadRadioCategories(filtered_channels,
-                                     r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\Radio_By_Category.m3u")
 
         # Update categories and regenerate M3U content
         self.categories = filtered_channels
