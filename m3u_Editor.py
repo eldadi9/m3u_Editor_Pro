@@ -13,6 +13,7 @@ import pyperclip
 import requests  # You need to import requests to handle downloading
 from urllib.parse import urlparse
 from PyQt5.QtWidgets import QProgressBar
+import xml.etree.ElementTree as ET
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -431,7 +432,7 @@ class URLCheckerDialog(QDialog):
 
         # Collect offline channels
         for row in range(self.channelTable.rowCount()):
-            status_item = self.channelTable.item(row, 1)
+            status_item = self.channelTable.item(row, 2)  # Status נמצא בעמודה 2
             if status_item.text().lower() == 'offline':
                 channel_name = self.channelTable.item(row, 0).text()
                 offline_channels.append(channel_name)
@@ -2118,6 +2119,8 @@ class M3UEditor(QWidget):
                 return channel
         return None
 
+    import xml.etree.ElementTree as ET
+
     def loadM3U(self):
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(self, "Open M3U File", "", "M3U Files (*.m3u *.m3u8);;All Files (*)",
@@ -2128,12 +2131,53 @@ class M3UEditor(QWidget):
                     content = file.read()
                 self.textEdit.setPlainText(content)
                 self.parseM3UContentEnhanced(content)
-                # Display the file name and total channels in the label
+
                 total_channels = sum(len(channels) for channels in self.categories.values())
                 self.channelCountLabel.setText(f"Total Channels: {total_channels}")
-                self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]}")  # Only show the file name
+                self.fileNameLabel.setText(f"Loaded File: {os.path.basename(fileName)}")
+
+                # 👉 טעינת קובץ EPG אוטומטי אם קיים
+                epg_path = os.path.join(os.path.dirname(fileName), "epg.xml")
+                if os.path.exists(epg_path):
+                    self.loadEPG(epg_path)
+                    QMessageBox.information(self, "EPG Loaded", "epg.xml was loaded and connected successfully.")
+
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to load file: {str(e)}")
+
+    def loadEPG(self, epg_path):
+        try:
+            tree = ET.parse(epg_path)
+            root = tree.getroot()
+
+            self.epg_data = {}  # Dictionary: tvg-id -> list of programs
+
+            for programme in root.findall('programme'):
+                channel_id = programme.attrib.get('channel')
+                title = programme.findtext('title')
+                desc = programme.findtext('desc')
+                start = programme.attrib.get('start')
+                stop = programme.attrib.get('stop')
+
+                if channel_id:
+                    self.epg_data.setdefault(channel_id, []).append({
+                        'title': title,
+                        'desc': desc,
+                        'start': start,
+                        'stop': stop
+                    })
+
+        except Exception as e:
+            QMessageBox.critical(self, "EPG Error", f"Failed to load epg.xml: {str(e)}")
+
+    def showEPGForChannel(self, tvg_id):
+        if not hasattr(self, 'epg_data') or tvg_id not in self.epg_data:
+            return "No EPG data"
+
+        now = datetime.datetime.now()
+        entries = self.epg_data[tvg_id]
+        # תוכל להוסיף סינון לפי הזמן הנוכחי
+        return entries[0]['title'] if entries else "No programs"
 
     def saveM3U(self):
         options = QFileDialog.Options()
