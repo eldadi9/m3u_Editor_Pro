@@ -616,11 +616,11 @@ class SmartScanStatusDialog(QDialog):
     def updateProgress(self, checked, offline, duplicate, data):
         name, url, status, reason = data
         total = self.progressBar.maximum()
-        self.labelStats.setText(f"Scanned: {checked}/{total} | Offline: {offline} | Duplicates: {duplicate}")
+        problematic = offline + duplicate
+        self.labelStats.setText(
+            f"Scanned: {checked}/{total} | Offline: {offline} | Duplicates: {duplicate} | ❌ Total Problematic: {problematic}")
         self.progressBar.setValue(checked)
-
         self.scan_results.append((name, status, reason, url))
-
         row = self.table.rowCount()
         self.table.insertRow(row)
 
@@ -636,6 +636,8 @@ class SmartScanStatusDialog(QDialog):
         self.table.setItem(row, 1, status_item)
         self.table.setItem(row, 2, QTableWidgetItem(reason))
         self.table.setItem(row, 3, QTableWidgetItem(url))
+
+
 
     def refreshTable(self):
         self.table.setRowCount(0)
