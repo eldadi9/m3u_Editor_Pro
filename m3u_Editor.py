@@ -160,9 +160,9 @@ class M3UUrlConverterDialog(QDialog):
         self.setStyleSheet("QDialog { border: 5px solid red; background-color: white;}")
 
         # Input fields setup
+        self.hostInput = QLineEdit(self)
         self.usernameInput = QLineEdit(self)
         self.passwordInput = QLineEdit(self)
-        self.hostInput = QLineEdit(self)
 
         # Convert button
         self.convertButton = QPushButton("Convert to M3U URL", self)
@@ -185,17 +185,18 @@ class M3UUrlConverterDialog(QDialog):
         layout.addWidget(self.copyButton)
 
         # Labels and Inputs
+
         usernameLabel = QLabel("Username:", self)
         passwordLabel = QLabel("Password:", self)
         hostLabel = QLabel("Host (e.g., example.com:8080):", self)
 
+        layout.addWidget(hostLabel)
+        layout.addWidget(self.hostInput)
         layout.addWidget(usernameLabel)
         layout.addWidget(self.usernameInput)
         layout.addWidget(passwordLabel)
         layout.addWidget(self.passwordInput)
-        layout.addWidget(hostLabel)
-        layout.addWidget(self.hostInput)
-
+        
         self.setLayout(layout)
 
     def convertToM3U(self):
@@ -744,6 +745,27 @@ class SmartScanStatusDialog(QDialog):
             )
 
 
+import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+
+def setup_session() -> requests.Session:
+    """
+    Configures a requests Session with retry logic.
+    """
+    session = requests.Session()
+    retries = Retry(
+        total=5,
+        backoff_factor=1,
+        status_forcelist=[502, 503, 504, 500],
+        allowed_methods=["HEAD", "GET", "POST"]
+    )
+    session.mount('http://', HTTPAdapter(max_retries=retries))
+    session.mount('https://', HTTPAdapter(max_retries=retries))
+    return session
+
+
+
 class M3UEditor(QWidget):
     def __init__(self):
         super().__init__()
@@ -1051,9 +1073,10 @@ class M3UEditor(QWidget):
         mac_address, ok_mac = QInputDialog.getText(self, 'Enter MAC Address', 'Enter your MAC Address:')
 
         if ok_mac and ok_portal and mac_address and portal_url:
-            # Ensure the portal URL ends with a slash
             if not portal_url.endswith('/'):
                 portal_url += '/'
+
+            session = setup_session()  # Use the custom session with retry logic
 
             headers = {
                 "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
@@ -1062,45 +1085,33 @@ class M3UEditor(QWidget):
             }
 
             try:
-                # Step 1: Authentication (Handshake)
                 handshake_url = f"{portal_url}server/load.php"
                 handshake_data = {"type": "stb", "action": "handshake", "token": "", "mac": mac_address}
-                response = requests.post(handshake_url, headers=headers, json=handshake_data,
-                                         timeout=10)  # Increased timeout
+                response = session.post(handshake_url, headers=headers, json=handshake_data, timeout=10)
 
-                # Debugging print
                 print("Handshake Response:", response.text)
-
-                # Validate JSON response
                 if response.status_code != 200 or not response.text.strip():
                     QMessageBox.critical(self, "Error", "Failed to connect to portal. Check the Portal URL.")
                     return
 
                 token = response.json().get("js", {}).get("token", None)
-
                 if not token:
                     QMessageBox.critical(self, "Error", "Authentication failed. Check your MAC address and Portal URL.")
                     return
 
-                # Step 2: Fetch Channels
                 channels_url = f"{portal_url}stalker_portal/server/load.php?type=itv&action=get_all_channels&mac={mac_address}&token={token}"
-                channels_response = requests.get(channels_url, headers=headers, timeout=10)  # Increased timeout
+                channels_response = session.get(channels_url, headers=headers, timeout=10)
 
-                # Debugging print
                 print("Channels Response:", channels_response.text)
-
-                # Validate JSON response
                 if channels_response.status_code != 200 or not channels_response.text.strip():
                     QMessageBox.critical(self, "Error", "Failed to retrieve channel list. Check your Portal URL.")
                     return
 
                 channels = channels_response.json().get("js", {}).get("data", [])
-
                 if not channels:
                     QMessageBox.critical(self, "Error", "No channels found. Check your MAC and Portal URL.")
                     return
 
-                # Step 3: Generate M3U File
                 m3u_content = "#EXTM3U\n"
                 for channel in channels:
                     name = channel.get("name", "Unknown Channel")
