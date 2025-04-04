@@ -1047,10 +1047,14 @@ class M3UEditor(QWidget):
         return layout
 
     def convertPortalToM3U(self):
-        mac_address, ok_mac = QInputDialog.getText(self, 'Enter MAC Address', 'Enter your MAC Address:')
         portal_url, ok_portal = QInputDialog.getText(self, 'Enter Portal URL', 'Enter your Portal URL:')
+        mac_address, ok_mac = QInputDialog.getText(self, 'Enter MAC Address', 'Enter your MAC Address:')
 
         if ok_mac and ok_portal and mac_address and portal_url:
+            # Ensure the portal URL ends with a slash
+            if not portal_url.endswith('/'):
+                portal_url += '/'
+
             headers = {
                 "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
                 "Referer": portal_url,
@@ -1061,7 +1065,8 @@ class M3UEditor(QWidget):
                 # Step 1: Authentication (Handshake)
                 handshake_url = f"{portal_url}server/load.php"
                 handshake_data = {"type": "stb", "action": "handshake", "token": "", "mac": mac_address}
-                response = requests.post(handshake_url, headers=headers, json=handshake_data)
+                response = requests.post(handshake_url, headers=headers, json=handshake_data,
+                                         timeout=10)  # Increased timeout
 
                 # Debugging print
                 print("Handshake Response:", response.text)
@@ -1079,7 +1084,7 @@ class M3UEditor(QWidget):
 
                 # Step 2: Fetch Channels
                 channels_url = f"{portal_url}stalker_portal/server/load.php?type=itv&action=get_all_channels&mac={mac_address}&token={token}"
-                channels_response = requests.get(channels_url, headers=headers)
+                channels_response = requests.get(channels_url, headers=headers, timeout=10)  # Increased timeout
 
                 # Debugging print
                 print("Channels Response:", channels_response.text)
