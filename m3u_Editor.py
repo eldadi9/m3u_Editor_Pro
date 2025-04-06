@@ -196,7 +196,7 @@ class M3UUrlConverterDialog(QDialog):
         layout.addWidget(self.usernameInput)
         layout.addWidget(passwordLabel)
         layout.addWidget(self.passwordInput)
-        
+
         self.setLayout(layout)
 
     def convertToM3U(self):
@@ -619,7 +619,7 @@ class SmartScanStatusDialog(QDialog):
         total = self.progressBar.maximum()
         problematic = offline + duplicate
         self.labelStats.setText(
-            f"Scanned: {checked}/{total} | Offline: {offline} | Duplicates: {duplicate} | ❌ Total Problematic: {problematic}")
+            f"Scanned: {checked}/{total} | Offline: {offline} | Duplicates: {duplicate} | ❌ Total Not Good: {problematic}")
         self.progressBar.setValue(checked)
         self.scan_results.append((name, status, reason, url))
         row = self.table.rowCount()
@@ -1127,6 +1127,8 @@ class M3UEditor(QWidget):
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to convert Portal MAC to M3U: {str(e)}")
+
+
 
     def displayTotalChannels(self):
         total_channels = sum(len(channels) for channels in self.categories.values())
