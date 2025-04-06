@@ -684,33 +684,63 @@ class SmartScanStatusDialog(QDialog):
         self.stopBtn.setEnabled(False)
 
     def markProblematicChannels(self):
-        channels_to_mark = set()  # (name, url)
-        seen_names = set()
+        urls_to_mark = set()
+        channel_statuses = {}
+        duplicate_count = 0
+        offline_count = 0
 
+        # שלב ראשון: אסוף נתונים
         for row in range(self.table.rowCount()):
-            channel_name = self.table.item(row, 0).text().strip()
-            status = self.table.item(row, 1).text().lower()
-            reason = self.table.item(row, 2).text().lower()
+            name = self.table.item(row, 0).text().strip()
+            status = self.table.item(row, 1).text().lower().strip()
             url = self.table.item(row, 3).text().strip()
 
-            if "offline" in status:
-                channels_to_mark.add((channel_name, url))
-            elif "duplicate" in reason:
-                if channel_name in seen_names:
-                    channels_to_mark.add((channel_name, url))  # זה העותק הנוסף
-                else:
-                    seen_names.add(channel_name)
+            if name not in channel_statuses:
+                channel_statuses[name] = []
 
-        if hasattr(self.parent(), "selectChannelsByNameAndUrl"):
-            self.parent().selectChannelsByNameAndUrl(channels_to_mark)
+            channel_statuses[name].append({'status': status, 'url': url})
+
+        # שלב שני: סמן לפי החוקים
+        for name, entries in channel_statuses.items():
+            offline_entries = [e for e in entries if e['status'] == 'offline']
+            online_entries = [e for e in entries if e['status'] != 'offline']
+
+            # אם יש אופליין, תמיד לסמן אותם
+            for entry in offline_entries:
+                urls_to_mark.add(entry['url'])
+                offline_count += 1
+
+            # אם יותר מערוץ אחד (כפולים), נסמן רק את הכפולים שאינם כבר מסומנים (אונליין בלבד)
+            if len(entries) > 1:
+                duplicate_entries_to_mark = []
+                if len(online_entries) > 1:
+                    # יש יותר מאונליין אחד, נסמן את השני והלאה
+                    duplicate_entries_to_mark.extend(online_entries[1:])
+                elif len(online_entries) == 1 and offline_entries:
+                    # אחד אונליין ויתר אופליין - לא לסמן אונליין, כבר סימנו אופליין
+                    pass
+                elif len(offline_entries) > 1 and not online_entries:
+                    # כל הכפולים אופליין וכבר סומנו, אין צורך לעשות משהו נוסף
+                    pass
+
+                for entry in duplicate_entries_to_mark:
+                    urls_to_mark.add(entry['url'])
+                    duplicate_count += 1
+
+        total_marked = len(urls_to_mark)
+
+        # שלב שלישי: סימון בפועל
+        if hasattr(self.parent(), "selectChannelsByUrls"):
+            self.parent().selectChannelsByUrls(urls_to_mark)
             QMessageBox.information(
                 self, "Marked",
-                f"{len(channels_to_mark)} problematic channels (Offline or Duplicates) have been marked."
+                f"נמצאו {duplicate_count} כפולים וגם {offline_count} לא תקינים.\n"
+                f"סה\"כ סומנו {total_marked} ערוצים."
             )
         else:
             QMessageBox.warning(
                 self, "Error",
-                "Method selectChannelsByNameAndUrl not found."
+                "Method selectChannelsByUrls not found."
             )
 
     def selectProblematic(self):
