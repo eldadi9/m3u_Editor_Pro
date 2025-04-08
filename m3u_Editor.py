@@ -774,8 +774,6 @@ class SmartScanStatusDialog(QDialog):
             )
 
 
-
-
 def setup_session() -> requests.Session:
     """
     Configures a requests Session with retry logic.
@@ -878,56 +876,100 @@ class M3UEditor(QWidget):
         dialog.exec_()
 
     def downloadDirectM3U(self):
-        url, ok = QInputDialog.getText(self, "Enter M3U URL", "Paste your M3U URL:")
-        if not ok or not url:
-            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Direct M3U Downloader")
+        dialog.setGeometry(300, 300, 600, 300)
 
-        # בדיקת תקינות URL
-        if not re.match(r'^https?://', url):
-            QMessageBox.warning(self, "Invalid URL", "Please enter a valid URL starting with http:// or https://")
-            return
+        # ✅ כאן להוסיף את השורה שלך על dialog
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            content = response.text.strip()
+        dialog.setStyleSheet("""
+            QDialog { background-color: white; border: 5px solid red; }
+            QPushButton { font-weight: bold; height: 40px; }
+            QLineEdit { font-size: 14px; padding: 6px; }
+        """)
 
-            if not content.startswith("#EXTM3U"):
-                QMessageBox.warning(self, "Invalid File", "The downloaded file does not appear to be a valid M3U.")
+        layout = QVBoxLayout(dialog)
+
+        label = QLabel("Paste your M3U URL:")
+        layout.addWidget(label)
+
+        url_input = QLineEdit()
+        url_input.setPlaceholderText("http://example.com/get.php?username=...&password=...")
+        layout.addWidget(url_input)
+
+        download_button = QPushButton("Download M3U")
+        download_button.setStyleSheet("background-color: red; color: white;")
+        layout.addWidget(download_button)
+
+        close_button = QPushButton("Close")
+        close_button.setStyleSheet("background-color: black; color: white;")
+        layout.addWidget(close_button)
+
+        close_button.clicked.connect(dialog.close)
+
+        def handle_download():
+            url = url_input.text().strip()
+            if not url:
+                QMessageBox.warning(dialog, "Missing URL", "Please enter a valid M3U URL.")
                 return
 
-            # שאלה: לטעון או לשמור?
-            choice = QMessageBox.question(
-                self, "M3U Downloaded",
-                "M3U file downloaded successfully.\n\nDo you want to load it into the system?",
-                QMessageBox.Yes | QMessageBox.No
-            )
+            if not re.match(r'^https?://', url):
+                QMessageBox.warning(dialog, "Invalid URL", "Please enter a valid URL starting with http:// or https://")
+                return
 
-            if choice == QMessageBox.Yes:
-                self.loadM3UFromText(content)
-            else:
-                # מנסה לחלץ username מה־URL
-                match = re.search(r'username=([a-zA-Z0-9]+)', url)
-                if match:
-                    default_name = f"{match.group(1)}.m3u"
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                content = response.text.strip()
+
+                if not content.startswith("#EXTM3U"):
+                    QMessageBox.warning(dialog, "Invalid File", "The downloaded file is not a valid M3U playlist.")
+                    return
+
+                # שואל אם לטעון
+                choice = QMessageBox.question(
+                    dialog, "M3U Downloaded",
+                    "M3U file downloaded successfully.\n\nDo you want to load it into the system?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+
+                if choice == QMessageBox.Yes:
+                    self.loadM3UFromText(content)
                 else:
-                    from datetime import datetime
-                    default_name = f"m3u_{datetime.now().strftime('%Y%m%d_%H%M%S')}.m3u"
+                    # קובע שם ברירת מחדל
+                    match = re.search(r'username=([a-zA-Z0-9]+)', url)
+                    if match:
+                        default_name = f"{match.group(1)}.m3u"
+                    else:
+                        from datetime import datetime
+                        default_name = f"m3u_{datetime.now().strftime('%Y%m%d_%H%M%S')}.m3u"
 
-                fileName, _ = QFileDialog.getSaveFileName(self, "Save M3U File", default_name,
-                                                          "M3U Files (*.m3u);;All Files (*)")
-                if fileName:
-                    with open(fileName, 'w', encoding='utf-8') as f:
-                        f.write(content)
-                    QMessageBox.information(self, "Saved", f"M3U file saved successfully:\n{fileName}")
+                    file_path, _ = QFileDialog.getSaveFileName(dialog, "Save M3U File", default_name,
+                                                               "M3U Files (*.m3u);;All Files (*)")
+                    if file_path:
+                        with open(file_path, 'w', encoding='utf-8') as f:
+                            f.write(content)
+                        QMessageBox.information(dialog, "Saved", "M3U file saved successfully.")
 
-        except Exception as e:
-            QMessageBox.critical(self, "Download Error", f"Failed to download or parse M3U file:\n{str(e)}")
+                dialog.close()
+
+            except Exception as e:
+                QMessageBox.critical(dialog, "Download Error", f"Failed to download or parse M3U:\n{str(e)}")
+
+        download_button.clicked.connect(handle_download)
+
+        dialog.exec_()
 
     def openBatchDownloader(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle("Batch M3U Downloader")
+        dialog.setWindowTitle("Multi M3U Downloader")
         dialog.setGeometry(100, 100, 600, 400)
+
+        # ✅ כאן להוסיף את השורה שלך על dialog
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+
         dialog.setStyleSheet("""
             QDialog { border: 5px solid red; background-color: white; }
             QPushButton { font-weight: bold; height: 40px; }
@@ -1084,6 +1126,10 @@ class M3UEditor(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Choose scan type")
         dialog.setFixedSize(250, 130)
+
+        # ✅ כאן להוסיף את השורה שלך על dialog
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
         dialog.setStyleSheet("""
             QDialog {
                 border: 4px solid red;
@@ -1223,7 +1269,7 @@ class M3UEditor(QWidget):
         buttons_layout.addWidget(self.directM3UDownloadButton)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
-        self.batchM3UDownloadButton = QPushButton('Batch M3U Downloader', self)
+        self.batchM3UDownloadButton = QPushButton('Multi M3U Downloader', self)
         self.batchM3UDownloadButton.setStyleSheet("background-color: black; color: white;")
         self.batchM3UDownloadButton.clicked.connect(self.openBatchDownloader)
         buttons_layout.addWidget(self.batchM3UDownloadButton)
@@ -1263,14 +1309,50 @@ class M3UEditor(QWidget):
         return layout
 
     def convertPortalToM3U(self):
-        portal_url, ok_portal = QInputDialog.getText(self, 'Enter Portal URL', 'Enter your Portal URL:')
-        mac_address, ok_mac = QInputDialog.getText(self, 'Enter MAC Address', 'Enter your MAC Address:')
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Portal to M3U Converter")
+        dialog.setGeometry(300, 300, 600, 300)
+        dialog.setStyleSheet("""
+            QDialog { background-color: white; border: 5px solid red; }
+            QPushButton { font-weight: bold; height: 40px; }
+            QLineEdit { font-size: 14px; padding: 6px; }
+        """)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
-        if ok_mac and ok_portal and mac_address and portal_url:
+        layout = QVBoxLayout(dialog)
+
+        layout.addWidget(QLabel("Enter your Portal URL:"))
+        portal_input = QLineEdit()
+        portal_input.setPlaceholderText("http://example.com/stalker_portal/")
+        layout.addWidget(portal_input)
+
+        layout.addWidget(QLabel("Enter your MAC Address:"))
+        mac_input = QLineEdit()
+        mac_input.setPlaceholderText("00:1A:79:XX:XX:XX")
+        layout.addWidget(mac_input)
+
+        convert_button = QPushButton("Convert & Download")
+        convert_button.setStyleSheet("background-color: red; color: white;")
+        layout.addWidget(convert_button)
+
+        close_button = QPushButton("Close")
+        close_button.setStyleSheet("background-color: black; color: white;")
+        layout.addWidget(close_button)
+
+        close_button.clicked.connect(dialog.close)
+
+        def handle_conversion():
+            portal_url = portal_input.text().strip()
+            mac_address = mac_input.text().strip()
+
+            if not portal_url or not mac_address:
+                QMessageBox.warning(dialog, "Missing Input", "Please enter both Portal URL and MAC address.")
+                return
+
             if not portal_url.endswith('/'):
                 portal_url += '/'
 
-            session = setup_session()  # Use the custom session with retry logic
+            session = setup_session()
 
             headers = {
                 "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
@@ -1283,27 +1365,25 @@ class M3UEditor(QWidget):
                 handshake_data = {"type": "stb", "action": "handshake", "token": "", "mac": mac_address}
                 response = session.post(handshake_url, headers=headers, json=handshake_data, timeout=10)
 
-                print("Handshake Response:", response.text)
                 if response.status_code != 200 or not response.text.strip():
-                    QMessageBox.critical(self, "Error", "Failed to connect to portal. Check the Portal URL.")
+                    QMessageBox.critical(dialog, "Error", "Failed to connect to portal. Check the Portal URL.")
                     return
 
                 token = response.json().get("js", {}).get("token", None)
                 if not token:
-                    QMessageBox.critical(self, "Error", "Authentication failed. Check your MAC address and Portal URL.")
+                    QMessageBox.critical(dialog, "Error", "Authentication failed. Check your MAC and Portal URL.")
                     return
 
                 channels_url = f"{portal_url}stalker_portal/server/load.php?type=itv&action=get_all_channels&mac={mac_address}&token={token}"
                 channels_response = session.get(channels_url, headers=headers, timeout=10)
 
-                print("Channels Response:", channels_response.text)
                 if channels_response.status_code != 200 or not channels_response.text.strip():
-                    QMessageBox.critical(self, "Error", "Failed to retrieve channel list. Check your Portal URL.")
+                    QMessageBox.critical(dialog, "Error", "Failed to retrieve channel list.")
                     return
 
                 channels = channels_response.json().get("js", {}).get("data", [])
                 if not channels:
-                    QMessageBox.critical(self, "Error", "No channels found. Check your MAC and Portal URL.")
+                    QMessageBox.critical(dialog, "Error", "No channels found.")
                     return
 
                 m3u_content = "#EXTM3U\n"
@@ -1312,17 +1392,20 @@ class M3UEditor(QWidget):
                     stream_url = channel.get("cmd", "")
                     m3u_content += f"#EXTINF:-1,{name}\n{stream_url}\n"
 
-                file_path, _ = QFileDialog.getSaveFileName(self, "Save M3U File", "playlist.m3u",
+                file_path, _ = QFileDialog.getSaveFileName(dialog, "Save M3U File", "playlist.m3u",
                                                            "M3U Files (*.m3u);;All Files (*)")
                 if file_path:
                     with open(file_path, "w", encoding="utf-8") as file:
                         file.write(m3u_content)
-                    QMessageBox.information(self, "Success", "M3U file successfully created!")
+                    QMessageBox.information(dialog, "Success", "M3U file successfully created!")
+
+                dialog.close()
 
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to convert Portal MAC to M3U: {str(e)}")
+                QMessageBox.critical(dialog, "Error", f"Failed to convert Portal MAC to M3U:\n{str(e)}")
 
-
+        convert_button.clicked.connect(handle_conversion)
+        dialog.exec_()
 
     def displayTotalChannels(self):
         total_channels = sum(len(channels) for channels in self.categories.values())
@@ -1999,7 +2082,11 @@ class M3UEditor(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Category")
         dialog.setFixedSize(250, 120)
+
+        # ✅ כאן להוסיף את השורה שלך על dialog
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+
         dialog.setStyleSheet("""
             QDialog {
                 border: 3px solid purple;
@@ -2057,7 +2144,10 @@ class M3UEditor(QWidget):
     def openSmartScanDialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Smart Scan")
+
+        # ✅ כאן להוסיף את השורה שלך על dialog
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
         dialog.setStyleSheet("""
             QDialog {
                 border: 6px solid red;
