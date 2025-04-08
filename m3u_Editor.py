@@ -774,9 +774,7 @@ class SmartScanStatusDialog(QDialog):
             )
 
 
-import requests
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+
 
 def setup_session() -> requests.Session:
     """
@@ -925,6 +923,110 @@ class M3UEditor(QWidget):
 
         except Exception as e:
             QMessageBox.critical(self, "Download Error", f"Failed to download or parse M3U file:\n{str(e)}")
+
+
+
+    def openBatchDownloader(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Batch M3U Downloader")
+        dialog.setGeometry(100, 100, 600, 400)
+        dialog.setStyleSheet("""
+            QDialog { border: 5px solid red; background-color: white; }
+            QPushButton { font-weight: bold; height: 40px; }
+        """)
+
+        layout = QVBoxLayout(dialog)
+
+        url_label = QLabel("Paste M3U URLs (one per line):", dialog)
+        layout.addWidget(url_label)
+
+        url_input = QTextEdit(dialog)
+        url_input.setStyleSheet("font-size: 14px;")
+        layout.addWidget(url_input)
+
+        download_button = QPushButton("Download All", dialog)
+        download_button.setStyleSheet("background-color: red; color: white;")
+        layout.addWidget(download_button)
+
+        close_button = QPushButton("Close", dialog)
+        close_button.setStyleSheet("background-color: black; color: white;")
+        layout.addWidget(close_button)
+
+        close_button.clicked.connect(dialog.close)
+
+        def start_batch_download():
+            urls = url_input.toPlainText().strip().splitlines()
+            if not urls:
+                QMessageBox.warning(dialog, "Error", "Please enter at least one URL.")
+                return
+
+            merged_content = "#EXTM3U\n"
+            success_count = 0
+
+            for url in urls:
+                url = url.strip()
+                if not url or not re.match(r'^https?://', url):
+                    continue
+
+                try:
+                    response = requests.get(url)
+                    response.raise_for_status()
+                    content = response.text.strip()
+
+                    if not content.startswith("#EXTM3U"):
+                        continue
+
+                    choice = QMessageBox.question(
+                        dialog, "M3U Downloaded",
+                        f"Downloaded:\n{url}\n\nDo you want to load it into the system?",
+                        QMessageBox.Yes | QMessageBox.No
+                    )
+
+                    if choice == QMessageBox.Yes:
+                        self.loadM3UFromText(content)
+                    else:
+                        # Try to extract filename
+                        match = re.search(r'username=([a-zA-Z0-9]+)', url)
+                        if match:
+                            name = f"{match.group(1)}.m3u"
+                        else:
+                            from datetime import datetime
+                            name = f"m3u_{datetime.now().strftime('%Y%m%d_%H%M%S')}.m3u"
+
+                        file_path, _ = QFileDialog.getSaveFileName(dialog, f"Save M3U File for:\n{url}", name,
+                                                                   "M3U Files (*.m3u);;All Files (*)")
+                        if file_path:
+                            with open(file_path, 'w', encoding='utf-8') as f:
+                                f.write(content)
+
+                    # הוספה למיזוג
+                    merged_content += "\n".join(
+                        line for line in content.splitlines() if line.strip() and not line.startswith("#EXTM3U")) + "\n"
+                    success_count += 1
+
+                except Exception as e:
+                    print(f"Failed to download: {url} — {e}")
+
+            # אחרי שהורדו כולם - שואל אם לאחד
+            if success_count > 1:
+                merge_choice = QMessageBox.question(
+                    dialog, "Merge All",
+                    "Do you want to save all M3U content into one merged file?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                if merge_choice == QMessageBox.Yes:
+                    file_path, _ = QFileDialog.getSaveFileName(dialog, "Save Merged M3U File", "merged.m3u",
+                                                               "M3U Files (*.m3u);;All Files (*)")
+                    if file_path:
+                        with open(file_path, 'w', encoding='utf-8') as f:
+                            f.write(merged_content)
+                        QMessageBox.information(dialog, "Merged", "Merged M3U file saved successfully.")
+
+            QMessageBox.information(dialog, "Finished", f"Downloaded {success_count} M3U files.")
+            dialog.close()
+
+        download_button.clicked.connect(start_batch_download)
+        dialog.exec_()
 
     def loadM3UFromText(self, content):
         self.textEdit.setPlainText(content)
@@ -1121,6 +1223,13 @@ class M3UEditor(QWidget):
         self.directM3UDownloadButton.setStyleSheet("background-color: black; color: white;")
         self.directM3UDownloadButton.clicked.connect(self.downloadDirectM3U)
         buttons_layout.addWidget(self.directM3UDownloadButton)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+        self.batchM3UDownloadButton = QPushButton('Batch M3U Downloader', self)
+        self.batchM3UDownloadButton.setStyleSheet("background-color: black; color: white;")
+        self.batchM3UDownloadButton.clicked.connect(self.openBatchDownloader)
+        buttons_layout.addWidget(self.batchM3UDownloadButton)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         # M3U URL Converter button
         self.m3uUrlConverterButton = QPushButton('XTREAM Codes 2 M3U', self)
