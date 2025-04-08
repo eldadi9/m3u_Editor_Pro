@@ -1,8 +1,7 @@
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView, QAction
-)
+    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView, QAction)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont, QColor  # Add this line
 import sys
@@ -880,6 +879,59 @@ class M3UEditor(QWidget):
         dialog = M3UUrlConverterDialog(self)
         dialog.exec_()
 
+    def downloadDirectM3U(self):
+        url, ok = QInputDialog.getText(self, "Enter M3U URL", "Paste your M3U URL:")
+        if not ok or not url:
+            return
+
+        # בדיקת תקינות URL
+        if not re.match(r'^https?://', url):
+            QMessageBox.warning(self, "Invalid URL", "Please enter a valid URL starting with http:// or https://")
+            return
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            content = response.text.strip()
+
+            if not content.startswith("#EXTM3U"):
+                QMessageBox.warning(self, "Invalid File", "The downloaded file does not appear to be a valid M3U.")
+                return
+
+            # שאלה: לטעון או לשמור?
+            choice = QMessageBox.question(
+                self, "M3U Downloaded",
+                "M3U file downloaded successfully.\n\nDo you want to load it into the system?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+
+            if choice == QMessageBox.Yes:
+                self.loadM3UFromText(content)
+            else:
+                # מנסה לחלץ username מה־URL
+                match = re.search(r'username=([a-zA-Z0-9]+)', url)
+                if match:
+                    default_name = f"{match.group(1)}.m3u"
+                else:
+                    from datetime import datetime
+                    default_name = f"m3u_{datetime.now().strftime('%Y%m%d_%H%M%S')}.m3u"
+
+                fileName, _ = QFileDialog.getSaveFileName(self, "Save M3U File", default_name,
+                                                          "M3U Files (*.m3u);;All Files (*)")
+                if fileName:
+                    with open(fileName, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                    QMessageBox.information(self, "Saved", f"M3U file saved successfully:\n{fileName}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Download Error", f"Failed to download or parse M3U file:\n{str(e)}")
+
+    def loadM3UFromText(self, content):
+        self.textEdit.setPlainText(content)
+        self.parseM3UContentEnhanced(content)
+        self.updateCategoryList()
+        QMessageBox.information(self, "Loaded", "M3U content has been loaded into the editor.")
+
     def search_channels(self, query, filter_options):
         results = []
         for category, channels in self.categories.items():
@@ -1065,13 +1117,18 @@ class M3UEditor(QWidget):
         # Create a horizontal layout for the buttons
         buttons_layout = QHBoxLayout()
 
+        self.directM3UDownloadButton = QPushButton('Direct M3U Download', self)
+        self.directM3UDownloadButton.setStyleSheet("background-color: black; color: white;")
+        self.directM3UDownloadButton.clicked.connect(self.downloadDirectM3U)
+        buttons_layout.addWidget(self.directM3UDownloadButton)
+
         # M3U URL Converter button
-        self.m3uUrlConverterButton = QPushButton('M3U URL Converter', self)
+        self.m3uUrlConverterButton = QPushButton('XTREAM Codes 2 M3U', self)
         self.m3uUrlConverterButton.setStyleSheet("background-color: black; color: white;")
         self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
         buttons_layout.addWidget(self.m3uUrlConverterButton)
 
-        self.convertPortalButton = QPushButton('Convert Portal MAC to M3U', self)
+        self.convertPortalButton = QPushButton('Portal MAC to M3U', self)
         self.convertPortalButton.setStyleSheet("background-color: black; color: white;")
         self.convertPortalButton.clicked.connect(self.convertPortalToM3U)
         buttons_layout.addWidget(self.convertPortalButton)
@@ -1083,7 +1140,7 @@ class M3UEditor(QWidget):
         buttons_layout.addWidget(self.exportGroupButton)
 
         # Filter Israeli Channels button
-        self.filterIsraelChannelsButton = QPushButton('Filter Israeli Channels', self)
+        self.filterIsraelChannelsButton = QPushButton('EXPO ISrael Channels', self)
         self.filterIsraelChannelsButton.setStyleSheet("background-color: black; color: white;")
         self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
         buttons_layout.addWidget(self.filterIsraelChannelsButton)
