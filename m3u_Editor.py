@@ -60,7 +60,7 @@ def save_logo_for_channel(channel_name, logo_url):
         print(f"[LOGO] נשמר לוגו עבור {channel_name}: {logo_url}")
     except Exception as e:
         print(f"[ERROR] שגיאה בשמירת מסד לוגואים: {e}")
-
+        print(f"[SAVE_LOGO] מנסה לשמור לוגו עבור {channel_name} => {logo_url}")
 
 
 def get_saved_logo(channel_name):
@@ -1130,8 +1130,8 @@ class M3UEditor(QWidget):
         dialog.exec_()
 
     def loadM3UFromText(self, content, append=False):
-        ...
-        # אחרי parseM3UContentEnhanced
+        self.parseM3UContentEnhanced(content)  # ← שורה חסרה
+
         for category, channels in self.categories.items():
             for channel in channels:
                 name = channel.split(" (")[0].strip()
@@ -1179,6 +1179,7 @@ class M3UEditor(QWidget):
         close_btn = QPushButton("סגור")
         close_btn.clicked.connect(dialog.close)
         layout.addWidget(close_btn)
+        print("[DEBUG] נפתח חלון ניהול לוגואים")  # ← הוסף שורה זו
 
         dialog.exec_()
 
@@ -1841,11 +1842,15 @@ class M3UEditor(QWidget):
                 name = channel.split(" (")[0].strip()
                 url = channel.split(" (")[1].strip(")")
                 if is_israeli_channel(category, name):
-                    # אם כבר יש לוגו, נשמור אותו במסד הנתונים
+                    print(f"[DEBUG] ישראלי ✅: {name}")
                     match = re.search(r'tvg-logo="([^"]+)"', channel)
-                    print(f"[DEBUG] Checking logo in line: {channel}")
                     if match:
                         logo_url = match.group(1)
+                        print(f"[DEBUG] לוגו נמצא: {logo_url}")
+                        save_logo_for_channel(name, logo_url)
+                    else:
+                        print(f"[DEBUG] ❌ אין לוגו עבור {name}")
+
                         save_logo_for_channel(name, logo_url)
                     else:
                         # אם אין לוגו – ננסה לשחזר אותו ולשבץ אותו
