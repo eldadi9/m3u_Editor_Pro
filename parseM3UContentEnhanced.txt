@@ -1,0 +1,44 @@
+    def parseM3UContentEnhanced(self, content):
+        self.categories.clear()
+        current_group = None
+        lines = content.strip().splitlines()
+        channel_name = None
+
+        for i in range(len(lines)):
+            line = lines[i].strip()
+
+            if line.startswith("#EXTGRP:"):
+                current_group = line.split(":", 1)[1].strip()
+                continue
+
+            if line.startswith("#EXTINF:"):
+                # שמירה זמנית של שם הערוץ
+                match = re.search(r',(.+)', line)
+                if match:
+                    channel_name = match.group(1).strip()
+
+                # שמירת לוגו מהקו אם קיים
+                logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                if logo_match and channel_name:
+                    save_logo_for_channel(channel_name, logo_match.group(1))
+
+                # החדרה אם חסר
+                if channel_name and 'tvg-logo=' not in line:
+                    lines[i] = inject_logo(line, channel_name)
+
+                # קבוצה
+                if current_group and 'group-title=' not in line:
+                    lines[i] = lines[i].replace("#EXTINF:-1", f'#EXTINF:-1 group-title="{current_group}"')
+
+            # הכנסת לערוצים
+            if i + 1 < len(lines) and lines[i + 1].startswith("http"):
+                url = lines[i + 1].strip()
+                category = re.search(r'group-title="([^"]+)"', lines[i])
+                channel_name = re.search(r',(.+)', lines[i]).group(1).strip()
+                if category:
+                    cat = category.group(1)
+                    if cat not in self.categories:
+                        self.categories[cat] = []
+                    self.categories[cat].append(f"{channel_name} ({url})")
+
+        self.textEdit.setPlainText("\n".join(lines))

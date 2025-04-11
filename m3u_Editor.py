@@ -6,61 +6,42 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont, QColor  # Add this line
 import sys
 import os
-LOGO_DB_PATH = os.path.join(os.path.dirname(__file__), "logos_db.json")
+LOGO_DB_PATH = "logos_db.json"
 import re
 import traceback
 import pyperclip
 import json
+import threading
 import requests  # You need to import requests to handle downloading
 from urllib.parse import urlparse
 from PyQt5.QtWidgets import QProgressBar
 import xml.etree.ElementTree as ET
 
 
-def load_logos(self):
-    self.tableWidget.setRowCount(0)
 
-    if not os.path.exists(LOGO_DB_PATH):
-        print("[LOGO_MANAGER] קובץ logos_db.json לא נמצא בנתיב:", LOGO_DB_PATH)
-        return
-
-    try:
-        with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception as e:
-        QMessageBox.critical(self, "שגיאה", f"שגיאה בטעינת קובץ הלוגואים:\n{str(e)}")
-        return
-
-    row = 0
-    for name, logos in data.items():
-        for logo in logos:
-            self.tableWidget.insertRow(row)
-            self.tableWidget.setItem(row, 0, QTableWidgetItem(str(name)))
-            self.tableWidget.setItem(row, 1, QTableWidgetItem(str(logo)))
-            row += 1
 
 def save_logo_for_channel(channel_name, logo_url):
+    if not is_israeli_channel("", channel_name):
+        return  # ⛔ לא ישראלי – לא שומר
+
     if not os.path.exists(LOGO_DB_PATH):
         data = {}
     else:
         try:
             with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except Exception as e:
-            print(f"[ERROR] שגיאה בקריאת מסד לוגואים: {e}")
+        except Exception:
             data = {}
 
     data.setdefault(channel_name, [])
     if logo_url and logo_url not in data[channel_name]:
         data[channel_name].append(logo_url)
 
-    try:
-        with open(LOGO_DB_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        print(f"[LOGO] נשמר לוגו עבור {channel_name}: {logo_url}")
-    except Exception as e:
-        print(f"[ERROR] שגיאה בשמירת מסד לוגואים: {e}")
-        print(f"[SAVE_LOGO] מנסה לשמור לוגו עבור {channel_name} => {logo_url}")
+    with open(LOGO_DB_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    print(f"[LOGO] Saved logo for {channel_name}: {logo_url}")
+
+
 
 
 def get_saved_logo(channel_name):
@@ -70,32 +51,45 @@ def get_saved_logo(channel_name):
     try:
         with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
+        return data.get(channel_name, [None])[0]
     except Exception as e:
-        print(f"[ERROR] לא ניתן לטעון את מסד הלוגואים: {e}")
+        print(f"[ERROR] Error loading logo DB: {e}")
         return None
 
-    logos = data.get(channel_name, [])
-    return logos[0] if logos else None
 
 
-def inject_logo(channel_line, channel_name):
-    if 'tvg-logo=' not in channel_line:
-        logo = get_saved_logo(channel_name)
-        if logo:
-            print(f"[INJECT] הוזן לוגו עבור {channel_name}: {logo}")
-            return channel_line.replace("#EXTINF:-1", f'#EXTINF:-1 tvg-logo="{logo}"')
-    return channel_line
+def inject_logo(line, channel_name):
+    if 'tvg-logo="' in line:
+        return line  # כבר קיים
+
+    logo = get_saved_logo(channel_name)
+    if logo:
+        return line.replace("#EXTINF:-1", f'#EXTINF:-1 tvg-logo="{logo}"')
+    return line
+
+
+
+
+def save_israeli_logos_background(self, parsed_channels):
+    for channel_name, category, line in parsed_channels:
+        if is_israeli_channel(category, channel_name):
+            match = re.search(r'tvg-logo="([^"]+)"', line)
+            if match:
+                logo_url = match.group(1)
+                save_logo_for_channel(channel_name, logo_url)
+                print(f"[LOGO] Saved logo for {channel_name}: {logo_url}")
+
 
 
 def is_israeli_channel(category, name):
     keywords = [
-        'ישראל', 'israel', 'il', 'is', 'israel vip', 'israel hd', '20. israel',
-        'hebrew', 'канал израиль', 'ערוץ', 'עברי', 'israeli', 'hot', 'yes', 'kan', 'keshet',
-        'reshet', 'i24', 'channel 9', 'arutz', 'jewish', 'iptv israel', 'Израиль', 'Израиль | ישראלי'
+        'ישראל', 'israel', 'il', 'is', 'israel vip', 'israel hd',
+        'ערוץ', 'עברי', 'hot', 'yes', 'kan', 'keshet', 'reshet',
+        'i24', 'channel 9', 'iptv israel', 'Израиль', 'Израиль | ישראלי'
     ]
-
     text = f"{category} {name}".lower()
-    return any(word.lower() in text for word in keywords)
+    return any(word in text for word in keywords)
+
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -302,6 +296,8 @@ class M3UUrlConverterDialog(QDialog):
             response = requests.get(self.m3uURL)
             response.raise_for_status()  # Raises stored HTTPError, if one occurred
 
+
+
             # Prompt to save file
             options = QFileDialog.Options()
             fileName, _ = QFileDialog.getSaveFileName(self,
@@ -316,6 +312,7 @@ class M3UUrlConverterDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to download M3U file: {str(e)}")
             pass
+
 
 
 class SmartScanDialog(QDialog):
@@ -1147,41 +1144,55 @@ class M3UEditor(QWidget):
         dialog.setGeometry(200, 200, 600, 400)
 
         layout = QVBoxLayout(dialog)
-
         table = QTableWidget(dialog)
         table.setColumnCount(2)
         table.setHorizontalHeaderLabels(["שם ערוץ", "לוגו (URL)"])
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
-        # טען את הלוגואים
         if os.path.exists(LOGO_DB_PATH):
             try:
                 with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
                     data = json.load(f)
-            except Exception as e:
-                QMessageBox.critical(self, "שגיאה", f"שגיאה בקריאת קובץ הלוגואים:\n{str(e)}")
+            except Exception:
                 data = {}
-        else:
-            data = {}
 
-        rows = sum(len(v) for v in data.values())
-        table.setRowCount(rows)
-
-        row = 0
-        for channel, logos in data.items():
-            for logo in logos:
-                table.setItem(row, 0, QTableWidgetItem(str(channel)))
-                table.setItem(row, 1, QTableWidgetItem(str(logo)))
-                row += 1
+            row = 0
+            for name, logos in data.items():
+                if is_israeli_channel("", name):
+                    for logo in logos:
+                        table.insertRow(row)
+                        table.setItem(row, 0, QTableWidgetItem(str(name)))
+                        table.setItem(row, 1, QTableWidgetItem(str(logo)))
+                        row += 1
 
         layout.addWidget(table)
-
         close_btn = QPushButton("סגור")
         close_btn.clicked.connect(dialog.close)
         layout.addWidget(close_btn)
-        print("[DEBUG] נפתח חלון ניהול לוגואים")  # ← הוסף שורה זו
 
         dialog.exec_()
+
+    def extract_and_save_logos_for_israeli_channels(self, content):
+        lines = content.strip().splitlines()
+
+        for i in range(len(lines)):
+            line = lines[i]
+            if line.startswith("#EXTINF:"):
+                # הוצאת שם הערוץ
+                name_match = re.search(r",(.+)", line)
+                channel_name = name_match.group(1).strip() if name_match else ""
+
+                # הוצאת הקטגוריה
+                group_match = re.search(r'group-title="([^"]+)"', line)
+                category = group_match.group(1).strip() if group_match else ""
+
+                # סינון ערוצים ישראליים בלבד
+                if is_israeli_channel(category, channel_name):
+                    logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                    if logo_match:
+                        logo_url = logo_match.group(1).strip()
+                        save_logo_for_channel(channel_name, logo_url)  # שומר רק פעם אחת
+                        print(f"[LOGO] ✅ {channel_name} | {logo_url}")
 
     def search_channels(self, query, filter_options):
         results = []
@@ -1835,43 +1846,31 @@ class M3UEditor(QWidget):
     def updateM3UContent(self):
         updated_lines = ["#EXTM3U"]
         for category, channels in self.categories.items():
-            print(f"[DEBUG] Category: {category}")
             for channel in channels:
-                print(f"[DEBUG] Channel: {channel}")
-            for channel in channels:
-                name = channel.split(" (")[0].strip()
-                url = channel.split(" (")[1].strip(")")
-                if is_israeli_channel(category, name):
-                    print(f"[DEBUG] ישראלי ✅: {name}")
-                    match = re.search(r'tvg-logo="([^"]+)"', channel)
-                    if match:
-                        logo_url = match.group(1)
-                        print(f"[DEBUG] לוגו נמצא: {logo_url}")
-                        save_logo_for_channel(name, logo_url)
-                    else:
-                        print(f"[DEBUG] ❌ אין לוגו עבור {name}")
+                try:
+                    name, url = channel.split(" (", 1)
+                    name = name.strip()
+                    url = url.strip(") \n")
+                except:
+                    continue
 
-                        save_logo_for_channel(name, logo_url)
-                    else:
-                        # אם אין לוגו – ננסה לשחזר אותו ולשבץ אותו
-                        logo = get_saved_logo(name)
-                        if logo:
-                            extinf = f'#EXTINF:-1 tvg-logo="{logo}" group-title="{category}",{name}'
-                        else:
-                            extinf = f'#EXTINF:-1 group-title="{category}",{name}'
+                # שליפת לוגו אם קיים
+                match = re.search(r'tvg-logo="([^"]+)"', channel)
+                if match:
+                    logo_url = match.group(1)
+                    save_logo_for_channel(name, logo_url)
+                else:
+                    logo_url = get_saved_logo(name)
+
+                if logo_url:
+                    extinf = f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{category}",{name}'
                 else:
                     extinf = f'#EXTINF:-1 group-title="{category}",{name}'
+
                 updated_lines.append(f"{extinf}\n{url}")
 
         self.textEdit.setPlainText("\n".join(updated_lines))
-
-        print(f"[LOG] Checking channel: {name}")
-        if match:
-            print(f"[LOG] Saving logo for {name}: {logo_url}")
-        elif logo:
-            print(f"[LOG] Injected saved logo for {name}: {logo}")
-        else:
-            print(f"[LOG] No logo found for {name}")
+        print("[LOG] 🔄 עדכון M3U הסתיים")
 
     def getCategoryName(self, channel):
         """
@@ -2561,18 +2560,19 @@ class M3UEditor(QWidget):
             try:
                 with open(fileName, 'r', encoding='utf-8') as file:
                     content = file.read()
+
                 self.textEdit.setPlainText(content)
-                self.parseM3UContentEnhanced(content)
+
+                self.parseM3UContentEnhanced(content)  # קודם מציג
+                threading.Thread(
+                    target=self.extract_and_save_logos_for_israeli_channels,
+                    args=(content,),
+                    daemon=True
+                ).start()
 
                 total_channels = sum(len(channels) for channels in self.categories.values())
                 self.channelCountLabel.setText(f"Total Channels: {total_channels}")
                 self.fileNameLabel.setText(f"Loaded File: {os.path.basename(fileName)}")
-
-                # 👉 טעינת קובץ EPG אוטומטי אם קיים
-                epg_path = os.path.join(os.path.dirname(fileName), "epg.xml")
-                if os.path.exists(epg_path):
-                    self.loadEPG(epg_path)
-                    QMessageBox.information(self, "EPG Loaded", "epg.xml was loaded and connected successfully.")
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to load file: {str(e)}")
@@ -2629,55 +2629,71 @@ class M3UEditor(QWidget):
             print(error_message)  # Print the full traceback to the console
 
     def parseM3UContentEnhanced(self, content):
-        """
-        Parse M3U content, handling group-title, #EXTGRP, and tvg-logo robustly.
-        - Use #EXTGRP to set group-title if missing and reset appropriately.
-        - Always preserve the tvg-logo attribute if it exists.
-        - Reset current_group after each #EXTINF to prevent misapplication.
-        """
         self.categories.clear()
+        lines = content.strip().splitlines()
+        current_group = None
         updated_lines = []
-        current_group = None  # To track the group name from #EXTGRP
+        parsed_channels = []
 
-        lines = content.splitlines()
+        for i in range(len(lines)):
+            line = lines[i].strip()
 
-        for line in lines:
             if line.startswith("#EXTGRP:"):
-                # Extract the group name from the #EXTGRP line
                 current_group = line.split(":", 1)[1].strip()
-                continue  # Skip the #EXTGRP line itself
+                continue
 
             if line.startswith("#EXTINF:"):
-                # Handle group-title, adding it if missing and current_group is set
-                if "group-title=" not in line and current_group:
-                    line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
-                current_group = None  # Reset after usage to prevent misapplication
+                # שם הערוץ
+                name_match = re.search(r',(.+)', line)
+                channel_name = name_match.group(1).strip() if name_match else None
 
-                # Ensure the tvg-logo attribute remains intact
-                match = re.search(r'tvg-logo="([^"]+)"', line)
-                if match:
-                    logo_url = match.group(1)  # Extract the tvg-logo URL
-                    if 'tvg-logo' not in line:
-                        line += f' tvg-logo="{logo_url}"'
+                # קבוצה
+                if current_group and 'group-title=' not in line:
+                    line = line.replace("#EXTINF:-1", f'#EXTINF:-1 group-title="{current_group}"')
 
-            updated_lines.append(line)
+                updated_lines.append(line)
 
-        # Combine updated lines into a modified M3U content
-        updated_content = "\n".join(updated_lines)
-        # Parse categories and channels from the updated content
-        category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
-        for match in category_pattern.findall(updated_content):
-            group_title, channel_name, channel_url = match
-            if group_title not in self.categories:
-                self.categories[group_title] = []
-            self.categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
+                # אם יש שורה אחרי שהיא URL
+                if i + 1 < len(lines) and lines[i + 1].startswith("http"):
+                    url = lines[i + 1].strip()
+                    updated_lines.append(url)
 
-        # Update the QTextEdit and the category list
-        self.textEdit.setPlainText(updated_content)
+                    category_match = re.search(r'group-title="([^"]+)"', line)
+                    category = category_match.group(1).strip() if category_match else current_group
+
+                    if category and channel_name:
+                        if category not in self.categories:
+                            self.categories[category] = []
+                        self.categories[category].append(f"{channel_name} ({url})")
+
+                        parsed_channels.append((channel_name, category, line))  # נשמור לבדיקת לוגו ברקע
+
+        # UI – טקסט, קטגוריות, ערוצים
+        self.textEdit.setPlainText("\n".join(updated_lines))
         self.categoryList.clear()
         for category, channels in self.categories.items():
-            item = QListWidgetItem(f"{category} ({len(channels)})")  # Add count of channels to the category name
+            item = QListWidgetItem(f"{category} ({len(channels)})")
             self.categoryList.addItem(item)
+
+        # הפעלת thread לשמירת לוגואים – ברקע
+        threading.Thread(target=self.save_israeli_logos_background, args=(parsed_channels,), daemon=True).start()
+
+    def save_israeli_logos_background(self, content):
+        def run():
+            lines = content.strip().splitlines()
+            for i in range(len(lines)):
+                line = lines[i].strip()
+                if line.startswith("#EXTINF:"):
+                    name_match = re.search(r',(.+)', line)
+                    logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                    if name_match and logo_match:
+                        name = name_match.group(1).strip()
+                        logo = logo_match.group(1).strip()
+                        if is_israeli_channel("", name):
+                            save_logo_for_channel(name, logo)
+                            print(f"[LOGO] Saved logo for {name}: {logo}")
+
+        threading.Thread(target=run, daemon=True).start()
 
     def filterIsraelChannels(self):
         israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il', 'IL HD',
