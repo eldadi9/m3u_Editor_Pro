@@ -6,13 +6,96 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont, QColor  # Add this line
 import sys
 import os
+LOGO_DB_PATH = os.path.join(os.path.dirname(__file__), "logos_db.json")
 import re
 import traceback
 import pyperclip
+import json
 import requests  # You need to import requests to handle downloading
 from urllib.parse import urlparse
 from PyQt5.QtWidgets import QProgressBar
 import xml.etree.ElementTree as ET
+
+
+def load_logos(self):
+    self.tableWidget.setRowCount(0)
+
+    if not os.path.exists(LOGO_DB_PATH):
+        print("[LOGO_MANAGER] קובץ logos_db.json לא נמצא בנתיב:", LOGO_DB_PATH)
+        return
+
+    try:
+        with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        QMessageBox.critical(self, "שגיאה", f"שגיאה בטעינת קובץ הלוגואים:\n{str(e)}")
+        return
+
+    row = 0
+    for name, logos in data.items():
+        for logo in logos:
+            self.tableWidget.insertRow(row)
+            self.tableWidget.setItem(row, 0, QTableWidgetItem(str(name)))
+            self.tableWidget.setItem(row, 1, QTableWidgetItem(str(logo)))
+            row += 1
+
+def save_logo_for_channel(channel_name, logo_url):
+    if not os.path.exists(LOGO_DB_PATH):
+        data = {}
+    else:
+        try:
+            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            print(f"[ERROR] שגיאה בקריאת מסד לוגואים: {e}")
+            data = {}
+
+    data.setdefault(channel_name, [])
+    if logo_url and logo_url not in data[channel_name]:
+        data[channel_name].append(logo_url)
+
+    try:
+        with open(LOGO_DB_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        print(f"[LOGO] נשמר לוגו עבור {channel_name}: {logo_url}")
+    except Exception as e:
+        print(f"[ERROR] שגיאה בשמירת מסד לוגואים: {e}")
+
+
+
+def get_saved_logo(channel_name):
+    if not os.path.exists(LOGO_DB_PATH):
+        return None
+
+    try:
+        with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"[ERROR] לא ניתן לטעון את מסד הלוגואים: {e}")
+        return None
+
+    logos = data.get(channel_name, [])
+    return logos[0] if logos else None
+
+
+def inject_logo(channel_line, channel_name):
+    if 'tvg-logo=' not in channel_line:
+        logo = get_saved_logo(channel_name)
+        if logo:
+            print(f"[INJECT] הוזן לוגו עבור {channel_name}: {logo}")
+            return channel_line.replace("#EXTINF:-1", f'#EXTINF:-1 tvg-logo="{logo}"')
+    return channel_line
+
+
+def is_israeli_channel(category, name):
+    keywords = [
+        'ישראל', 'israel', 'il', 'is', 'israel vip', 'israel hd', '20. israel',
+        'hebrew', 'канал израиль', 'ערוץ', 'עברי', 'israeli', 'hot', 'yes', 'kan', 'keshet',
+        'reshet', 'i24', 'channel 9', 'arutz', 'jewish', 'iptv israel', 'Израиль', 'Израиль | ישראלי'
+    ]
+
+    text = f"{category} {name}".lower()
+    return any(word.lower() in text for word in keywords)
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -489,23 +572,6 @@ class URLCheckerDialog(QDialog):
             self.thread.stop()
             self.statusLine.setText("Status: Stopping...")
 
-    def addChannelToTable(self, name, status, server, url):
-        row_position = self.channelTable.rowCount()
-        self.channelTable.insertRow(row_position)
-
-        # קבלת קטגוריה בצורה בטוחה בצד ה־GUI בלבד!
-        category_name = self.getCategoryByChannelName(name)
-
-        data_columns = [name, category_name, status, server, url]
-
-        for col, data in enumerate(data_columns):
-            item = QTableWidgetItem(data)
-            if col == 2:  # Status
-                item.setBackground(Qt.green if status == "Online" else Qt.red)
-            else:
-                item.setBackground(Qt.white)
-            item.setFlags(item.flags() ^ Qt.ItemIsEditable)
-            self.channelTable.setItem(row_position, col, item)
 
     def getCategoryByChannelName(self, channel_name):
         return self.channel_category_mapping.get(channel_name.lower().strip(), "Unknown")
@@ -1064,15 +1130,57 @@ class M3UEditor(QWidget):
         dialog.exec_()
 
     def loadM3UFromText(self, content, append=False):
-        if append:
-            existing = self.textEdit.toPlainText()
-            combined = existing.strip() + "\n" + content.strip()
-            self.textEdit.setPlainText(combined)
-        else:
-            self.textEdit.setPlainText(content)
+        ...
+        # אחרי parseM3UContentEnhanced
+        for category, channels in self.categories.items():
+            for channel in channels:
+                name = channel.split(" (")[0].strip()
+                if is_israeli_channel(category, name):
+                    match = re.search(r'tvg-logo="([^"]+)"', channel)
+                    if match:
+                        logo_url = match.group(1)
+                        save_logo_for_channel(name, logo_url)
 
-        self.parseM3UContentEnhanced(self.textEdit.toPlainText())
-        self.updateCategoryList()
+    def openLogosManagerDialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("ניהול לוגואים לערוצים מישראל")
+        dialog.setGeometry(200, 200, 600, 400)
+
+        layout = QVBoxLayout(dialog)
+
+        table = QTableWidget(dialog)
+        table.setColumnCount(2)
+        table.setHorizontalHeaderLabels(["שם ערוץ", "לוגו (URL)"])
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        # טען את הלוגואים
+        if os.path.exists(LOGO_DB_PATH):
+            try:
+                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as e:
+                QMessageBox.critical(self, "שגיאה", f"שגיאה בקריאת קובץ הלוגואים:\n{str(e)}")
+                data = {}
+        else:
+            data = {}
+
+        rows = sum(len(v) for v in data.values())
+        table.setRowCount(rows)
+
+        row = 0
+        for channel, logos in data.items():
+            for logo in logos:
+                table.setItem(row, 0, QTableWidgetItem(str(channel)))
+                table.setItem(row, 1, QTableWidgetItem(str(logo)))
+                row += 1
+
+        layout.addWidget(table)
+
+        close_btn = QPushButton("סגור")
+        close_btn.clicked.connect(dialog.close)
+        layout.addWidget(close_btn)
+
+        dialog.exec_()
 
     def search_channels(self, query, filter_options):
         results = []
@@ -1302,6 +1410,11 @@ class M3UEditor(QWidget):
         self.smartScanButton.setStyleSheet("background-color: black; color: white; font-weight: ;")
         self.smartScanButton.clicked.connect(self.openSmartScanDialog)
         buttons_layout.addWidget(self.smartScanButton)
+
+        self.manageLogosButton = QPushButton('ניהול לוגואים', self)
+        self.manageLogosButton.setStyleSheet("background-color: orange; color: black;")
+        self.manageLogosButton.clicked.connect(self.openLogosManagerDialog)
+        buttons_layout.addWidget(self.manageLogosButton)
 
         # Add the horizontal layout to the vertical layout
         layout.addLayout(buttons_layout)
@@ -1719,18 +1832,41 @@ class M3UEditor(QWidget):
         QMessageBox.information(self, "Success", f"Deleted {deleted_count} channel(s).")
 
     def updateM3UContent(self):
-        """
-        Regenerates the M3U content based on the current state of self.categories,
-        preserving all channel attributes.
-        """
         updated_lines = ["#EXTM3U"]
         for category, channels in self.categories.items():
+            print(f"[DEBUG] Category: {category}")
             for channel in channels:
-                extinf_line = self.getFullExtInfLine(channel)
-                url = self.getUrl(channel)
-                updated_lines.append(f"{extinf_line}\n{url}")
+                print(f"[DEBUG] Channel: {channel}")
+            for channel in channels:
+                name = channel.split(" (")[0].strip()
+                url = channel.split(" (")[1].strip(")")
+                if is_israeli_channel(category, name):
+                    # אם כבר יש לוגו, נשמור אותו במסד הנתונים
+                    match = re.search(r'tvg-logo="([^"]+)"', channel)
+                    print(f"[DEBUG] Checking logo in line: {channel}")
+                    if match:
+                        logo_url = match.group(1)
+                        save_logo_for_channel(name, logo_url)
+                    else:
+                        # אם אין לוגו – ננסה לשחזר אותו ולשבץ אותו
+                        logo = get_saved_logo(name)
+                        if logo:
+                            extinf = f'#EXTINF:-1 tvg-logo="{logo}" group-title="{category}",{name}'
+                        else:
+                            extinf = f'#EXTINF:-1 group-title="{category}",{name}'
+                else:
+                    extinf = f'#EXTINF:-1 group-title="{category}",{name}'
+                updated_lines.append(f"{extinf}\n{url}")
 
         self.textEdit.setPlainText("\n".join(updated_lines))
+
+        print(f"[LOG] Checking channel: {name}")
+        if match:
+            print(f"[LOG] Saving logo for {name}: {logo_url}")
+        elif logo:
+            print(f"[LOG] Injected saved logo for {name}: {logo}")
+        else:
+            print(f"[LOG] No logo found for {name}")
 
     def getCategoryName(self, channel):
         """
@@ -1800,19 +1936,6 @@ class M3UEditor(QWidget):
         # Update the M3U content
         self.updateM3UContent()
 
-    def updateM3UContent(self):
-        """
-        Regenerates the M3U content based on the current state of self.categories.
-        """
-        updated_lines = []
-        for category, channels in self.categories.items():
-            for channel in channels:
-                # Add EXTINF line
-                updated_lines.append(f"#EXTINF:-1 group-title=\"{category}\",{channel.split(' (')[0]}")
-                # Add URL line
-                updated_lines.append(channel.split(' (')[-1].strip(')'))
-
-        self.textEdit.setPlainText("\n".join(updated_lines))
 
     def selectAllChannels(self):
         for i in range(self.channelList.count()):
