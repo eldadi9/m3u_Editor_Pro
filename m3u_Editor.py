@@ -1778,17 +1778,14 @@ class M3UEditor(QWidget):
             self.categoryList.insertItem(current_row - 1, current_item)
             self.categoryList.setCurrentRow(current_row - 1)
 
-            # Update the self.categories dictionary
             category_keys = list(self.categories.keys())
             category_keys[current_row], category_keys[current_row - 1] = category_keys[current_row - 1], category_keys[
                 current_row]
-
-            # Reorder the dictionary
             reordered_categories = {key: self.categories[key] for key in category_keys}
             self.categories = reordered_categories
 
-            # Regenerate the M3U content
-            self.updateM3UContent()
+            self.refreshCategoryListOnly(selected_index=current_row - 1)
+            self.regenerateM3UTextOnly()
 
     def moveCategoryDown(self):
         current_row = self.categoryList.currentRow()
@@ -1797,17 +1794,46 @@ class M3UEditor(QWidget):
             self.categoryList.insertItem(current_row + 1, current_item)
             self.categoryList.setCurrentRow(current_row + 1)
 
-            # Update the self.categories dictionary
             category_keys = list(self.categories.keys())
             category_keys[current_row], category_keys[current_row + 1] = category_keys[current_row + 1], category_keys[
                 current_row]
-
-            # Reorder the dictionary
             reordered_categories = {key: self.categories[key] for key in category_keys}
             self.categories = reordered_categories
 
-            # Regenerate the M3U content
-            self.updateM3UContent()
+            self.refreshCategoryListOnly(selected_index=current_row + 1)
+            self.regenerateM3UTextOnly()
+
+    def regenerateM3UTextOnly(self):
+        updated_lines = ["#EXTM3U"]
+        for category, channels in self.categories.items():
+            for channel in channels:
+                try:
+                    name, url = channel.split(" (", 1)
+                    name = name.strip()
+                    url = url.strip(") \n")
+                except:
+                    continue
+
+                # שימוש בלוגו שמור בלבד
+                logo_url = get_saved_logo(name)
+
+                if logo_url:
+                    extinf = f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{category}",{name}'
+                else:
+                    extinf = f'#EXTINF:-1 group-title="{category}",{name}'
+
+                updated_lines.append(f"{extinf}\n{url}")
+
+        self.textEdit.setPlainText("\n".join(updated_lines))
+        print("[LOG] 🔄 עדכון M3U - (בלי סריקת לוגואים) הסתיים")
+
+    def refreshCategoryListOnly(self, selected_index=None):
+        self.categoryList.clear()
+        for category in self.categories:
+            channel_count = len(self.categories[category])
+            self.categoryList.addItem(f"{category} ({channel_count})")
+        if selected_index is not None:
+            self.categoryList.setCurrentRow(selected_index)
 
     def selectAllCategories(self):
         """Select all categories in the list."""
@@ -1874,6 +1900,9 @@ class M3UEditor(QWidget):
         QMessageBox.information(self, "Success", f"Deleted {deleted_count} channel(s).")
 
     def updateM3UContent(self):
+        # אם קיימת ההגדרה skip_logo_scan – דלג על שמירת לוגואים
+        skip_logos = hasattr(self, 'skip_logo_scan') and self.skip_logo_scan
+
         updated_lines = ["#EXTM3U"]
         for category, channels in self.categories.items():
             for channel in channels:
@@ -1884,12 +1913,18 @@ class M3UEditor(QWidget):
                 except:
                     continue
 
-                # שליפת לוגו אם קיים
-                match = re.search(r'tvg-logo="([^"]+)"', channel)
-                if match:
-                    logo_url = match.group(1)
-                    save_logo_for_channel(name, logo_url)
+                logo_url = ""
+
+                # רק אם לא מדלגים – שלוף לוגו או שמור
+                if not skip_logos:
+                    match = re.search(r'tvg-logo="([^"]+)"', channel)
+                    if match:
+                        logo_url = match.group(1)
+                        save_logo_for_channel(name, logo_url)
+                    else:
+                        logo_url = get_saved_logo(name)
                 else:
+                    # גם אם מדלגים – תביא מהזיכרון לוגו קיים בלבד
                     logo_url = get_saved_logo(name)
 
                 if logo_url:
@@ -1900,7 +1935,11 @@ class M3UEditor(QWidget):
                 updated_lines.append(f"{extinf}\n{url}")
 
         self.textEdit.setPlainText("\n".join(updated_lines))
-        print("[LOG] 🔄 עדכון M3U הסתיים")
+
+        if skip_logos:
+            print("[LOG] 🔄 עדכון M3U - הסתריים (בלי סריקת לוגואים)")
+        else:
+            print("[LOG] 🔄 עדכון M3U - כולל סריקת לוגואים")
 
     def getCategoryName(self, channel):
         """
