@@ -1144,6 +1144,16 @@ class M3UEditor(QWidget):
         dialog.setWindowTitle("ניהול לוגואים לערוצים מישראל")
         dialog.setGeometry(200, 200, 600, 400)
 
+        # ✅ כאן להוסיף את השורה שלך על dialog
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+        dialog.setStyleSheet("""
+                    QDialog {
+                        border: 4px solid red;
+                        background-color: white;
+                    }
+                """)
+
         layout = QVBoxLayout(dialog)
         table = QTableWidget(dialog)
         table.setColumnCount(2)
@@ -1432,7 +1442,7 @@ class M3UEditor(QWidget):
         buttons_layout.addWidget(self.smartScanButton)
 
         self.manageLogosButton = QPushButton('ניהול לוגואים', self)
-        self.manageLogosButton.setStyleSheet("background-color: orange; color: black;")
+        self.manageLogosButton.setStyleSheet("background-color: black; color: red;")
         self.manageLogosButton.clicked.connect(self.openLogosManagerDialog)
         buttons_layout.addWidget(self.manageLogosButton)
 
