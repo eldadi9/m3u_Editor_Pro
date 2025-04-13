@@ -18,8 +18,6 @@ from PyQt5.QtWidgets import QProgressBar
 import xml.etree.ElementTree as ET
 
 
-
-
 def save_logo_for_channel(channel_name, logo_url):
     if not is_israeli_channel("", channel_name):
         return  # ⛔ לא ישראלי – לא שומר
@@ -42,8 +40,6 @@ def save_logo_for_channel(channel_name, logo_url):
     print(f"[LOGO] Saved logo for {channel_name}: {logo_url}")
 
 
-
-
 def get_saved_logo(channel_name):
     if not os.path.exists(LOGO_DB_PATH):
         return None
@@ -57,7 +53,6 @@ def get_saved_logo(channel_name):
         return None
 
 
-
 def inject_logo(line, channel_name):
     if 'tvg-logo="' in line:
         return line  # כבר קיים
@@ -67,9 +62,6 @@ def inject_logo(line, channel_name):
         return line.replace("#EXTINF:-1", f'#EXTINF:-1 tvg-logo="{logo}"')
     return line
 
-
-
-
 def save_israeli_logos_background(self, parsed_channels):
     for channel_name, category, line in parsed_channels:
         if is_israeli_channel(category, channel_name):
@@ -78,7 +70,6 @@ def save_israeli_logos_background(self, parsed_channels):
                 logo_url = match.group(1)
                 save_logo_for_channel(channel_name, logo_url)
                 print(f"[LOGO] Saved logo for {channel_name}: {logo_url}")
-
 
 
 def is_israeli_channel(category, name):
@@ -1029,10 +1020,7 @@ class M3UEditor(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Multi M3U Downloader")
         dialog.setGeometry(100, 100, 600, 400)
-
-        # ✅ כאן להוסיף את השורה שלך על dialog
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-
 
         dialog.setStyleSheet("""
             QDialog { border: 5px solid red; background-color: white; }
@@ -1055,9 +1043,9 @@ class M3UEditor(QWidget):
         close_button = QPushButton("Close", dialog)
         close_button.setStyleSheet("background-color: black; color: white;")
         layout.addWidget(close_button)
-
         close_button.clicked.connect(dialog.close)
 
+        # ✅ פונקציה פנימית שמופעלת על ידי הכפתור
         def start_batch_download():
             urls = url_input.toPlainText().strip().splitlines()
             if not urls:
@@ -1066,8 +1054,7 @@ class M3UEditor(QWidget):
 
             merged_content = "#EXTM3U\n"
             valid_count = 0
-
-            url_data = []  # כל תוכן הקבצים התקינים
+            url_data = []
 
             for url in urls:
                 url = url.strip()
@@ -1082,7 +1069,7 @@ class M3UEditor(QWidget):
                     if not content.startswith("#EXTM3U"):
                         continue
 
-                    url_data.append(content)
+                    url_data.append((url, content))
                     merged_content += "\n".join(
                         line for line in content.splitlines() if line.strip() and not line.startswith("#EXTM3U")) + "\n"
                     valid_count += 1
@@ -1094,7 +1081,6 @@ class M3UEditor(QWidget):
                 QMessageBox.warning(dialog, "No Valid URLs", "None of the URLs were valid M3U files.")
                 return
 
-            # שואל אם לטעון הכל
             choice = QMessageBox.question(
                 dialog, "Load All?",
                 f"{valid_count} M3U files were downloaded successfully.\n\nDo you want to load them all into the editor?",
@@ -1102,34 +1088,66 @@ class M3UEditor(QWidget):
             )
 
             if choice == QMessageBox.Yes:
-                for i, content in enumerate(url_data):
-                    self.loadM3UFromText(content, append=(i > 0))  # הראשון מחליף, שאר הקבצים מצטרפים
+                full_combined = "#EXTM3U\n"
+                for (url, content) in url_data:
+                    lines = [line for line in content.splitlines() if line.strip() and not line.startswith("#EXTM3U")]
+                    full_combined += "\n".join(lines) + "\n"
+                self.loadM3UFromText(full_combined, append=False)
                 QMessageBox.information(dialog, "Loaded", "All M3U files were loaded into the editor.")
+                dialog.close()
+                return
 
+                QMessageBox.information(dialog, "Loaded", "All M3U files were loaded into the editor.")
+                dialog.close()
+                return
 
+            merge_choice = QMessageBox.question(
+                dialog, "Save Merged File?",
+                f"Do you want to save all {valid_count} files as one merged M3U file?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+
+            if merge_choice == QMessageBox.Yes:
+                file_path, _ = QFileDialog.getSaveFileName(dialog, "Save Merged M3U File", "merged.m3u",
+                                                           "M3U Files (*.m3u);;All Files (*)")
+                if file_path:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(merged_content)
+                    QMessageBox.information(dialog, "Saved", "Merged M3U file saved successfully.")
             else:
-                # שאלה אם לשמור את כולם כקובץ מאוחד
-                merge_choice = QMessageBox.question(
-                    dialog, "Save Merged File?",
-                    f"Do you want to save all {valid_count} files as one merged M3U file?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-                if merge_choice == QMessageBox.Yes:
-                    file_path, _ = QFileDialog.getSaveFileName(dialog, "Save Merged M3U File", "merged.m3u",
-                                                               "M3U Files (*.m3u);;All Files (*)")
-                    if file_path:
+                save_dir = QFileDialog.getExistingDirectory(dialog, "Select Folder to Save Each M3U Separately")
+                if save_dir:
+                    for i, (url, content) in enumerate(url_data):
+                        match = re.search(r'username=([a-zA-Z0-9]+)', url)
+                        if match:
+                            file_name = f"{match.group(1)}.m3u"
+                        else:
+                            file_name = f"playlist_{i + 1}.m3u"
+                        file_path = os.path.join(save_dir, file_name)
                         with open(file_path, 'w', encoding='utf-8') as f:
-                            f.write(merged_content)
-                        QMessageBox.information(dialog, "Saved", "Merged M3U file saved successfully.")
+                            f.write(content)
+                    QMessageBox.information(dialog, "Saved", "All M3U files saved individually.")
 
             dialog.close()
 
+        # ✅ כאן מתחברת הפעולה ללחיצה
         download_button.clicked.connect(start_batch_download)
+
         dialog.exec_()
 
     def loadM3UFromText(self, content, append=False):
-        self.parseM3UContentEnhanced(content)  # ← שורה חסרה
+        """
+        טוען טקסט של קובץ M3U לתוך המערכת.
+        אם append=False – מוחק את הקיים.
+        אם append=True – מוסיף לערוצים קיימים.
+        """
+        if not append:
+            self.categories.clear()
 
+        # פירוק התוכן לקטגוריות וערוצים
+        self.parseM3UContentEnhanced(content)
+
+        # שמירת לוגואים לערוצים ישראליים בלבד
         for category, channels in self.categories.items():
             for channel in channels:
                 name = channel.split(" (")[0].strip()
@@ -1139,7 +1157,13 @@ class M3UEditor(QWidget):
                         logo_url = match.group(1)
                         save_logo_for_channel(name, logo_url)
 
+        # רענון רשימת קטגוריות וערוצים בתצוגה
+        self.updateCategoryList()
 
+        # הצגת ערוצים של הקטגוריה הראשונה
+        if self.categoryList.count() > 0:
+            self.categoryList.setCurrentRow(0)
+            self.display_channels(self.categoryList.currentItem())
 
     def extract_and_save_logos_for_israeli_channels(self, content):
         lines = content.strip().splitlines()
