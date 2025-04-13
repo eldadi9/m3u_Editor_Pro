@@ -1019,7 +1019,7 @@ class M3UEditor(QWidget):
     def openBatchDownloader(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Multi M3U Downloader")
-        dialog.setGeometry(100, 100, 600, 400)
+        dialog.setGeometry(100, 100, 600, 500)
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         dialog.setStyleSheet("""
@@ -1034,8 +1034,65 @@ class M3UEditor(QWidget):
 
         url_input = QTextEdit(dialog)
         url_input.setStyleSheet("font-size: 14px;")
+        url_input.setPlaceholderText("Example:\nhttp://site1.com/playlist\nhttp://site2.com/playlist")
         layout.addWidget(url_input)
 
+        # ➕ כפתור הוספת שורה חדשה
+        add_url_button = QPushButton("➕ Add URL", dialog)
+        add_url_button.setStyleSheet("background-color: green; color: white;")
+        layout.addWidget(add_url_button)
+
+        def add_blank_line():
+            url_input.append("")  # שורה ריקה
+
+        add_url_button.clicked.connect(add_blank_line)
+
+        # 🪄 מעבר שורה אוטומטי + הדבקה חכמה
+        def on_url_text_changed():
+            text = url_input.toPlainText()
+
+            # 🧠 מפרק פסיקים לשורות
+            if "," in text:
+                clean = "\n".join([x.strip() for x in text.split(",") if x.strip()])
+                url_input.blockSignals(True)
+                url_input.setPlainText(clean)
+                url_input.blockSignals(False)
+                return
+
+            # 🪄 הוספת שורה חדשה אם לא מסתיימת ב-Enter
+            lines = text.splitlines()
+            if lines and not text.endswith("\n"):
+                url_input.blockSignals(True)
+                url_input.setPlainText(text + "\n")
+                cursor = url_input.textCursor()
+                cursor.movePosition(cursor.End)
+                url_input.setTextCursor(cursor)
+                url_input.blockSignals(False)
+
+        url_input.textChanged.connect(on_url_text_changed)
+
+        # 📥 תמיכה בגרירת קובץ txt
+        url_input.setAcceptDrops(True)
+
+        def dragEnterEvent(event):
+            if event.mimeData().hasUrls():
+                event.acceptProposedAction()
+
+        def dropEvent(event):
+            for url in event.mimeData().urls():
+                path = url.toLocalFile()
+                if path.endswith(".txt"):
+                    try:
+                        with open(path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                            url_input.append(content)
+                    except Exception as e:
+                        QMessageBox.warning(dialog, "Error", f"Failed to read dropped file:\n{str(e)}")
+
+        url_input.dragEnterEvent = dragEnterEvent
+        url_input.dropEvent = dropEvent
+
+        # 🔻 כפתורי הורדה וסגירה
         download_button = QPushButton("Download All", dialog)
         download_button.setStyleSheet("background-color: red; color: white;")
         layout.addWidget(download_button)
@@ -1045,7 +1102,7 @@ class M3UEditor(QWidget):
         layout.addWidget(close_button)
         close_button.clicked.connect(dialog.close)
 
-        # ✅ פונקציה פנימית שמופעלת על ידי הכפתור
+        # פעולה ללחיצת כפתור הורדה
         def start_batch_download():
             urls = url_input.toPlainText().strip().splitlines()
             if not urls:
@@ -1082,8 +1139,10 @@ class M3UEditor(QWidget):
                 return
 
             choice = QMessageBox.question(
-                dialog, "Load All?",
-                f"{valid_count} M3U files were downloaded successfully.\n\nDo you want to load them all into the editor?",
+                dialog,
+                "📥 Load All?",
+                f"<b style='font-size:14px;'>✅ <u>{valid_count} M3U files</u> downloaded successfully.</b><br><br>"
+                "<span style='font-size:13px;'>Do you want to load them all into the <b>editor</b>?</span>",
                 QMessageBox.Yes | QMessageBox.No
             )
 
@@ -1097,13 +1156,10 @@ class M3UEditor(QWidget):
                 dialog.close()
                 return
 
-                QMessageBox.information(dialog, "Loaded", "All M3U files were loaded into the editor.")
-                dialog.close()
-                return
-
             merge_choice = QMessageBox.question(
-                dialog, "Save Merged File?",
-                f"Do you want to save all {valid_count} files as one merged M3U file?",
+                dialog,
+                "📦 Save Merged File?",
+                f"<b style='font-size:14px;'>💾 Do you want to save all <u>{valid_count} files</u> as one merged M3U file?</b>",
                 QMessageBox.Yes | QMessageBox.No
             )
 
@@ -1130,10 +1186,10 @@ class M3UEditor(QWidget):
 
             dialog.close()
 
-        # ✅ כאן מתחברת הפעולה ללחיצה
         download_button.clicked.connect(start_batch_download)
-
         dialog.exec_()
+
+
 
     def loadM3UFromText(self, content, append=False):
         """
