@@ -1054,30 +1054,7 @@ class M3UEditor(QWidget):
         url_input.setPlaceholderText("Example:\nhttp://site1.com/playlist\nhttp://site2.com/playlist")
         layout.addWidget(url_input)
 
-        # ➕ כפתור הוספת שורת כתובת לדוגמה
-        add_url_button = QPushButton("➕ Add URL", dialog)
-        add_url_button.setStyleSheet("background-color: green; color: white;")
-        layout.addWidget(add_url_button)
-
-        # מונה אוטומטי לכתובות לדוגמה
-        add_url_counter = [1]
-
-        def add_blank_line():
-            try:
-                text = url_input.toPlainText()
-                text += f"http://your-url.com/playlist{add_url_counter[0]}\n"
-                add_url_counter[0] += 1
-                url_input.setPlainText(text)
-                url_input.setFocus()
-
-                # הזזת הסמן לסוף
-                cursor = url_input.textCursor()
-                cursor.movePosition(cursor.End)
-                url_input.setTextCursor(cursor)
-
-            except Exception as e:
-                QMessageBox.critical(dialog, "Error", f"Unexpected error:\n{str(e)}")
-
+        # 🧠 מעבר שורה אוטומטי + הדבקה חכמה
         def on_url_text_changed():
             text = url_input.toPlainText()
 
@@ -1130,7 +1107,6 @@ class M3UEditor(QWidget):
         layout.addWidget(close_button)
         close_button.clicked.connect(dialog.close)
 
-        # פעולה ללחיצה על "Download All"
         def start_batch_download():
             urls = url_input.toPlainText().strip().splitlines()
             if not urls:
