@@ -1166,98 +1166,106 @@ class M3UEditor(QWidget):
     def open_logo_manager(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("ניהול לוגואים לערוצים מישראל")
-        dialog.setGeometry(200, 200, 700, 500)
+        dialog.setGeometry(200, 200, 800, 500)
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-
         dialog.setStyleSheet("""
             QDialog {
                 border: 4px solid red;
                 background-color: white;
             }
+            QHeaderView::section {
+                background-color: black;
+                color: white;
+                font-weight: bold;
+                padding: 4px;
+            }
         """)
 
         layout = QVBoxLayout(dialog)
+
+        # 🔍 שורת חיפוש
+        search_box = QLineEdit()
+        search_box.setPlaceholderText("🔍 חפש לפי שם ערוץ או כתובת לוגו")
+        layout.addWidget(search_box)
+
         table = QTableWidget(dialog)
         table.setColumnCount(3)
         table.setHorizontalHeaderLabels(["✔", "שם ערוץ", "לוגו (URL)"])
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-
-        # טעינת הלוגואים
-        try:
-            with open("logos_db.json", "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except:
-            data = {}
-
-        row = 0
-        for name, logos in data.items():
-            if is_israeli_channel("", name):
-                for logo in logos:
-                    table.insertRow(row)
-
-                    checkbox_item = QTableWidgetItem()
-                    checkbox_item.setCheckState(Qt.Unchecked)
-
-                    name_item = QTableWidgetItem(name)
-                    logo_item = QTableWidgetItem(logo)
-
-                    table.setItem(row, 0, checkbox_item)
-                    table.setItem(row, 1, name_item)
-                    table.setItem(row, 2, logo_item)
-
-                    row += 1
+        table.setSortingEnabled(True)
 
         layout.addWidget(table)
 
-        # כפתורים
+        def load_table_data():
+            table.setRowCount(0)
+            try:
+                with open("logos_db.json", "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except:
+                data = {}
+
+            row = 0
+            for name, logos in data.items():
+                if is_israeli_channel("", name):
+                    for logo in logos:
+                        table.insertRow(row)
+                        checkbox_item = QTableWidgetItem()
+                        checkbox_item.setCheckState(Qt.Unchecked)
+                        table.setItem(row, 0, checkbox_item)
+                        table.setItem(row, 1, QTableWidgetItem(name))
+                        table.setItem(row, 2, QTableWidgetItem(logo))
+                        row += 1
+
+        load_table_data()
+
+        def filter_table():
+            text = search_box.text().lower()
+            for row in range(table.rowCount()):
+                show = False
+                for col in range(1, 3):
+                    item = table.item(row, col)
+                    if item and text in item.text().lower():
+                        show = True
+                        break
+                table.setRowHidden(row, not show)
+
+        search_box.textChanged.connect(filter_table)
+
+        # 🔘 כפתורים
         button_layout = QHBoxLayout()
-
-        select_all_btn = QPushButton("בחר הכל")
-        deselect_all_btn = QPushButton("בטל בחירה")
-        delete_btn = QPushButton("🗑️ מחק ערוצים נבחרים")
-        close_btn = QPushButton("סגור")
-
-        # עיצוב אחיד
-        button_style = """
+        style_black = """
             QPushButton {
                 background-color: black;
                 color: white;
                 font-weight: bold;
-                padding: 10px;
-                border: none;
+                padding: 8px;
             }
             QPushButton:hover {
-                background-color: #444444;
+                background-color: #444;
             }
         """
-
-        delete_btn_style = """
+        style_red = """
             QPushButton {
                 background-color: red;
                 color: white;
                 font-weight: bold;
-                padding: 10px;
-                border: none;
+                padding: 8px;
             }
             QPushButton:hover {
                 background-color: #cc0000;
             }
         """
 
-        # החלת סגנון
-        select_all_btn.setStyleSheet(button_style)
-        deselect_all_btn.setStyleSheet(button_style)
-        close_btn.setStyleSheet(button_style)
-        delete_btn.setStyleSheet(delete_btn_style)
+        select_all_btn = QPushButton("בחר הכל")
+        deselect_all_btn = QPushButton("בטל בחירה")
+        refresh_btn = QPushButton("🔃 רענן טבלה")
+        delete_btn = QPushButton("🗑️ מחק ערוצים נבחרים")
+        close_btn = QPushButton("סגור")
 
-        # הוספה לפריסה
-        button_layout.addWidget(select_all_btn)
-        button_layout.addWidget(deselect_all_btn)
-        button_layout.addWidget(delete_btn)
-        button_layout.addWidget(close_btn)
-        layout.addLayout(button_layout)
+        for btn in [select_all_btn, deselect_all_btn, refresh_btn, close_btn]:
+            btn.setStyleSheet(style_black)
+        delete_btn.setStyleSheet(style_red)
 
-        # פעולות כפתורים
         def select_all():
             for row in range(table.rowCount()):
                 item = table.item(row, 0)
@@ -1291,13 +1299,20 @@ class M3UEditor(QWidget):
                 with open("logos_db.json", "w", encoding="utf-8") as f:
                     json.dump(logos_data, f, indent=2, ensure_ascii=False)
                 QMessageBox.information(dialog, "בוצע", f"הוסרו {len(removed)} ערוצים.")
-                dialog.close()
+                load_table_data()
 
-        # חיבורים
         select_all_btn.clicked.connect(select_all)
         deselect_all_btn.clicked.connect(deselect_all)
+        refresh_btn.clicked.connect(load_table_data)
         delete_btn.clicked.connect(delete_selected)
         close_btn.clicked.connect(dialog.close)
+
+        button_layout.addWidget(select_all_btn)
+        button_layout.addWidget(deselect_all_btn)
+        button_layout.addWidget(refresh_btn)
+        button_layout.addWidget(delete_btn)
+        button_layout.addWidget(close_btn)
+        layout.addLayout(button_layout)
 
         dialog.exec_()
 
