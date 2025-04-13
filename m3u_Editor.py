@@ -950,6 +950,15 @@ class M3UEditor(QWidget):
         # Ensure everything is added to main_layout
         self.setLayout(main_layout)
 
+    def load_logos_once(self):
+        self.logo_cache = {}
+        if os.path.exists(LOGO_DB_PATH):
+            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                self.logo_cache = json.load(f)
+
+    def get_saved_logo(self, channel_name):
+        return self.logo_cache.get(channel_name)
+
     def openM3UConverterDialog(self):
         dialog = M3UUrlConverterDialog(self)
         dialog.exec_()
@@ -1221,36 +1230,28 @@ class M3UEditor(QWidget):
         dialog.exec_()
 
     def loadM3UFromText(self, content, append=False):
-        """
-        טוען טקסט של קובץ M3U לתוך המערכת.
-        אם append=False – מוחק את הקיים.
-        אם append=True – מוסיף לערוצים קיימים.
-        """
         if not append:
             self.categories.clear()
 
-        # פירוק התוכן לקטגוריות וערוצים
+        self.load_logos_once()  # ← קריאה חדשה
         self.parseM3UContentEnhanced(content)
 
-        # שמירת לוגואים לערוצים ישראליים בלבד
-        for category, channels in self.categories.items():
-            for channel in channels:
-                name = channel.split(" (")[0].strip()
-                if is_israeli_channel(category, name):
-                    match = re.search(r'tvg-logo="([^"]+)"', channel)
-                    if match:
-                        logo_url = match.group(1)
-                        save_logo_for_channel(name, logo_url)
+        if not hasattr(self, 'logos_loaded') or not self.logos_loaded:
+            for category, channels in self.categories.items():
+                for channel in channels:
+                    name = channel.split(" (")[0].strip()
+                    if is_israeli_channel(category, name):
+                        match = re.search(r'tvg-logo="([^"]+)"', channel)
+                        if match:
+                            logo_url = match.group(1)
+                            save_logo_for_channel(name, logo_url)
+            self.logos_loaded = True
 
-        # רענון רשימת קטגוריות וערוצים בתצוגה
         self.updateCategoryList()
 
-        # הצגת ערוצים של הקטגוריה הראשונה
         if self.categoryList.count() > 0:
             self.categoryList.setCurrentRow(0)
             self.display_channels(self.categoryList.currentItem())
-
-
 
     def extract_and_save_logos_for_israeli_channels(self, content):
         lines = content.strip().splitlines()
@@ -1860,7 +1861,7 @@ class M3UEditor(QWidget):
                 self.categories[current_category].sort(key=lambda x: len(x.split(",")[-1]))
 
             self.display_channels(self.categoryList.currentItem())
-            self.updateM3UContent()  # <-- Add this line
+            self.regenerateM3UTextOnly()  # <-- Add this line
 
     def create_m3u_content_section(self):
         layout = QVBoxLayout()
@@ -2189,18 +2190,14 @@ class M3UEditor(QWidget):
         return channel.split(' (')[1].strip(')')
 
     def moveChannelUp(self):
-        """
-        Moves the selected channel up in the list and updates the M3U content.
-        """
         current_row = self.channelList.currentRow()
         if current_row <= 0:
-            return  # Can't move the first item up
+            return
 
         current_item = self.channelList.takeItem(current_row)
         self.channelList.insertItem(current_row - 1, current_item)
         self.channelList.setCurrentRow(current_row - 1)
 
-        # Update the self.categories dictionary
         current_category_item = self.categoryList.currentItem()
         if not current_category_item:
             QMessageBox.warning(self, "Warning", "No category selected.")
@@ -2208,41 +2205,39 @@ class M3UEditor(QWidget):
 
         current_category = current_category_item.text().split(" (")[0]
         channels = self.categories[current_category]
-        if 0 <= current_row < len(channels):
-            # Swap the current channel with the one above it
-            channels[current_row], channels[current_row - 1] = channels[current_row - 1], channels[current_row]
-            self.categories[current_category] = channels
+        channels[current_row], channels[current_row - 1] = channels[current_row - 1], channels[current_row]
 
-        # Update the M3U content
-        self.updateM3UContent()
+        self.categories[current_category] = channels
+        self.regenerateM3UTextOnly()
 
     def moveChannelDown(self):
-        """
-        Moves the selected channel down in the list and updates the M3U content.
-        """
         current_row = self.channelList.currentRow()
         if current_row < 0 or current_row >= self.channelList.count() - 1:
-            return  # Can't move the last item down
+            return
 
         current_item = self.channelList.takeItem(current_row)
         self.channelList.insertItem(current_row + 1, current_item)
         self.channelList.setCurrentRow(current_row + 1)
 
-        # Update the self.categories dictionary
         current_category_item = self.categoryList.currentItem()
         if not current_category_item:
-            return  # No category selected
+            return
 
         current_category = current_category_item.text().split(" (")[0]
         channels = self.categories[current_category]
-        if 0 <= current_row < len(channels) - 1:
-            # Swap the current channel with the one below it
-            channels[current_row], channels[current_row + 1] = channels[current_row + 1], channels[current_row]
-            self.categories[current_category] = channels
+        channels[current_row], channels[current_row + 1] = channels[current_row + 1], channels[current_row]
 
-        # Update the M3U content
-        self.updateM3UContent()
+        self.categories[current_category] = channels
+        self.regenerateM3UTextOnly()
 
+    def saveToFile(self, file_path):
+        content = self.textEdit.toPlainText()
+        self.extract_and_save_logos_for_israeli_channels(content)  # ← טעינה ועדכון לוגואים פעם אחת בלבד בשמירה
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+        QMessageBox.information(self, "Success", "File saved successfully.")
 
     def selectAllChannels(self):
         for i in range(self.channelList.count()):
@@ -2818,7 +2813,7 @@ class M3UEditor(QWidget):
             removed += original_len - len(self.categories[category])
 
         self.updateCategoryList()
-        self.updateM3UContent()
+        self.regenerateM3UTextOnly()
         if self.categoryList.currentItem():
             self.display_channels(self.categoryList.currentItem())
 
@@ -3115,7 +3110,7 @@ class M3UEditor(QWidget):
         # Update categories and regenerate M3U content
         self.categories = filtered_channels
         self.updateCategoryList()
-        self.updateM3UContent()
+        self.regenerateM3UTextOnly()
 
         # Refresh the UI category list
         self.categoryList.clear()
