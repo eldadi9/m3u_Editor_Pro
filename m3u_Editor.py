@@ -2129,7 +2129,7 @@ class M3UEditor(QWidget):
                 deleted_count += 1
 
         # Update the UI and M3U content
-        self.updateM3UContent()
+        self.regenerateM3UTextOnly()
         self.display_channels(self.categoryList.currentItem())
 
         QMessageBox.information(self, "Success", f"Deleted {deleted_count} channel(s).")
@@ -2208,7 +2208,7 @@ class M3UEditor(QWidget):
         channels[current_row], channels[current_row - 1] = channels[current_row - 1], channels[current_row]
 
         self.categories[current_category] = channels
-        self.regenerateM3UTextOnly()
+        self.updateM3UContent()
 
     def moveChannelDown(self):
         current_row = self.channelList.currentRow()
@@ -2228,7 +2228,7 @@ class M3UEditor(QWidget):
         channels[current_row], channels[current_row + 1] = channels[current_row + 1], channels[current_row]
 
         self.categories[current_category] = channels
-        self.regenerateM3UTextOnly()
+        self.updateM3UContent()
 
     def saveToFile(self, file_path):
         content = self.textEdit.toPlainText()
@@ -2303,7 +2303,7 @@ class M3UEditor(QWidget):
             self.categories[target_category].extend(moved_channels)
 
             # Update the M3U content to reflect the changes
-            self.updateM3UContent()
+            self.regenerateM3UTextOnly()
 
             # Refresh the UI
             self.updateCategoryList()  # Update category list counts
