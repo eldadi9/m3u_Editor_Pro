@@ -1623,7 +1623,7 @@ class M3UEditor(QWidget):
         # Create a horizontal layout for the buttons
         buttons_layout = QHBoxLayout()
 
-        self.directM3UDownloadButton = QPushButton('Direct M3U Download', self)
+        self.directM3UDownloadButton = QPushButton('🌐 M3U Direct', self)
         self.directM3UDownloadButton.setStyleSheet("background-color: black; color: white;")
         self.directM3UDownloadButton.clicked.connect(self.downloadDirectM3U)
         buttons_layout.addWidget(self.directM3UDownloadButton)
@@ -1636,34 +1636,34 @@ class M3UEditor(QWidget):
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         # M3U URL Converter button
-        self.m3uUrlConverterButton = QPushButton('XTREAM Codes 2 M3U', self)
+        self.m3uUrlConverterButton = QPushButton('🔐 Xtream Converter', self)
         self.m3uUrlConverterButton.setStyleSheet("background-color: black; color: white;")
         self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
         buttons_layout.addWidget(self.m3uUrlConverterButton)
 
-        self.convertPortalButton = QPushButton('Portal MAC to M3U', self)
+        self.convertPortalButton = QPushButton('🔄 Stalker MAC to M3U', self)
         self.convertPortalButton.setStyleSheet("background-color: black; color: white;")
         self.convertPortalButton.clicked.connect(self.convertPortalToM3U)
         buttons_layout.addWidget(self.convertPortalButton)
 
         # Export Groups button
-        self.exportGroupButton = QPushButton('Export Groups', self)
+        self.exportGroupButton = QPushButton('📤 Export Groups', self)
         self.exportGroupButton.setStyleSheet("background-color: black; color: white;")
         self.exportGroupButton.clicked.connect(self.openExportDialog)
         buttons_layout.addWidget(self.exportGroupButton)
 
         # Filter Israeli Channels button
-        self.filterIsraelChannelsButton = QPushButton('EXPO ISrael Channels', self)
+        self.filterIsraelChannelsButton = QPushButton('🇮🇱 IsraelX Export', self)
         self.filterIsraelChannelsButton.setStyleSheet("background-color: black; color: white;")
         self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
         buttons_layout.addWidget(self.filterIsraelChannelsButton)
 
-        self.smartScanButton = QPushButton('Smart Scan', self)
+        self.smartScanButton = QPushButton('🔍 Scan Master', self)
         self.smartScanButton.setStyleSheet("background-color: black; color: white; font-weight: ;")
         self.smartScanButton.clicked.connect(self.openSmartScanDialog)
         buttons_layout.addWidget(self.smartScanButton)
 
-        self.manageLogosButton = QPushButton('ניהול לוגואים', self)
+        self.manageLogosButton = QPushButton('🖼️ Logo Manager', self)
         self.manageLogosButton.setStyleSheet("background-color: black; color: red;")
         self.manageLogosButton.clicked.connect(self.open_logo_manager)
         buttons_layout.addWidget(self.manageLogosButton)
