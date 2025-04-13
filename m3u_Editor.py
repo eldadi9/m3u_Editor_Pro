@@ -1139,49 +1139,7 @@ class M3UEditor(QWidget):
                         logo_url = match.group(1)
                         save_logo_for_channel(name, logo_url)
 
-    def openLogosManagerDialog(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("ניהול לוגואים לערוצים מישראל")
-        dialog.setGeometry(200, 200, 600, 400)
 
-        # ✅ כאן להוסיף את השורה שלך על dialog
-        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-
-        dialog.setStyleSheet("""
-                    QDialog {
-                        border: 4px solid red;
-                        background-color: white;
-                    }
-                """)
-
-        layout = QVBoxLayout(dialog)
-        table = QTableWidget(dialog)
-        table.setColumnCount(2)
-        table.setHorizontalHeaderLabels(["שם ערוץ", "לוגו (URL)"])
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-
-        if os.path.exists(LOGO_DB_PATH):
-            try:
-                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-            except Exception:
-                data = {}
-
-            row = 0
-            for name, logos in data.items():
-                if is_israeli_channel("", name):
-                    for logo in logos:
-                        table.insertRow(row)
-                        table.setItem(row, 0, QTableWidgetItem(str(name)))
-                        table.setItem(row, 1, QTableWidgetItem(str(logo)))
-                        row += 1
-
-        layout.addWidget(table)
-        close_btn = QPushButton("סגור")
-        close_btn.clicked.connect(dialog.close)
-        layout.addWidget(close_btn)
-
-        dialog.exec_()
 
     def extract_and_save_logos_for_israeli_channels(self, content):
         lines = content.strip().splitlines()
@@ -1204,6 +1162,144 @@ class M3UEditor(QWidget):
                         logo_url = logo_match.group(1).strip()
                         save_logo_for_channel(channel_name, logo_url)  # שומר רק פעם אחת
                         print(f"[LOGO] ✅ {channel_name} | {logo_url}")
+
+    def open_logo_manager(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("ניהול לוגואים לערוצים מישראל")
+        dialog.setGeometry(200, 200, 700, 500)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+        dialog.setStyleSheet("""
+            QDialog {
+                border: 4px solid red;
+                background-color: white;
+            }
+        """)
+
+        layout = QVBoxLayout(dialog)
+        table = QTableWidget(dialog)
+        table.setColumnCount(3)
+        table.setHorizontalHeaderLabels(["✔", "שם ערוץ", "לוגו (URL)"])
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        # טעינת הלוגואים
+        try:
+            with open("logos_db.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except:
+            data = {}
+
+        row = 0
+        for name, logos in data.items():
+            if is_israeli_channel("", name):
+                for logo in logos:
+                    table.insertRow(row)
+
+                    checkbox_item = QTableWidgetItem()
+                    checkbox_item.setCheckState(Qt.Unchecked)
+
+                    name_item = QTableWidgetItem(name)
+                    logo_item = QTableWidgetItem(logo)
+
+                    table.setItem(row, 0, checkbox_item)
+                    table.setItem(row, 1, name_item)
+                    table.setItem(row, 2, logo_item)
+
+                    row += 1
+
+        layout.addWidget(table)
+
+        # כפתורים
+        button_layout = QHBoxLayout()
+
+        select_all_btn = QPushButton("בחר הכל")
+        deselect_all_btn = QPushButton("בטל בחירה")
+        delete_btn = QPushButton("🗑️ מחק ערוצים נבחרים")
+        close_btn = QPushButton("סגור")
+
+        # עיצוב אחיד
+        button_style = """
+            QPushButton {
+                background-color: black;
+                color: white;
+                font-weight: bold;
+                padding: 10px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #444444;
+            }
+        """
+
+        delete_btn_style = """
+            QPushButton {
+                background-color: red;
+                color: white;
+                font-weight: bold;
+                padding: 10px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #cc0000;
+            }
+        """
+
+        # החלת סגנון
+        select_all_btn.setStyleSheet(button_style)
+        deselect_all_btn.setStyleSheet(button_style)
+        close_btn.setStyleSheet(button_style)
+        delete_btn.setStyleSheet(delete_btn_style)
+
+        # הוספה לפריסה
+        button_layout.addWidget(select_all_btn)
+        button_layout.addWidget(deselect_all_btn)
+        button_layout.addWidget(delete_btn)
+        button_layout.addWidget(close_btn)
+        layout.addLayout(button_layout)
+
+        # פעולות כפתורים
+        def select_all():
+            for row in range(table.rowCount()):
+                item = table.item(row, 0)
+                if item:
+                    item.setCheckState(Qt.Checked)
+
+        def deselect_all():
+            for row in range(table.rowCount()):
+                item = table.item(row, 0)
+                if item:
+                    item.setCheckState(Qt.Unchecked)
+
+        def delete_selected():
+            try:
+                with open("logos_db.json", "r", encoding="utf-8") as f:
+                    logos_data = json.load(f)
+            except:
+                logos_data = {}
+
+            removed = []
+            for row in range(table.rowCount()):
+                checkbox_item = table.item(row, 0)
+                name_item = table.item(row, 1)
+                if checkbox_item and checkbox_item.checkState() == Qt.Checked and name_item:
+                    name = name_item.text().strip()
+                    if name in logos_data:
+                        del logos_data[name]
+                        removed.append(name)
+
+            if removed:
+                with open("logos_db.json", "w", encoding="utf-8") as f:
+                    json.dump(logos_data, f, indent=2, ensure_ascii=False)
+                QMessageBox.information(dialog, "בוצע", f"הוסרו {len(removed)} ערוצים.")
+                dialog.close()
+
+        # חיבורים
+        select_all_btn.clicked.connect(select_all)
+        deselect_all_btn.clicked.connect(deselect_all)
+        delete_btn.clicked.connect(delete_selected)
+        close_btn.clicked.connect(dialog.close)
+
+        dialog.exec_()
 
     def onCategorySelected(self, item):
         selected_category = item.text().strip()
@@ -1443,8 +1539,10 @@ class M3UEditor(QWidget):
 
         self.manageLogosButton = QPushButton('ניהול לוגואים', self)
         self.manageLogosButton.setStyleSheet("background-color: black; color: red;")
-        self.manageLogosButton.clicked.connect(self.openLogosManagerDialog)
+        self.manageLogosButton.clicked.connect(self.open_logo_manager)
         buttons_layout.addWidget(self.manageLogosButton)
+
+
 
         # Add the horizontal layout to the vertical layout
         layout.addLayout(buttons_layout)
