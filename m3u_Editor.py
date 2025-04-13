@@ -1045,7 +1045,6 @@ class M3UEditor(QWidget):
         dialog.setWindowTitle("Multi M3U Downloader")
         dialog.setGeometry(100, 100, 600, 500)
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-
         dialog.setStyleSheet("""
             QDialog { border: 5px solid red; background-color: white; }
             QPushButton { font-weight: bold; height: 40px; }
@@ -1061,17 +1060,44 @@ class M3UEditor(QWidget):
         url_input.setPlaceholderText("Example:\nhttp://site1.com/playlist\nhttp://site2.com/playlist")
         layout.addWidget(url_input)
 
-        # 🧠 מעבר שורה אוטומטי + הדבקה חכמה
+        # כפתור טעינת קבצים מקומיים וטעינה מיידית
+        load_files_button = QPushButton("📂 Load M3U Files", dialog)
+        load_files_button.setStyleSheet("background-color: black; color: white;")
+        layout.addWidget(load_files_button)
+
+        def handle_load_local_files():
+            files, _ = QFileDialog.getOpenFileNames(dialog, "Select M3U Files", "",
+                                                    "M3U Files (*.m3u *.m3u8);;All Files (*)")
+            if not files:
+                return
+
+            combined_content = "#EXTM3U\n"
+            for path in files:
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        if content.strip().startswith("#EXTM3U"):
+                            lines = [line for line in content.splitlines() if
+                                     line.strip() and not line.startswith("#EXTM3U")]
+                            combined_content += "\n".join(lines) + "\n"
+                except Exception as e:
+                    QMessageBox.warning(dialog, "File Error", f"❌ Failed to load {path}:\n{str(e)}")
+
+            self.loadM3UFromText(combined_content, append=False)
+            QMessageBox.information(dialog, "Success", "All selected M3U files were loaded into the editor.")
+            dialog.close()
+
+        load_files_button.clicked.connect(handle_load_local_files)
+
+        # הדבקה חכמה + מעבר שורה
         def on_url_text_changed():
             text = url_input.toPlainText()
-
             if "," in text:
                 clean = "\n".join([x.strip() for x in text.split(",") if x.strip()])
                 url_input.blockSignals(True)
                 url_input.setPlainText(clean)
                 url_input.blockSignals(False)
                 return
-
             lines = text.splitlines()
             if lines and not text.endswith("\n"):
                 url_input.blockSignals(True)
@@ -1083,7 +1109,6 @@ class M3UEditor(QWidget):
 
         url_input.textChanged.connect(on_url_text_changed)
 
-        # 📥 תמיכה בגרירת קובץ txt
         url_input.setAcceptDrops(True)
 
         def dragEnterEvent(event):
@@ -1104,20 +1129,23 @@ class M3UEditor(QWidget):
         url_input.dragEnterEvent = dragEnterEvent
         url_input.dropEvent = dropEvent
 
-        # 🔻 כפתורי הורדה וסגירה
-        download_button = QPushButton("Download All", dialog)
-        download_button.setStyleSheet("background-color: red; color: white;")
-        layout.addWidget(download_button)
-
+        # כפתור סגירה
         close_button = QPushButton("Close", dialog)
         close_button.setStyleSheet("background-color: black; color: white;")
         layout.addWidget(close_button)
         close_button.clicked.connect(dialog.close)
 
+        # כפתור הורדת URL מרובים - נשאר למי שרוצה דרך URL
+        download_button = QPushButton("Download All", dialog)
+        download_button.setStyleSheet("background-color: red; color: white;")
+        layout.addWidget(download_button)
+
         def start_batch_download():
-            urls = url_input.toPlainText().strip().splitlines()
+            lines = url_input.toPlainText().strip().splitlines()
+            urls = [line.strip() for line in lines if line.strip() and not line.startswith("#")]
+
             if not urls:
-                QMessageBox.warning(dialog, "Error", "Please enter at least one URL.")
+                QMessageBox.warning(dialog, "Error", "Please enter at least one valid URL or file.")
                 return
 
             merged_content = "#EXTM3U\n"
@@ -1125,23 +1153,18 @@ class M3UEditor(QWidget):
             url_data = []
 
             for url in urls:
-                url = url.strip()
-                if not url or not re.match(r'^https?://', url):
+                if not re.match(r'^https?://', url):
                     continue
-
                 try:
                     response = requests.get(url)
                     response.raise_for_status()
                     content = response.text.strip()
-
                     if not content.startswith("#EXTM3U"):
                         continue
-
                     url_data.append((url, content))
                     merged_content += "\n".join(
                         line for line in content.splitlines() if line.strip() and not line.startswith("#EXTM3U")) + "\n"
                     valid_count += 1
-
                 except Exception as e:
                     print(f"Failed to download: {url} — {e}")
 
@@ -1186,10 +1209,7 @@ class M3UEditor(QWidget):
                 if save_dir:
                     for i, (url, content) in enumerate(url_data):
                         match = re.search(r'username=([a-zA-Z0-9]+)', url)
-                        if match:
-                            file_name = f"{match.group(1)}.m3u"
-                        else:
-                            file_name = f"playlist_{i + 1}.m3u"
+                        file_name = f"{match.group(1)}.m3u" if match else f"playlist_{i + 1}.m3u"
                         file_path = os.path.join(save_dir, file_name)
                         with open(file_path, 'w', encoding='utf-8') as f:
                             f.write(content)
@@ -1229,6 +1249,8 @@ class M3UEditor(QWidget):
         if self.categoryList.count() > 0:
             self.categoryList.setCurrentRow(0)
             self.display_channels(self.categoryList.currentItem())
+
+
 
     def extract_and_save_logos_for_israeli_channels(self, content):
         lines = content.strip().splitlines()
@@ -1607,7 +1629,7 @@ class M3UEditor(QWidget):
         buttons_layout.addWidget(self.directM3UDownloadButton)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
-        self.batchM3UDownloadButton = QPushButton('Multi M3U Downloader', self)
+        self.batchM3UDownloadButton = QPushButton('🔀 Smart M3U Loader', self)
         self.batchM3UDownloadButton.setStyleSheet("background-color: black; color: white;")
         self.batchM3UDownloadButton.clicked.connect(self.openBatchDownloader)
         buttons_layout.addWidget(self.batchM3UDownloadButton)
