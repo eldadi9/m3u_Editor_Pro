@@ -6,7 +6,6 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont, QColor  # Add this line
 import sys
 import os
-LOGO_DB_PATH = "logos_db.json"
 import re
 import traceback
 import pyperclip
@@ -16,28 +15,36 @@ import requests  # You need to import requests to handle downloading
 from urllib.parse import urlparse
 from PyQt5.QtWidgets import QProgressBar
 import xml.etree.ElementTree as ET
+LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_db.json")
+new_logos_counter = 0
+existing_logos_counter = 0
 
 
 def save_logo_for_channel(channel_name, logo_url):
-    if not is_israeli_channel("", channel_name):
-        return  # ⛔ לא ישראלי – לא שומר
+    try:
+        with threading.Lock():  # ננעל את הגישה במקרה של ריבוי תהליכים
+            # טען את המסד אם קיים
+            if os.path.exists(LOGO_DB_PATH):
+                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                    logos_db = json.load(f)
+            else:
+                logos_db = {}
 
-    if not os.path.exists(LOGO_DB_PATH):
-        data = {}
-    else:
-        try:
-            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            data = {}
+            if channel_name not in logos_db:
+                logos_db[channel_name] = logo_url
 
-    data.setdefault(channel_name, [])
-    if logo_url and logo_url not in data[channel_name]:
-        data[channel_name].append(logo_url)
+                # כתיבה לקובץ זמני ואז העתקה למקור
+                temp_path = LOGO_DB_PATH + ".tmp"
+                with open(temp_path, "w", encoding="utf-8") as f:
+                    json.dump(logos_db, f, indent=2, ensure_ascii=False)
+                os.replace(temp_path, LOGO_DB_PATH)
 
-    with open(LOGO_DB_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    print(f"[LOGO] Saved logo for {channel_name}: {logo_url}")
+                print(f"[LOGO] ✅ IL: {channel_name} | {logo_url}")
+            else:
+                print(f"[LOGO] ⚠️ Already exists: {channel_name}")
+
+    except Exception as e:
+        print(f"[LOGO ERROR] Failed to save logo for {channel_name}: {e}")
 
 
 def get_saved_logo(channel_name):
