@@ -231,6 +231,11 @@ class M3UUrlConverterDialog(QDialog):
         self.usernameInput = QLineEdit(self)
         self.passwordInput = QLineEdit(self)
 
+        # ⏩ מעבר אוטומטי לשדה הבא בלחיצה על Enter
+        self.hostInput.returnPressed.connect(lambda: self.usernameInput.setFocus())
+        self.usernameInput.returnPressed.connect(lambda: self.passwordInput.setFocus())
+        self.passwordInput.returnPressed.connect(lambda: self.convertButton.setFocus())
+
         # Convert button
         self.convertButton = QPushButton("Convert to M3U URL", self)
         self.convertButton.setStyleSheet("background-color: black; color: white; font-weight: bold;")
@@ -284,26 +289,38 @@ class M3UUrlConverterDialog(QDialog):
 
     def downloadM3U(self):
         try:
-            response = requests.get(self.m3uURL)
-            response.raise_for_status()  # Raises stored HTTPError, if one occurred
+            if not hasattr(self, 'm3uURL') or not self.m3uURL:
+                QMessageBox.warning(self, "Missing URL", "Please generate a valid M3U URL first.")
+                return
 
+            # Headers חשובים – יש שרתים שלא עובדים בלי User-Agent
+            headers = {
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "*/*"
+            }
 
+            response = requests.get(self.m3uURL, headers=headers, timeout=10)
+            response.raise_for_status()  # מרים שגיאה אם הקובץ לא ירד תקין
 
-            # Prompt to save file
+            # בדיקת תוכן
+            content = response.text.strip()
+            if not content.startswith("#EXTM3U"):
+                QMessageBox.critical(self, "Invalid File", "Downloaded file is not a valid M3U playlist.")
+                return
+
+            # בחירת מיקום שמירה
             options = QFileDialog.Options()
-            fileName, _ = QFileDialog.getSaveFileName(self,
-                                                      "Save M3U File",
-                                                      "",
-                                                      "M3U Files (*.m3u);;All Files (*)",
-                                                      options=options)
+            fileName, _ = QFileDialog.getSaveFileName(
+                self, "Save M3U File", "playlist.m3u",
+                "M3U Files (*.m3u);;All Files (*)", options=options
+            )
             if fileName:
-                with open(fileName, 'wb') as f:
-                    f.write(response.content)
-                QMessageBox.information(self, "Download Successful", "The M3U file has been downloaded successfully.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to download M3U file: {str(e)}")
-            pass
+                with open(fileName, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                QMessageBox.information(self, "Success", "The M3U file has been downloaded successfully.")
 
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to download M3U file:\n\n{str(e)}")
 
 
 class SmartScanDialog(QDialog):
@@ -1037,21 +1054,33 @@ class M3UEditor(QWidget):
         url_input.setPlaceholderText("Example:\nhttp://site1.com/playlist\nhttp://site2.com/playlist")
         layout.addWidget(url_input)
 
-        # ➕ כפתור הוספת שורה חדשה
+        # ➕ כפתור הוספת שורת כתובת לדוגמה
         add_url_button = QPushButton("➕ Add URL", dialog)
         add_url_button.setStyleSheet("background-color: green; color: white;")
         layout.addWidget(add_url_button)
 
+        # מונה אוטומטי לכתובות לדוגמה
+        add_url_counter = [1]
+
         def add_blank_line():
-            url_input.append("")  # שורה ריקה
+            try:
+                text = url_input.toPlainText()
+                text += f"http://your-url.com/playlist{add_url_counter[0]}\n"
+                add_url_counter[0] += 1
+                url_input.setPlainText(text)
+                url_input.setFocus()
 
-        add_url_button.clicked.connect(add_blank_line)
+                # הזזת הסמן לסוף
+                cursor = url_input.textCursor()
+                cursor.movePosition(cursor.End)
+                url_input.setTextCursor(cursor)
 
-        # 🪄 מעבר שורה אוטומטי + הדבקה חכמה
+            except Exception as e:
+                QMessageBox.critical(dialog, "Error", f"Unexpected error:\n{str(e)}")
+
         def on_url_text_changed():
             text = url_input.toPlainText()
 
-            # 🧠 מפרק פסיקים לשורות
             if "," in text:
                 clean = "\n".join([x.strip() for x in text.split(",") if x.strip()])
                 url_input.blockSignals(True)
@@ -1059,7 +1088,6 @@ class M3UEditor(QWidget):
                 url_input.blockSignals(False)
                 return
 
-            # 🪄 הוספת שורה חדשה אם לא מסתיימת ב-Enter
             lines = text.splitlines()
             if lines and not text.endswith("\n"):
                 url_input.blockSignals(True)
@@ -1102,7 +1130,7 @@ class M3UEditor(QWidget):
         layout.addWidget(close_button)
         close_button.clicked.connect(dialog.close)
 
-        # פעולה ללחיצת כפתור הורדה
+        # פעולה ללחיצה על "Download All"
         def start_batch_download():
             urls = url_input.toPlainText().strip().splitlines()
             if not urls:
@@ -1188,8 +1216,6 @@ class M3UEditor(QWidget):
 
         download_button.clicked.connect(start_batch_download)
         dialog.exec_()
-
-
 
     def loadM3UFromText(self, content, append=False):
         """
