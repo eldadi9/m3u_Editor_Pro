@@ -30,21 +30,34 @@ def save_logo_for_channel(channel_name, logo_url):
             else:
                 logos_db = {}
 
+            # ודא שהערוץ נמצא ושהערך הוא רשימה
             if channel_name not in logos_db:
-                logos_db[channel_name] = logo_url
+                logos_db[channel_name] = [logo_url]
+                added = True
+            else:
+                existing_logos = logos_db[channel_name]
+                if isinstance(existing_logos, str):
+                    existing_logos = [existing_logos]
+                if logo_url not in existing_logos:
+                    existing_logos.append(logo_url)
+                    logos_db[channel_name] = existing_logos
+                    added = True
+                else:
+                    added = False
 
-                # כתיבה לקובץ זמני ואז העתקה למקור
+            if added:
+                # כתיבה לקובץ זמני ואז העתקה לקובץ המקורי
                 temp_path = LOGO_DB_PATH + ".tmp"
                 with open(temp_path, "w", encoding="utf-8") as f:
                     json.dump(logos_db, f, indent=2, ensure_ascii=False)
                 os.replace(temp_path, LOGO_DB_PATH)
-
                 print(f"[LOGO] ✅ IL: {channel_name} | {logo_url}")
             else:
-                print(f"[LOGO] ⚠️ Already exists: {channel_name}")
+                print(f"[LOGO] ⚠️ Already exists: {channel_name} | {logo_url}")
 
     except Exception as e:
         print(f"[LOGO ERROR] Failed to save logo for {channel_name}: {e}")
+
 
 
 def get_saved_logo(channel_name):
@@ -54,20 +67,35 @@ def get_saved_logo(channel_name):
     try:
         with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return data.get(channel_name, [None])[0]
+        logo = data.get(channel_name)
+
+        # תמיכה בלוגו ישן (מחרוזת) או חדש (רשימה)
+        if isinstance(logo, list):
+            return logo[0] if logo else None
+        elif isinstance(logo, str):
+            return logo
+        else:
+            return None
+
     except Exception as e:
         print(f"[ERROR] Error loading logo DB: {e}")
         return None
 
 
+
 def inject_logo(line, channel_name):
+    """
+    Injects saved logo into a #EXTINF line if missing.
+    """
     if 'tvg-logo="' in line:
-        return line  # כבר קיים
+        return line  # יש כבר לוגו – לא מוסיפים
 
     logo = get_saved_logo(channel_name)
-    if logo:
+    if logo and isinstance(logo, str) and logo.startswith("http"):
+        # הכנס את הלוגו למבנה של EXTINF
         return line.replace("#EXTINF:-1", f'#EXTINF:-1 tvg-logo="{logo}"')
     return line
+
 
 def save_israeli_logos_background(self, parsed_channels):
     for channel_name, category, line in parsed_channels:
@@ -950,24 +978,14 @@ class M3UEditor(QWidget):
         # Ensure everything is added to main_layout
         self.setLayout(main_layout)
 
-
-
-    def load_logo_cache(self):
+    def load_logos_once(self):
+        self.logo_cache = {}
         if os.path.exists(LOGO_DB_PATH):
             with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
                 self.logo_cache = json.load(f)
-        else:
-            self.logo_cache = {}
 
     def get_saved_logo(self, channel_name):
         return self.logo_cache.get(channel_name)
-
-    def save_logo_for_channel(self, channel_name, logo_url):
-        if channel_name not in self.logo_cache:
-            self.logo_cache[channel_name] = logo_url
-            # עדכן את הקובץ פעם אחת בלבד בסיום או בשמירה
-            with open(LOGO_DB_PATH, "w", encoding="utf-8") as f:
-                json.dump(self.logo_cache, f, indent=2, ensure_ascii=False)
 
     def openM3UConverterDialog(self):
         dialog = M3UUrlConverterDialog(self)
@@ -1243,10 +1261,18 @@ class M3UEditor(QWidget):
         if not append:
             self.categories.clear()
 
-        self.load_logos_once()  # ← קריאה חדשה
+        self.load_logos_once()  # ← פונקציית הכנה פנימית אם יש
+
         self.parseM3UContentEnhanced(content)
 
+        # סריקת לוגואים לערוצים ישראליים – רק אם לא בוצעה בעבר
         if not hasattr(self, 'logos_loaded') or not self.logos_loaded:
+            try:
+                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                    logo_db = json.load(f)
+            except:
+                logo_db = {}
+
             for category, channels in self.categories.items():
                 for channel in channels:
                     name = channel.split(" (")[0].strip()
@@ -1254,8 +1280,16 @@ class M3UEditor(QWidget):
                         match = re.search(r'tvg-logo="([^"]+)"', channel)
                         if match:
                             logo_url = match.group(1)
-                            save_logo_for_channel(name, logo_url)
-            self.logos_loaded = True
+
+                            # בדיקה אם כבר קיים במסד הנתונים
+                            existing = logo_db.get(name, [])
+                            if isinstance(existing, str):
+                                existing = [existing]
+
+                            if logo_url not in existing:
+                                save_logo_for_channel(name, logo_url)
+
+            self.logos_loaded = True  # מונע סריקה חוזרת
 
         self.updateCategoryList()
 
@@ -1266,6 +1300,14 @@ class M3UEditor(QWidget):
     def extract_and_save_logos_for_israeli_channels(self, content):
         lines = content.strip().splitlines()
 
+        try:
+            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                logo_db = json.load(f)
+        except:
+            logo_db = {}
+
+        seen = set()
+
         for i in range(len(lines)):
             line = lines[i]
             if line.startswith("#EXTINF:"):
@@ -1273,17 +1315,24 @@ class M3UEditor(QWidget):
                 name_match = re.search(r",(.+)", line)
                 channel_name = name_match.group(1).strip() if name_match else ""
 
-                # הוצאת הקטגוריה
+                # הוצאת קטגוריה
                 group_match = re.search(r'group-title="([^"]+)"', line)
                 category = group_match.group(1).strip() if group_match else ""
 
-                # סינון ערוצים ישראליים בלבד
                 if is_israeli_channel(category, channel_name):
                     logo_match = re.search(r'tvg-logo="([^"]+)"', line)
                     if logo_match:
                         logo_url = logo_match.group(1).strip()
-                        save_logo_for_channel(channel_name, logo_url)  # שומר רק פעם אחת
-                        print(f"[LOGO] ✅ {channel_name} | {logo_url}")
+
+                        # לא לשמור שוב אם כבר קיים
+                        existing = logo_db.get(channel_name, [])
+                        if isinstance(existing, str):
+                            existing = [existing]
+
+                        if logo_url not in existing and (channel_name, logo_url) not in seen:
+                            save_logo_for_channel(channel_name, logo_url)
+                            seen.add((channel_name, logo_url))
+                            print(f"[LOGO] ✅ {channel_name} | {logo_url}")
 
     def open_logo_manager(self):
         dialog = QDialog(self)
@@ -1315,13 +1364,15 @@ class M3UEditor(QWidget):
         table.setHorizontalHeaderLabels(["✔", "שם ערוץ", "לוגו (URL)"])
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         table.setSortingEnabled(True)
-
         layout.addWidget(table)
 
+        # ✅ רענון נתונים לטבלה
         def load_table_data():
             table.setRowCount(0)
+            seen = set()  # לא להציג כפולים
+
             try:
-                with open("logos_db.json", "r", encoding="utf-8") as f:
+                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
                     data = json.load(f)
             except:
                 data = {}
@@ -1329,7 +1380,13 @@ class M3UEditor(QWidget):
             row = 0
             for name, logos in data.items():
                 if is_israeli_channel("", name):
+                    # ודא שהערך הוא תמיד רשימה
+                    if isinstance(logos, str):
+                        logos = [logos]
                     for logo in logos:
+                        if (name, logo) in seen:
+                            continue
+                        seen.add((name, logo))
                         table.insertRow(row)
                         checkbox_item = QTableWidgetItem()
                         checkbox_item.setCheckState(Qt.Unchecked)
@@ -1338,13 +1395,13 @@ class M3UEditor(QWidget):
                         table.setItem(row, 2, QTableWidgetItem(logo))
                         row += 1
 
-        load_table_data()
+        load_table_data()  # טען פעם ראשונה
 
         def filter_table():
             text = search_box.text().lower()
             for row in range(table.rowCount()):
                 show = False
-                for col in range(1, 3):
+                for col in range(1, 3):  # שם ולוגו
                     item = table.item(row, col)
                     if item and text in item.text().lower():
                         show = True
@@ -1402,25 +1459,39 @@ class M3UEditor(QWidget):
 
         def delete_selected():
             try:
-                with open("logos_db.json", "r", encoding="utf-8") as f:
+                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
                     logos_data = json.load(f)
             except:
                 logos_data = {}
 
-            removed = []
+            to_remove = {}  # name → [logos to remove]
+
             for row in range(table.rowCount()):
                 checkbox_item = table.item(row, 0)
                 name_item = table.item(row, 1)
-                if checkbox_item and checkbox_item.checkState() == Qt.Checked and name_item:
+                logo_item = table.item(row, 2)
+                if checkbox_item and checkbox_item.checkState() == Qt.Checked:
                     name = name_item.text().strip()
-                    if name in logos_data:
-                        del logos_data[name]
-                        removed.append(name)
+                    logo = logo_item.text().strip()
+                    to_remove.setdefault(name, []).append(logo)
 
-            if removed:
-                with open("logos_db.json", "w", encoding="utf-8") as f:
+            removed_count = 0
+            for name, logos_to_remove in to_remove.items():
+                if name in logos_data:
+                    existing = logos_data[name]
+                    if isinstance(existing, str):
+                        existing = [existing]
+                    updated = [logo for logo in existing if logo not in logos_to_remove]
+                    if updated:
+                        logos_data[name] = updated
+                    else:
+                        del logos_data[name]
+                    removed_count += len(logos_to_remove)
+
+            if removed_count > 0:
+                with open(LOGO_DB_PATH, "w", encoding="utf-8") as f:
                     json.dump(logos_data, f, indent=2, ensure_ascii=False)
-                QMessageBox.information(dialog, "בוצע", f"הוסרו {len(removed)} ערוצים.")
+                QMessageBox.information(dialog, "בוצע", f"הוסרו {removed_count} פריטים.")
                 load_table_data()
 
         select_all_btn.clicked.connect(select_all)
@@ -2049,24 +2120,19 @@ class M3UEditor(QWidget):
             self.regenerateM3UTextOnly()
 
     def regenerateM3UTextOnly(self):
-        if not hasattr(self, 'logo_cache'):
-            self.load_logo_cache()  # ← לוודא שה-cache נטען
-
         updated_lines = ["#EXTM3U"]
-
         for category, channels in self.categories.items():
             for channel in channels:
-                parts = channel.split(" (", 1)
-                if len(parts) < 2:
-                    continue
-                name, url = parts
-                url = url.strip(") \n")
-
-                name = name.strip()
-                if not name:
+                try:
+                    name, url = channel.split(" (", 1)
+                    name = name.strip()
+                    url = url.strip(") \n")
+                except:
                     continue
 
-                logo_url = self.logo_cache.get(name, "")
+                # שימוש בלוגו שמור בלבד
+                logo_url = get_saved_logo(name)
+
                 if logo_url:
                     extinf = f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{category}",{name}'
                 else:
@@ -2074,35 +2140,16 @@ class M3UEditor(QWidget):
 
                 updated_lines.append(f"{extinf}\n{url}")
 
-        # החלף את העדכון כאן (בדיוק כמו למטה)
-        try:
-            full_text = "\n".join(updated_lines)
-            self.textEdit.setUpdatesEnabled(False)
-            self.textEdit.setPlainText(full_text)
-            self.textEdit.setUpdatesEnabled(True)
-        except Exception as e:
-            print("[ERROR]", e)
-            QMessageBox.critical(self, "שגיאת עדכון", f"שגיאה בעדכון טקסט: {e}")
-
-        print("[LOG] 🚀 עדכון M3U (מהיר, cache בלבד)")
+        self.textEdit.setPlainText("\n".join(updated_lines))
+        print("[LOG] 🔄 עדכון M3U - (בלי סריקת לוגואים) הסתיים")
 
     def refreshCategoryListOnly(self, selected_index=None):
-        # חסימת עדכון GUI
-        self.categoryList.setUpdatesEnabled(False)
-
         self.categoryList.clear()
-
-        # בניית רשימה של כל הקטגוריות בבת אחת
-        items = [f"{category} ({len(channels)})" for category, channels in self.categories.items()]
-        self.categoryList.addItems(items)
-
-        # הפשרת GUI
-        self.categoryList.setUpdatesEnabled(True)
-
+        for category in self.categories:
+            channel_count = len(self.categories[category])
+            self.categoryList.addItem(f"{category} ({channel_count})")
         if selected_index is not None:
             self.categoryList.setCurrentRow(selected_index)
-
-        print("[LOG] 🚀 רענון רשימת קטגוריות (מהיר)")
 
     def selectAllCategories(self):
         """Select all categories in the list."""
@@ -2163,12 +2210,15 @@ class M3UEditor(QWidget):
                 deleted_count += 1
 
         # Update the UI and M3U content
-        self.regenerateM3UTextOnly()
+        self.updateM3UContent()
         self.display_channels(self.categoryList.currentItem())
 
         QMessageBox.information(self, "Success", f"Deleted {deleted_count} channel(s).")
 
-    def updateM3UContent(self, skip_logos=True):
+    def updateM3UContent(self):
+        # אם קיימת ההגדרה skip_logo_scan – דלג על שמירת לוגואים
+        skip_logos = hasattr(self, 'skip_logo_scan') and self.skip_logo_scan
+
         updated_lines = ["#EXTM3U"]
         for category, channels in self.categories.items():
             for channel in channels:
@@ -2181,7 +2231,7 @@ class M3UEditor(QWidget):
 
                 logo_url = ""
 
-                # שלוף לוגואים רק אם לא מדלגים
+                # רק אם לא מדלגים – שלוף לוגו או שמור
                 if not skip_logos:
                     match = re.search(r'tvg-logo="([^"]+)"', channel)
                     if match:
@@ -2190,7 +2240,7 @@ class M3UEditor(QWidget):
                     else:
                         logo_url = get_saved_logo(name)
                 else:
-                    # במצב דילוג, נשלוף מהזיכרון בלבד
+                    # גם אם מדלגים – תביא מהזיכרון לוגו קיים בלבד
                     logo_url = get_saved_logo(name)
 
                 if logo_url:
@@ -2200,15 +2250,12 @@ class M3UEditor(QWidget):
 
                 updated_lines.append(f"{extinf}\n{url}")
 
-        # עצור עדכוני GUI בזמן ההחלפה
-        self.textEdit.setUpdatesEnabled(False)
         self.textEdit.setPlainText("\n".join(updated_lines))
-        self.textEdit.setUpdatesEnabled(True)
 
         if skip_logos:
-            print("[LOG] 🔄 עדכון M3U מהיר (בלי סריקת לוגואים)")
+            print("[LOG] 🔄 עדכון M3U - הסתריים (בלי סריקת לוגואים)")
         else:
-            print("[LOG] 🔄 עדכון M3U מלא (עם סריקת לוגואים)")
+            print("[LOG] 🔄 עדכון M3U - כולל סריקת לוגואים")
 
     def getCategoryName(self, channel):
         """
@@ -2242,7 +2289,7 @@ class M3UEditor(QWidget):
         channels[current_row], channels[current_row - 1] = channels[current_row - 1], channels[current_row]
 
         self.categories[current_category] = channels
-        self.updateM3UContent()
+        self.regenerateM3UTextOnly()
 
     def moveChannelDown(self):
         current_row = self.channelList.currentRow()
@@ -2262,7 +2309,7 @@ class M3UEditor(QWidget):
         channels[current_row], channels[current_row + 1] = channels[current_row + 1], channels[current_row]
 
         self.categories[current_category] = channels
-        self.updateM3UContent()
+        self.regenerateM3UTextOnly()
 
     def saveToFile(self, file_path):
         content = self.textEdit.toPlainText()
@@ -2337,7 +2384,7 @@ class M3UEditor(QWidget):
             self.categories[target_category].extend(moved_channels)
 
             # Update the M3U content to reflect the changes
-            self.regenerateM3UTextOnly()
+            self.updateM3UContent()
 
             # Refresh the UI
             self.updateCategoryList()  # Update category list counts
