@@ -83,18 +83,52 @@ def get_saved_logo(channel_name):
 
 
 
-def inject_logo(line, channel_name):
+def inject_logo(line, channel_name, logo_db=None):
     """
     Injects saved logo into a #EXTINF line if missing.
+    logo_db - optional dictionary to speed up repeated calls
     """
     if 'tvg-logo="' in line:
-        return line  # יש כבר לוגו – לא מוסיפים
+        return line
 
-    logo = get_saved_logo(channel_name)
+    if logo_db is None:
+        logo = get_saved_logo(channel_name)
+    else:
+        logo = logo_db.get(channel_name)
+        if isinstance(logo, list):
+            logo = logo[0] if logo else None
+        elif not isinstance(logo, str):
+            logo = None
+
     if logo and isinstance(logo, str) and logo.startswith("http"):
-        # הכנס את הלוגו למבנה של EXTINF
         return line.replace("#EXTINF:-1", f'#EXTINF:-1 tvg-logo="{logo}"')
     return line
+
+    with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+        logo_db = json.load(f)
+
+    for line in m3u_lines:
+        new_line = inject_logo(line, channel_name, logo_db)
+
+def exportM3UWithLogos(self, output_path):
+    try:
+        with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+            logo_db = json.load(f)
+    except:
+        logo_db = {}
+
+    with open(output_path, "w", encoding="utf-8") as out:
+        for category, channels in self.categories.items():
+            for channel in channels:
+                # נניח channel זה EXTINF + URL
+                extinf_line, url_line = channel.splitlines()
+
+                name = channel.split(" (")[0].strip()
+                extinf_with_logo = inject_logo(extinf_line, name, logo_db)
+
+                out.write(extinf_with_logo + "\n")
+                out.write(url_line.strip() + "\n")
+
 
 
 def save_israeli_logos_background(self, parsed_channels):
