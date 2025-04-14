@@ -1,210 +1,270 @@
 {
   "IL: Aruch Sdarot Hahodiot": [
-    "http://troya.info/images/chIcons/2934.png"
-  ],
-  "IL: Aruch Sdarot Hahodiot 2": [
+    "http://troya.info/images/chIcons/2934.png",
     "http://troya.info/images/chIcons/2935.png"
   ],
-  "IL: Animal Planet HD": [
+  "IL: Aruch Sdarot Hahodiot 2": [
+    "http://troya.info/images/chIcons/2935.png",
     "http://troya.info/images/chIcons/2624.png"
   ],
+  "IL: Animal Planet HD": [
+    "http://troya.info/images/chIcons/2624.png",
+    "http://troya.info/images/chIcons/2616.png"
+  ],
   "IL: Big": [
-    "http://troya.info/images/chIcons/2032.png"
+    "http://troya.info/images/chIcons/2032.png",
+    "http://troya.info/images/chIcons/1118.png",
+    "http://troya.info/images/chIcons/1142.png"
   ],
   "IL: Baby TV": [
-    "http://troya.info/images/chIcons/1118.png"
+    "http://troya.info/images/chIcons/1118.png",
+    "http://troya.info/images/chIcons/2499.png"
   ],
   "Il: Bollywood HD": [
-    "http://troya.info/images/chIcons/2616.png"
+    "http://troya.info/images/chIcons/2616.png",
+    "http://troya.info/images/chIcons/427.png"
   ],
   "IL: Channel 9": [
     "http://troya.info/images/chIcons/427.png"
   ],
   "IL: Channel 11": [
-    "http://troya.info/images/chIcons/428.png"
+    "http://troya.info/images/chIcons/428.png",
+    "http://troya.info/images/chIcons/429.png"
   ],
   "IL: Channel 12": [
     "http://troya.info/images/chIcons/429.png"
   ],
   "IL: Channel 13": [
-    "http://troya.info/images/chIcons/430.png"
+    "http://troya.info/images/chIcons/430.png",
+    "http://troya.info/images/chIcons/1119.png"
   ],
   "IL: Channel 14": [
     "http://troya.info/images/chIcons/1119.png"
   ],
   "IL: Channel 24": [
-    "http://troya.info/images/chIcons/1142.png"
+    "http://troya.info/images/chIcons/1142.png",
+    "http://troya.info/images/chIcons/2499.png"
   ],
   "IL: Cellcom Israel": [
     "http://troya.info/images/chIcons/2499.png"
   ],
   "IL: Cellcom Rus": [
-    "http://troya.info/images/chIcons/2494.png"
+    "http://troya.info/images/chIcons/2494.png",
+    "http://troya.info/images/chIcons/2495.png"
   ],
   "IL: Cellcom Sratim": [
     "http://troya.info/images/chIcons/2495.png"
   ],
   "IL: Cellcom Yeladim": [
-    "http://troya.info/images/chIcons/1194.png"
-  ],
-  "IL: Cellcom HBO HD": [
-    "http://troya.info/images/chIcons/2639.png"
-  ],
-  "IL: Cellcom Doco HD": [
-    "http://troya.info/images/chIcons/2640.png"
-  ],
-  "IL: CBS Reality": [
-    "http://troya.info/images/chIcons/2628.png"
-  ],
-  "IL: Discovery Channel HD": [
+    "http://troya.info/images/chIcons/1194.png",
+    "http://troya.info/images/chIcons/2639.png",
     "http://troya.info/images/chIcons/1120.png"
   ],
-  "IL: Disney Channel HD": [
+  "IL: Cellcom HBO HD": [
+    "http://troya.info/images/chIcons/2639.png",
+    "http://troya.info/images/chIcons/2640.png"
+  ],
+  "IL: Cellcom Doco HD": [
+    "http://troya.info/images/chIcons/2640.png",
+    "http://troya.info/images/chIcons/2628.png"
+  ],
+  "IL: CBS Reality": [
+    "http://troya.info/images/chIcons/2628.png",
+    "http://troya.info/images/chIcons/2615.png"
+  ],
+  "IL: Discovery Channel HD": [
+    "http://troya.info/images/chIcons/1120.png",
     "http://troya.info/images/chIcons/1121.png"
   ],
-  "IL: Disney Jr.": [
+  "IL: Disney Channel HD": [
+    "http://troya.info/images/chIcons/1121.png",
     "http://troya.info/images/chIcons/1162.png"
   ],
-  "IL: E!": [
+  "IL: Disney Jr.": [
+    "http://troya.info/images/chIcons/1162.png",
     "http://troya.info/images/chIcons/1122.png"
   ],
-  "IL: Ego Total": [
+  "IL: E!": [
+    "http://troya.info/images/chIcons/1122.png",
     "http://troya.info/images/chIcons/2498.png"
   ],
-  "IL: Eurosport 1 HD": [
+  "IL: Ego Total": [
+    "http://troya.info/images/chIcons/2498.png",
     "http://troya.info/images/chIcons/2496.png"
   ],
-  "IL: Eurosport 2 HD": [
+  "IL: Eurosport 1 HD": [
+    "http://troya.info/images/chIcons/2496.png",
     "http://troya.info/images/chIcons/2497.png"
+  ],
+  "IL: Eurosport 2 HD": [
+    "http://troya.info/images/chIcons/2497.png",
+    "http://troya.info/images/chIcons/2615.png"
   ],
   "IL: Extreme Sports": [
     "http://troya.info/images/chIcons/2615.png"
   ],
   "IL: Edge Sport HD": [
-    "http://troya.info/images/chIcons/2629.png"
+    "http://troya.info/images/chIcons/2629.png",
+    "http://troya.info/images/chIcons/2544.png"
   ],
   "IL: Erez Nehederet HD": [
     "http://troya.info/images/chIcons/2544.png"
   ],
   "IL: Free Tv Drama HD": [
-    "http://troya.info/images/chIcons/2539.png"
+    "http://troya.info/images/chIcons/2539.png",
+    "http://troya.info/images/chIcons/2540.png"
   ],
   "IL: Free Tv Comedy HD": [
     "http://troya.info/images/chIcons/2540.png"
   ],
   "IL: Free Tv Lifestyle HD": [
-    "http://troya.info/images/chIcons/2541.png"
+    "http://troya.info/images/chIcons/2541.png",
+    "http://troya.info/images/chIcons/2542.png"
   ],
   "IL: Free Tv Cooking HD": [
     "http://troya.info/images/chIcons/2542.png"
   ],
   "IL: Free Tv Doco HD": [
-    "http://troya.info/images/chIcons/2543.png"
-  ],
-  "IL: Free Tv Hatuna HD": [
-    "http://troya.info/images/chIcons/1183.png"
-  ],
-  "IL: Free Tv Karaoke HD": [
-    "http://troya.info/images/chIcons/2086.png"
-  ],
-  "IL: Free Tv Kohav Haba HD": [
-    "http://troya.info/images/chIcons/2087.png"
-  ],
-  "IL: Free Tv Feel Good": [
+    "http://troya.info/images/chIcons/2543.png",
+    "http://troya.info/images/chIcons/1183.png",
     "http://troya.info/images/chIcons/3036.png"
   ],
-  "IL: Free Series Global HD": [
+  "IL: Free Tv Hatuna HD": [
+    "http://troya.info/images/chIcons/1183.png",
+    "http://troya.info/images/chIcons/1129.png"
+  ],
+  "IL: Free Tv Karaoke HD": [
+    "http://troya.info/images/chIcons/2086.png",
+    "http://troya.info/images/chIcons/2087.png",
+    "http://troya.info/images/chIcons/1130.png"
+  ],
+  "IL: Free Tv Kohav Haba HD": [
+    "http://troya.info/images/chIcons/2087.png",
+    "http://troya.info/images/chIcons/1131.png"
+  ],
+  "IL: Free Tv Feel Good": [
+    "http://troya.info/images/chIcons/3036.png",
     "http://troya.info/images/chIcons/2533.png"
   ],
-  "IL: Free Movies Action HD": [
+  "IL: Free Series Global HD": [
+    "http://troya.info/images/chIcons/2533.png",
     "http://troya.info/images/chIcons/2537.png"
   ],
-  "IL: Free Movies Comedy HD": [
+  "IL: Free Movies Action HD": [
+    "http://troya.info/images/chIcons/2537.png",
     "http://troya.info/images/chIcons/1193.png"
   ],
+  "IL: Free Movies Comedy HD": [
+    "http://troya.info/images/chIcons/1193.png",
+    "http://troya.info/images/chIcons/1124.png"
+  ],
   "IL: Free Movies Drama HD": [
-    "http://troya.info/images/chIcons/2534.png"
+    "http://troya.info/images/chIcons/2534.png",
+    "http://troya.info/images/chIcons/2535.png"
   ],
   "IL: Free Movies Horror HD": [
     "http://troya.info/images/chIcons/2535.png"
   ],
   "IL: Free Movies Romantic HD": [
-    "http://troya.info/images/chIcons/2536.png"
+    "http://troya.info/images/chIcons/2536.png",
+    "http://troya.info/images/chIcons/2538.png"
   ],
   "IL: Free Israeli Movies HD": [
     "http://troya.info/images/chIcons/2538.png"
   ],
   "IL: Free Movies Family HD": [
-    "http://troya.info/images/chIcons/2617.png"
+    "http://troya.info/images/chIcons/2617.png",
+    "http://troya.info/images/chIcons/1124.png",
+    "http://troya.info/images/chIcons/2630.png"
   ],
   "IL: Food Channel HD": [
     "http://troya.info/images/chIcons/1124.png"
   ],
   "IL: Foody HD": [
-    "http://troya.info/images/chIcons/2630.png"
-  ],
-  "IL: Fomo": [
+    "http://troya.info/images/chIcons/2630.png",
     "http://troya.info/images/chIcons/2627.png"
   ],
-  "IL: Fashion": [
+  "IL: Fomo": [
+    "http://troya.info/images/chIcons/2627.png",
     "http://troya.info/images/chIcons/2642.png"
   ],
-  "IL: Good Life TV HD": [
+  "IL: Fashion": [
+    "http://troya.info/images/chIcons/2642.png",
     "http://troya.info/images/chIcons/1141.png"
   ],
-  "IL: Hop": [
+  "IL: Good Life TV HD": [
+    "http://troya.info/images/chIcons/1141.png",
     "http://troya.info/images/chIcons/1154.png"
   ],
-  "IL: Hop Israeli Childhood": [
+  "IL: Hop": [
+    "http://troya.info/images/chIcons/1154.png",
     "http://troya.info/images/chIcons/2138.png"
   ],
-  "IL: Hop Pele HD": [
+  "IL: Hop Israeli Childhood": [
+    "http://troya.info/images/chIcons/2138.png",
     "http://troya.info/images/chIcons/2003.png"
   ],
-  "IL: History HD": [
+  "IL: Hop Pele HD": [
+    "http://troya.info/images/chIcons/2003.png",
     "http://troya.info/images/chIcons/1143.png"
   ],
+  "IL: History HD": [
+    "http://troya.info/images/chIcons/1143.png",
+    "http://troya.info/images/chIcons/1167.png"
+  ],
   "IL: Health Channel HD": [
-    "http://troya.info/images/chIcons/1176.png"
+    "http://troya.info/images/chIcons/1176.png",
+    "http://troya.info/images/chIcons/1178.png"
   ],
   "IL: Humor Channel": [
     "http://troya.info/images/chIcons/1178.png"
   ],
   "IL: i24 News": [
-    "http://troya.info/images/chIcons/2824.png"
+    "http://troya.info/images/chIcons/2824.png",
+    "http://troya.info/images/chIcons/1161.png",
+    "http://troya.info/images/chIcons/2633.png"
   ],
   "IL: HOT Cinema 1 HD": [
-    "http://troya.info/images/chIcons/1161.png"
+    "http://troya.info/images/chIcons/1161.png",
+    "http://troya.info/images/chIcons/1172.png"
   ],
   "IL: HOT Cinema 1 HD (ru)": [
     "http://troya.info/images/chIcons/2633.png"
   ],
   "IL: HOT Cinema 2 HD": [
-    "http://troya.info/images/chIcons/1172.png"
+    "http://troya.info/images/chIcons/1172.png",
+    "http://troya.info/images/chIcons/1140.png",
+    "http://troya.info/images/chIcons/2635.png"
   ],
   "IL: HOT Cinema 2 HD (ru)": [
     "http://troya.info/images/chIcons/2634.png"
   ],
   "IL: HOT Cinema 3 HD": [
-    "http://troya.info/images/chIcons/1140.png"
+    "http://troya.info/images/chIcons/1140.png",
+    "http://troya.info/images/chIcons/1192.png"
   ],
   "IL: HOT Cinema 3 HD (ru)": [
     "http://troya.info/images/chIcons/2635.png"
   ],
   "IL: HOT Cinema 4 HD": [
-    "http://troya.info/images/chIcons/1192.png"
+    "http://troya.info/images/chIcons/1192.png",
+    "http://troya.info/images/chIcons/1133.png",
+    "http://troya.info/images/chIcons/2638.png"
   ],
   "IL: HOT Cinema 4 HD (ru)": [
     "http://troya.info/images/chIcons/2636.png"
   ],
   "IL: HOT Cinema Israeli HD": [
-    "http://troya.info/images/chIcons/1133.png"
-  ],
-  "IL: HOT Cinema Family HD": [
+    "http://troya.info/images/chIcons/1133.png",
     "http://troya.info/images/chIcons/1153.png"
   ],
-  "IL: HOT Zone HD": [
+  "IL: HOT Cinema Family HD": [
+    "http://troya.info/images/chIcons/1153.png",
     "http://troya.info/images/chIcons/1139.png"
+  ],
+  "IL: HOT Zone HD": [
+    "http://troya.info/images/chIcons/1139.png",
+    "http://troya.info/images/chIcons/1147.png"
   ],
   "IL: HOT Zone HD (ru)": [
     "http://troya.info/images/chIcons/2638.png"
@@ -213,217 +273,280 @@
     "http://troya.info/images/chIcons/1147.png"
   ],
   "IL: HOT 8 HD": [
-    "http://troya.info/images/chIcons/1144.png"
+    "http://troya.info/images/chIcons/1144.png",
+    "http://troya.info/images/chIcons/1163.png"
   ],
   "IL: HOT Bidur HD": [
     "http://troya.info/images/chIcons/1163.png"
   ],
   "IL: HOT Comedy Central HD": [
-    "http://troya.info/images/chIcons/1174.png"
+    "http://troya.info/images/chIcons/1174.png",
+    "http://troya.info/images/chIcons/1173.png"
   ],
   "IL: HOT Real HD": [
     "http://troya.info/images/chIcons/1173.png"
   ],
   "IL: HOT Senior HD": [
-    "http://troya.info/images/chIcons/2613.png"
+    "http://troya.info/images/chIcons/2613.png",
+    "http://troya.info/images/chIcons/2614.png"
   ],
   "IL: HOT Buzz HD": [
     "http://troya.info/images/chIcons/2614.png"
   ],
   "IL: HOT HBO HD": [
-    "http://troya.info/images/chIcons/1175.png"
+    "http://troya.info/images/chIcons/1175.png",
+    "http://troya.info/images/chIcons/2631.png",
+    "http://troya.info/images/chIcons/1171.png"
   ],
   "IL: Home Plus": [
-    "http://troya.info/images/chIcons/2631.png"
+    "http://troya.info/images/chIcons/2631.png",
+    "http://troya.info/images/chIcons/2645.png"
   ],
   "IL: Junior": [
-    "http://troya.info/images/chIcons/1184.png"
+    "http://troya.info/images/chIcons/1184.png",
+    "http://troya.info/images/chIcons/2645.png",
+    "http://troya.info/images/chIcons/2031.png"
   ],
   "IL: Jim Jam": [
     "http://troya.info/images/chIcons/2645.png"
   ],
   "IL: Kan Chinuchit 23": [
-    "http://troya.info/images/chIcons/1171.png"
-  ],
-  "IL: Love Island": [
+    "http://troya.info/images/chIcons/1171.png",
     "http://troya.info/images/chIcons/2004.png"
   ],
+  "IL: Love Island": [
+    "http://troya.info/images/chIcons/2004.png",
+    "http://troya.info/images/chIcons/2626.png"
+  ],
   "IL: Luli": [
-    "http://troya.info/images/chIcons/1170.png"
+    "http://troya.info/images/chIcons/1170.png",
+    "http://troya.info/images/chIcons/2626.png",
+    "http://troya.info/images/chIcons/1181.png"
   ],
   "IL: Logi": [
     "http://troya.info/images/chIcons/2626.png"
   ],
   "IL: MTV HD": [
-    "http://troya.info/images/chIcons/2623.png"
+    "http://troya.info/images/chIcons/2623.png",
+    "http://troya.info/images/chIcons/1181.png",
+    "http://troya.info/images/chIcons/2637.png"
   ],
   "IL: Makan 33 HD": [
     "http://troya.info/images/chIcons/1181.png"
   ],
   "IL: Nick HD": [
-    "http://troya.info/images/chIcons/1185.png"
+    "http://troya.info/images/chIcons/1185.png",
+    "http://troya.info/images/chIcons/2637.png",
+    "http://troya.info/images/chIcons/1126.png"
   ],
   "IL: Nick Jr HD": [
     "http://troya.info/images/chIcons/2637.png"
   ],
   "IL: Nat Geo HD": [
-    "http://troya.info/images/chIcons/1126.png"
-  ],
-  "IL: Nat Geo Wild": [
+    "http://troya.info/images/chIcons/1126.png",
     "http://troya.info/images/chIcons/1138.png"
   ],
-  "IL: ONE Doco": [
+  "IL: Nat Geo Wild": [
+    "http://troya.info/images/chIcons/1138.png",
     "http://troya.info/images/chIcons/1195.png"
   ],
-  "IL: ONE 1 HD": [
+  "IL: ONE Doco": [
+    "http://troya.info/images/chIcons/1195.png",
     "http://troya.info/images/chIcons/1186.png"
   ],
-  "IL: ONE 2 HD": [
+  "IL: ONE 1 HD": [
+    "http://troya.info/images/chIcons/1186.png",
     "http://troya.info/images/chIcons/1145.png"
   ],
-  "IL: Partner Yladim": [
+  "IL: ONE 2 HD": [
+    "http://troya.info/images/chIcons/1145.png",
     "http://troya.info/images/chIcons/2608.png"
   ],
-  "IL: Partner Sratim": [
+  "IL: Partner Yladim": [
+    "http://troya.info/images/chIcons/2608.png",
     "http://troya.info/images/chIcons/2609.png"
   ],
-  "IL: Partner Sdarot": [
+  "IL: Partner Sratim": [
+    "http://troya.info/images/chIcons/2609.png",
     "http://troya.info/images/chIcons/2610.png"
   ],
+  "IL: Partner Sdarot": [
+    "http://troya.info/images/chIcons/2610.png",
+    "http://troya.info/images/chIcons/2618.png"
+  ],
   "IL: Reality HD": [
-    "http://troya.info/images/chIcons/1182.png"
+    "http://troya.info/images/chIcons/1182.png",
+    "http://troya.info/images/chIcons/1128.png"
   ],
   "IL: Sport 1 FHD": [
     "http://troya.info/images/chIcons/1128.png"
   ],
   "IL: Sport 2 FHD": [
-    "http://troya.info/images/chIcons/1129.png"
+    "http://troya.info/images/chIcons/1129.png",
+    "http://troya.info/images/chIcons/1130.png"
   ],
   "IL: Sport 3 FHD": [
     "http://troya.info/images/chIcons/1130.png"
   ],
   "IL: Sport 4 FHD": [
-    "http://troya.info/images/chIcons/1131.png"
-  ],
-  "IL: Sport 5": [
+    "http://troya.info/images/chIcons/1131.png",
     "http://troya.info/images/chIcons/1132.png"
   ],
-  "IL: Sport 5 4K": [
+  "IL: Sport 5": [
+    "http://troya.info/images/chIcons/1132.png",
     "http://troya.info/images/chIcons/2211.png"
   ],
-  "IL: Sport 5 Livе": [
+  "IL: Sport 5 4K": [
+    "http://troya.info/images/chIcons/2211.png",
     "http://troya.info/images/chIcons/1155.png"
   ],
-  "IL: Sport 5 Plus": [
+  "IL: Sport 5 Livе": [
+    "http://troya.info/images/chIcons/1155.png",
     "http://troya.info/images/chIcons/1134.png"
   ],
-  "IL: Sport 5 Gold": [
+  "IL: Sport 5 Plus": [
+    "http://troya.info/images/chIcons/1134.png",
     "http://troya.info/images/chIcons/1135.png"
   ],
-  "IL: Sport 5 Stars": [
+  "IL: Sport 5 Gold": [
+    "http://troya.info/images/chIcons/1135.png",
     "http://troya.info/images/chIcons/1156.png"
+  ],
+  "IL: Sport 5 Stars": [
+    "http://troya.info/images/chIcons/1156.png",
+    "http://troya.info/images/chIcons/2618.png"
   ],
   "IL: Sport TO GO 1": [
     "http://troya.info/images/chIcons/2618.png"
   ],
   "IL: Sport TO GO 2": [
-    "http://troya.info/images/chIcons/2619.png"
+    "http://troya.info/images/chIcons/2619.png",
+    "http://troya.info/images/chIcons/2545.png"
   ],
   "IL: Savri HD": [
     "http://troya.info/images/chIcons/2545.png"
   ],
   "IL: Star Channel": [
-    "http://troya.info/images/chIcons/1167.png"
-  ],
-  "IL: Travel Channel HD": [
+    "http://troya.info/images/chIcons/1167.png",
     "http://troya.info/images/chIcons/1136.png"
   ],
-  "IL: Turkish Drama Plus": [
+  "IL: Travel Channel HD": [
+    "http://troya.info/images/chIcons/1136.png",
     "http://troya.info/images/chIcons/2028.png"
   ],
-  "IL: Turkish Drama 2": [
+  "IL: Turkish Drama Plus": [
+    "http://troya.info/images/chIcons/2028.png",
     "http://troya.info/images/chIcons/2029.png"
   ],
+  "IL: Turkish Drama 2": [
+    "http://troya.info/images/chIcons/2029.png",
+    "http://troya.info/images/chIcons/1152.png"
+  ],
   "IL: Turkish Drama 3": [
-    "http://troya.info/images/chIcons/2611.png"
+    "http://troya.info/images/chIcons/2611.png",
+    "http://troya.info/images/chIcons/2500.png",
+    "http://troya.info/images/chIcons/2632.png"
   ],
   "IL: TeenNick": [
-    "http://troya.info/images/chIcons/2500.png"
+    "http://troya.info/images/chIcons/2500.png",
+    "http://troya.info/images/chIcons/1189.png"
   ],
   "IL: TLC HD": [
-    "http://troya.info/images/chIcons/2632.png"
+    "http://troya.info/images/chIcons/2632.png",
+    "http://troya.info/images/chIcons/1189.png"
   ],
   "IL: Viva": [
     "http://troya.info/images/chIcons/1189.png"
   ],
   "IL: Viva+": [
-    "http://troya.info/images/chIcons/1190.png"
+    "http://troya.info/images/chIcons/1190.png",
+    "http://troya.info/images/chIcons/1146.png"
   ],
   "IL: Viva Vintage": [
     "http://troya.info/images/chIcons/1146.png"
   ],
   "IL: Viva Premium HD": [
-    "http://troya.info/images/chIcons/1188.png"
-  ],
-  "IL: Vamos HD": [
-    "http://troya.info/images/chIcons/2641.png"
-  ],
-  "IL: YES Movies Action HD": [
+    "http://troya.info/images/chIcons/1188.png",
+    "http://troya.info/images/chIcons/2641.png",
     "http://troya.info/images/chIcons/1148.png"
   ],
-  "IL: YES Movies Comedy HD": [
+  "IL: Vamos HD": [
+    "http://troya.info/images/chIcons/2641.png",
+    "http://troya.info/images/chIcons/3030.png"
+  ],
+  "IL: YES Movies Action HD": [
+    "http://troya.info/images/chIcons/1148.png",
     "http://troya.info/images/chIcons/1149.png"
   ],
-  "IL: YES Movies Drama HD": [
+  "IL: YES Movies Comedy HD": [
+    "http://troya.info/images/chIcons/1149.png",
     "http://troya.info/images/chIcons/1150.png"
   ],
-  "IL: YES Movies Kids HD": [
+  "IL: YES Movies Drama HD": [
+    "http://troya.info/images/chIcons/1150.png",
     "http://troya.info/images/chIcons/1151.png"
   ],
-  "IL: YES TV Comedy HD": [
+  "IL: YES Movies Kids HD": [
+    "http://troya.info/images/chIcons/1151.png",
     "http://troya.info/images/chIcons/1159.png"
   ],
-  "IL: YES TV Action HD": [
+  "IL: YES TV Comedy HD": [
+    "http://troya.info/images/chIcons/1159.png",
     "http://troya.info/images/chIcons/1158.png"
   ],
-  "IL: YES TV Drama HD": [
+  "IL: YES TV Action HD": [
+    "http://troya.info/images/chIcons/1158.png",
     "http://troya.info/images/chIcons/1160.png"
   ],
-  "IL: YES Docu HD": [
+  "IL: YES TV Drama HD": [
+    "http://troya.info/images/chIcons/1160.png",
     "http://troya.info/images/chIcons/1137.png"
   ],
-  "IL: YES Israeli Cinema HD": [
+  "IL: YES Docu HD": [
+    "http://troya.info/images/chIcons/1137.png",
     "http://troya.info/images/chIcons/2030.png"
+  ],
+  "IL: YES Israeli Cinema HD": [
+    "http://troya.info/images/chIcons/2030.png",
+    "http://troya.info/images/chIcons/3030.png"
   ],
   "IL: Yes Plus Diamonds HD": [
     "http://troya.info/images/chIcons/3030.png"
   ],
   "IL: Yes Plus Cinema HD": [
-    "http://troya.info/images/chIcons/1915.png"
+    "http://troya.info/images/chIcons/1915.png",
+    "http://troya.info/images/chIcons/1191.png",
+    "http://troya.info/images/chIcons/2625.png"
   ],
   "IL: Yam Tihoni HD": [
-    "http://troya.info/images/chIcons/1191.png"
+    "http://troya.info/images/chIcons/1191.png",
+    "http://troya.info/images/chIcons/1164.png"
   ],
   "IL: Yam Tihoni 2": [
-    "http://troya.info/images/chIcons/1164.png"
+    "http://troya.info/images/chIcons/1164.png",
+    "http://troya.info/images/chIcons/1152.png"
   ],
   "IL: Yam Tihoni Plus": [
     "http://troya.info/images/chIcons/1152.png"
   ],
   "IL: YoYo": [
-    "http://troya.info/images/chIcons/2625.png"
-  ],
-  "IL: Yalduti": [
+    "http://troya.info/images/chIcons/2625.png",
     "http://troya.info/images/chIcons/2646.png"
   ],
+  "IL: Yalduti": [
+    "http://troya.info/images/chIcons/2646.png",
+    "http://troya.info/images/chIcons/2643.png"
+  ],
   "IL: Wiz": [
-    "http://troya.info/images/chIcons/2031.png"
+    "http://troya.info/images/chIcons/2031.png",
+    "http://troya.info/images/chIcons/2643.png"
   ],
   "IL: Zoom": [
     "http://troya.info/images/chIcons/2643.png"
   ],
   "IL: Zoom Toon HD": [
-    "http://troya.info/images/chIcons/2644.png"
+    "http://troya.info/images/chIcons/2644.png",
+    "http://troya.info/images/chIcons/427.png"
   ],
   "Star Family HD": [
     "http://troya.info/images/chIcons/585.png"
@@ -2212,5 +2335,224 @@
   ],
   "ESPN 2 HD BR": [
     "http://epg.one/img/6509.png"
+  ],
+  "TR: Kanal D HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/12/kanal_d.png"
+  ],
+  "TR: Kanal D HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/12/kanal_d.png"
+  ],
+  "TR: Kanal D SD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/12/kanal_d.png"
+  ],
+  "TR: Kanal 7 HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/12/kanal7.png"
+  ],
+  "TR: Kanal 7 HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/12/kanal7.png"
+  ],
+  "TR: Kanal 7 Avrupa HD": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/Kanal-7-Avrupa.png"
+  ],
+  "TR: Kanal 32 Isparta": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/kanal32.png"
+  ],
+  "TR: Kanal Avrupa Tv": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/Kanal-Avrupa.png"
+  ],
+  "TR: Kanal B": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/Kanal-B-150x150.png"
+  ],
+  "TR: Kanal 42 Tv": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/12/kanal42.png"
+  ],
+  "TR: Kanal 3 Tv": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/Kanal-3-Isparta.png"
+  ],
+  "TR: Kanal 33 Tv": [
+    "https://www.diaicon.xyz/wp-content/uploads/2020/08/MERSIN-KANAL-33.png"
+  ],
+  "TR: Kanal 68 Tv": [
+    "https://www.diaicon.xyz/wp-content/uploads/2020/08/AKSARAY-KANAL-68.png"
+  ],
+  "TR: Kanal V": [
+    "https://www.diaicon.xyz/wp-content/uploads/2020/08/KANAL-V.png"
+  ],
+  "TR: Kanal Fırat Tv": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/Kanal-Firat-Elazig.png"
+  ],
+  "TR: Kanal 3": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/Kanal-3-Isparta.png"
+  ],
+  "TR: Kanal 58 Tv": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/Kanal-58.png"
+  ],
+  "TR: Kanal 26": [
+    "https://www.diaicon.xyz/wp-content/uploads/2020/08/ESKISEHIR-KANAL-26.png"
+  ],
+  "TR: Kanal T Kıbrıs": [
+    "https://www.diaicon.xyz/wp-content/uploads/2020/08/KIBRIS-KANAL-T.png"
+  ],
+  "TR: Kanal 24 HD": [
+    "https://www.diaicon.xyz/wp-content/uploads/2020/08/24-TV-FHD.png"
+  ],
+  "TR: Kanal 24 HD+": [
+    "https://www.diaicon.xyz/wp-content/uploads/2020/08/24-TV-FHD.png"
+  ],
+  "TR: Discovery Channel HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/08/DISCOVERY-CHANNEL-HD.png"
+  ],
+  "TR: Discovery Channel HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/08/DISCOVERY-CHANNEL-HD.png"
+  ],
+  "TR: Discovery ID HD": [
+    "https://www.diaicon.xyz/wp-content/uploads/2020/08/DISCOVERY-IDX-HD.png"
+  ],
+  "TR: Nat Geo Wild HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/08/NAT-GEO-WILD-HD.png"
+  ],
+  "TR: Nat Geo Wild HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/08/NAT-GEO-WILD-HD.png"
+  ],
+  "TR: History HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/history_hd.png"
+  ],
+  "TR: History HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/history_hd.png"
+  ],
+  "TR: Viasat History HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/08/VIASAT-HISTORY-HD.png"
+  ],
+  "TR: Viasat History HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/08/VIASAT-HISTORY-HD.png"
+  ],
+  "TR: Sinema Tv Aile 2 HD": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/sinemaaile2_logo.png"
+  ],
+  "TR: Sinema Tv Aile HD": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/sinemaaile_logo.png"
+  ],
+  "TR: Yeşilcam 1": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/Yesilcam-1-1.png"
+  ],
+  "TR: Yeşilcam 2": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/Yesilcam-2-1.png"
+  ],
+  "TR: Yeşilcam 3": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/Yesilcam-1-1.png"
+  ],
+  "TR: Disney Jr HD": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/20210309_DisneyJunior_Logo.png"
+  ],
+  "TR: Niloya Tv": [
+    "http://logo.kll1ll120qazwed.site/logo/turkeyT/niloya.png"
+  ],
+  "TR: Semerkand Tv HD": [
+    "https://www.diaicon.xyz/wp-content/uploads/2021/12/semerkand_hd.png"
+  ],
+  "TR: Yesilyol Tv": [
+    "https://www.diaicon.xyz/wp-content/uploads/2023/03/yesilyoltv.png"
+  ],
+  "TR: Trt Eba Tv Lise HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/12/Trt_Ebatv_Logo_Ortaokul.png"
+  ],
+  "TR: Bein Sports 1 Mobil (480P)": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/08/beIN-SPORTS-1-Mobile.png"
+  ],
+  "TR: Kanal D HD Ⓗ②⑥⑤": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/08/KANAL-D-HEVC.png"
+  ],
+  "DE: Disney Channel HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/04/Disney-Channel-HD.png"
+  ],
+  "DE: Bild HD": [
+    "https://www.lyngsat-logo.com/logo/tv/bb/bild-de.png"
+  ],
+  "DE: Sky Family HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/532_sky_logo_skyfamily.png"
+  ],
+  "DE: Sky Family HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/532_sky_logo_skyfamily.png"
+  ],
+  "DE: Warner Film HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/689_sky_logo_tntfilm_tvguide.png"
+  ],
+  "DE: Warner Film HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/689_sky_logo_tntfilm_tvguide.png"
+  ],
+  "DE: Disney+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/disney.png"
+  ],
+  "DE: Tnt Film HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/04/TNT-Film-HD.png"
+  ],
+  "DE: Heimat Kanal HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/04/HEIMATKANAL-HD.png"
+  ],
+  "DE: Cine Star Familie HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/cine-star.png"
+  ],
+  "DE: Cine Star Romantisch HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/cine-star.png"
+  ],
+  "DE: Eagle Cinema Thriller HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/Eagle-Cinema-Thriller.png"
+  ],
+  "DE: Eagle Cinema Romantisch HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/Eagle-Cinema-Romantisch.png"
+  ],
+  "DE: History Channel HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/86_sky_logo_historyhd_b.png"
+  ],
+  "DE: History Channel HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/86_sky_logo_historyhd_b.png"
+  ],
+  "DE: Discovery Channel HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/04/Discovery-Channel-HD.png"
+  ],
+  "DE: Discovery Channel HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/04/Discovery-Channel-HD.png"
+  ],
+  "DE: Nat Geo Wild HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/88_sky_logo_natgeowildhd_b1.png"
+  ],
+  "DE: Nat Geo Wild HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2021/11/88_sky_logo_natgeowildhd_b1.png"
+  ],
+  "DE: Spiegel Wissen HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/04/Spiegel-TV-Wissen-HD.png"
+  ],
+  "DE: Sky Sport Tennis HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2022/10/sky_logo_sky-sport-tennis.png"
+  ],
+  "DE: Sky Sport Tennis HD+": [
+    "http://www.diaicon.xyz/wp-content/uploads/2022/10/sky_logo_sky-sport-tennis.png"
+  ],
+  "DE: Motorvision TV HD": [
+    "http://www.diaicon.xyz/wp-content/uploads/2020/04/Motorvision-HD.png"
+  ],
+  "DE: Folx Musix Television": [
+    "https://www.lyngsat-logo.com/logo/tv/ff/folx-de.png"
+  ],
+  "DE: One Music Television": [
+    "https://www.lyngsat-logo.com/logo/tv/oo/one-1-music-tv-de.png"
+  ],
+  "DE: Zwei Music Television": [
+    "https://www.lyngsat-logo.com/logo/tv/zz/zwei-2-music-tv-de.png"
+  ],
+  "CH: SRF 1 HD": [
+    "http://xplatinmedia.com:8080/images/647e121b325c2f97d0b666351cab0645.png"
+  ],
+  "CH: 13TH STREET HD": [
+    "http://89.163.242.179:8080/images/c51ce410c124a10e0db5e4b97fc2af39.png"
+  ],
+  "CH: 3+  HD": [
+    "http://plugin.mine.nu/LOGOS/SUISSE_HELDER/3plus_HD.png"
+  ],
+  "CH: Blue ACTION HD": [
+    "http://plugin.mine.nu/LOGOS/SUISSE_HELDER/blue_action.png"
+  ],
+  "BCU Premiere 1 HD": [
+    "http://epg.one/img2/983.png"
   ]
 }

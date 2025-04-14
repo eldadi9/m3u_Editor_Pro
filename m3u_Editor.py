@@ -1638,18 +1638,45 @@ class M3UEditor(QWidget):
         if fileName:
             try:
                 with open(fileName, 'r', encoding='utf-8') as file:
-                    additional_content = file.read()
-                    current_content = self.textEdit.toPlainText()
-                    if not current_content.endswith('\n'):
-                        current_content += '\n'
-                    self.textEdit.setPlainText(current_content + additional_content)
+                    additional_content = file.read().strip().splitlines()
 
-                    # Update the label to show that a file was merged
-                    self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]} (Merged)")
-                    QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
+                # טען לוגואים לזיכרון לשימוש מהיר
+                try:
+                    with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                        logo_db = json.load(f)
+                except:
+                    logo_db = {}
 
-                    # Parse the merged content to update categories and channels display
-                    self.parseM3UContentEnhanced(self.textEdit.toPlainText())
+                merged_lines = []
+                i = 0
+                while i < len(additional_content):
+                    line = additional_content[i]
+                    if line.startswith("#EXTINF:"):
+                        extinf_line = line
+                        url_line = additional_content[i + 1] if i + 1 < len(additional_content) else ""
+
+                        name_match = re.search(r",(.+)", extinf_line)
+                        channel_name = name_match.group(1).strip() if name_match else ""
+
+                        extinf_line = inject_logo(extinf_line, channel_name, logo_db)
+                        merged_lines.append(extinf_line)
+                        merged_lines.append(url_line)
+                        i += 2
+                    else:
+                        i += 1
+
+                # מיזוג לשדה הטקסט
+                current_content = self.textEdit.toPlainText()
+                if not current_content.endswith('\n'):
+                    current_content += '\n'
+                merged_text = current_content + '\n'.join(merged_lines)
+                self.textEdit.setPlainText(merged_text)
+
+                self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]} (Merged)")
+                QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
+
+                # סריקה מחדש
+                self.parseM3UContentEnhanced(self.textEdit.toPlainText())
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
@@ -2346,11 +2373,36 @@ class M3UEditor(QWidget):
         self.regenerateM3UTextOnly()
 
     def saveToFile(self, file_path):
+        try:
+            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                logo_db = json.load(f)
+        except:
+            logo_db = {}
+
         content = self.textEdit.toPlainText()
-        self.extract_and_save_logos_for_israeli_channels(content)  # ← טעינה ועדכון לוגואים פעם אחת בלבד בשמירה
+        self.extract_and_save_logos_for_israeli_channels(content)
+
+        lines = content.strip().splitlines()
+        fixed_lines = []
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if line.startswith("#EXTINF:"):
+                extinf_line = line
+                url_line = lines[i + 1] if i + 1 < len(lines) else ""
+                name_match = re.search(r",(.+)", extinf_line)
+                channel_name = name_match.group(1).strip() if name_match else ""
+                extinf_line = inject_logo(extinf_line, channel_name, logo_db)
+                fixed_lines.append(extinf_line)
+                fixed_lines.append(url_line)
+                i += 2
+            else:
+                fixed_lines.append(line)
+                i += 1
 
         with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(content)
+            f.write('\n'.join(fixed_lines))
 
         QMessageBox.information(self, "Success", "File saved successfully.")
 
