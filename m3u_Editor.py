@@ -2180,8 +2180,16 @@ class M3UEditor(QWidget):
             self.refreshCategoryListOnly(selected_index=current_row + 1)
             self.regenerateM3UTextOnly()
 
-    def regenerateM3UTextOnly(self):
+    def regenerateM3UTextOnly(self, fast_mode=True):
         updated_lines = ["#EXTM3U"]
+        logo_db = {}
+        if fast_mode and os.path.exists(LOGO_DB_PATH):
+            try:
+                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                    logo_db = json.load(f)
+            except:
+                pass
+
         for category, channels in self.categories.items():
             for channel in channels:
                 try:
@@ -2191,8 +2199,9 @@ class M3UEditor(QWidget):
                 except:
                     continue
 
-                # שימוש בלוגו שמור בלבד
-                logo_url = get_saved_logo(name)
+                logo_url = logo_db.get(name)
+                if isinstance(logo_url, list):
+                    logo_url = logo_url[0] if logo_url else None
 
                 if logo_url:
                     extinf = f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{category}",{name}'
@@ -2202,7 +2211,6 @@ class M3UEditor(QWidget):
                 updated_lines.append(f"{extinf}\n{url}")
 
         self.textEdit.setPlainText("\n".join(updated_lines))
-        print("[LOG] 🔄 עדכון M3U - (בלי סריקת לוגואים) הסתיים")
 
     def refreshCategoryListOnly(self, selected_index=None):
         self.categoryList.clear()
