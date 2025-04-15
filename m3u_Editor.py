@@ -453,6 +453,12 @@ class SmartScanThread(QThread):
         checked = offline = duplicate = 0
         duplicates_count = {}
 
+        headers = {
+            "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
+            "Accept": "*/*",
+            "Connection": "close"
+        }
+
         for name, url in self.channels:
             if self.stop_requested:
                 break
@@ -460,21 +466,37 @@ class SmartScanThread(QThread):
             status = "Online"
             reason = ""
 
+            # בדיקת דופליקייטים
+            duplicates_count[name] = duplicates_count.get(name, 0) + 1
+            is_duplicate = duplicates_count[name] > 1
+
+            # בדיקת כתובת URL בפועל
             try:
-                res = requests.head(url, timeout=2)
+                res = requests.get(url, headers=headers, stream=True, timeout=4)
+
                 if res.status_code >= 400:
                     status = "Offline"
-                    reason = "Bad Response"
-                    offline += 1
-            except:
+                    reason = f"HTTP {res.status_code}"
+                elif not any(x in res.text.lower() for x in ["#extm3u", "http", ".ts", ".m3u8", ".mp4", ".aac"]):
+                    status = "Offline"
+                    reason = "Invalid Content"
+
+            except requests.exceptions.Timeout:
+                status = "Offline"
+                reason = "Timeout"
+            except requests.exceptions.ConnectionError:
                 status = "Offline"
                 reason = "Connection Error"
-                offline += 1
+            except Exception as e:
+                status = "Offline"
+                reason = str(e)
 
-            duplicates_count[name] = duplicates_count.get(name, 0) + 1
-            if duplicates_count[name] > 1:  # החל מהשני מסומן ככפול
-                reason = reason + " & Duplicate" if reason else "Duplicate"
+            # עדכון מונים
+            if status == "Offline":
+                offline += 1
+            if is_duplicate:
                 duplicate += 1
+                reason = (reason + " & Duplicate") if reason else "Duplicate"
 
             checked += 1
             self.progress.emit(checked, offline, duplicate, (name, url, status, reason))
@@ -497,26 +519,47 @@ class URLCheckThread(QThread):
     def run(self):
         online, offline, checked = 0, 0, 0
 
+        headers = {
+            "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
+            "Accept": "*/*",
+            "Connection": "close"
+        }
+
         for name, url in self.channels:
             if self.stop_requested:
                 break
 
+            status = "Offline"
+            reason = "Unknown"
+
             try:
-                res = requests.head(url, timeout=3)
-                status = "Online" if res.status_code < 400 else "Offline"
-            except:
-                status = "Offline"
+                # שימוש ב-GET עם stream כדי לדמות נגן אמיתי
+                res = requests.get(url, headers=headers, stream=True, timeout=4)
 
-            parsed_url = urlparse(url)
-            server = parsed_url.hostname or "Unknown"
+                if res.status_code < 400:
+                    if "#EXTM3U" in res.text or url.endswith((".ts", ".m3u8", ".mp4", ".mp3", ".aac", ".mpd")):
+                        status = "Online"
+                        reason = ""
+                        online += 1
+                    else:
+                        reason = "Invalid Stream Content"
+                else:
+                    reason = f"HTTP {res.status_code}"
 
-            if status == "Online":
-                online += 1
-            else:
+            except requests.exceptions.Timeout:
+                reason = "Timeout"
+            except requests.exceptions.ConnectionError:
+                reason = "Connection Error"
+            except Exception as e:
+                reason = str(e)
+
+            if status == "Offline":
                 offline += 1
 
             checked += 1
-            # כאן לא מחפשים קטגוריה – רק שם, סטטוס, שרת וכתובת
+            parsed_url = urlparse(url)
+            server = parsed_url.hostname or "Unknown"
+
             self.progress_signal.emit(checked, online, offline, (name, status, server, url))
 
         self.finished_signal.emit()
@@ -1632,10 +1675,7 @@ class M3UEditor(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Choose scan type")
         dialog.setFixedSize(250, 130)
-
-        # ✅ כאן להוסיף את השורה שלך על dialog
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-
         dialog.setStyleSheet("""
             QDialog {
                 border: 4px solid red;
@@ -1645,13 +1685,13 @@ class M3UEditor(QWidget):
 
         layout = QVBoxLayout(dialog)
 
-        label = QLabel("Choose scan type:", dialog)
+        label = QLabel("Choose scan type:")
         label.setAlignment(Qt.AlignCenter)
         layout.addWidget(label)
 
-        btn_scan_category = QPushButton("Scan Selected Category", dialog)
+        btn_scan_category = QPushButton("Scan Selected Category")
         btn_scan_category.setStyleSheet("background-color: purple; color: white; font-weight: bold; padding: 5px;")
-        btn_scan_all = QPushButton("Scan All Channels", dialog)
+        btn_scan_all = QPushButton("Scan All Channels")
         btn_scan_all.setStyleSheet("background-color: red; color: white; font-weight: bold; padding: 5px;")
 
         layout.addWidget(btn_scan_category)
@@ -2276,44 +2316,42 @@ class M3UEditor(QWidget):
                 self.updateM3UContent()
 
     def deleteSelectedChannels(self):
-        """
-        Deletes only the channels that are explicitly selected in the channel list.
-        Works with the exact position (index) in the current category.
-        Shows a message at the end with the count of deleted channels.
-        """
-        current_category_item = self.categoryList.currentItem()
-        if not current_category_item:
-            QMessageBox.warning(self, "Warning", "No category selected.")
+        selected_indexes = []
+        for i in range(self.channelList.count()):
+            if self.channelList.item(i).isSelected():
+                selected_indexes.append(i)
+
+        if not selected_indexes:
+            QMessageBox.information(self, "No Selection", "No channels selected for deletion.")
             return
 
-        current_category = current_category_item.text().split(" (")[0]
-        if current_category not in self.categories:
-            QMessageBox.warning(self, "Warning", "Category not found.")
+        selected_category_item = self.categoryList.currentItem()
+        if not selected_category_item:
+            QMessageBox.warning(self, "No Category", "Please select a category.")
             return
 
-        selected_items = self.channelList.selectedItems()
-        if not selected_items:
-            QMessageBox.information(self, "Info", "No channels selected for deletion.")
+        category_name = selected_category_item.text().split(" (")[0]
+        if category_name not in self.categories:
+            QMessageBox.warning(self, "Invalid Category", "Selected category not found.")
             return
 
-        # We need to find the actual index positions of selected channels
-        selected_indexes = [self.channelList.row(item) for item in selected_items]
+        channels_in_category = self.categories[category_name]
+        original_len = len(channels_in_category)
 
-        # Delete by index — reverse so deletion does not shift indexes
-        selected_indexes.sort(reverse=True)
+        # מחיקה לפי אינדקסים מסומנים בלבד
+        self.categories[category_name] = [
+            ch for i, ch in enumerate(channels_in_category)
+            if i not in selected_indexes
+        ]
 
-        deleted_count = 0
+        deleted = original_len - len(self.categories[category_name])
 
-        for index in selected_indexes:
-            if 0 <= index < len(self.categories[current_category]):
-                del self.categories[current_category][index]
-                deleted_count += 1
+        self.updateCategoryList()
+        self.regenerateM3UTextOnly()
+        if self.categoryList.currentItem():
+            self.display_channels(self.categoryList.currentItem())
 
-        # Update the UI and M3U content
-        self.updateM3UContent()
-        self.display_channels(self.categoryList.currentItem())
-
-        QMessageBox.information(self, "Success", f"Deleted {deleted_count} channel(s).")
+        QMessageBox.information(self, "Success", f"Deleted {deleted} channel(s).")
 
     def updateM3UContent(self):
         # אם קיימת ההגדרה skip_logo_scan – דלג על שמירת לוגואים
@@ -2713,11 +2751,7 @@ class M3UEditor(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Category")
         dialog.setFixedSize(250, 120)
-
-        # ✅ כאן להוסיף את השורה שלך על dialog
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-
-
         dialog.setStyleSheet("""
             QDialog {
                 border: 3px solid purple;
@@ -2726,22 +2760,16 @@ class M3UEditor(QWidget):
         """)
 
         layout = QVBoxLayout(dialog)
-        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-        combo = QComboBox(dialog)
-        categories = list(self.categories.keys())
-        combo.addItems(categories)
+
+        combo = QComboBox()
+        combo.addItems(list(self.categories.keys()))
         layout.addWidget(combo)
 
-        btn_ok = QPushButton("Start Scan", dialog)
+        btn_ok = QPushButton("Start Scan")
         btn_ok.setStyleSheet("background-color: purple; color: white; font-weight: bold; padding: 5px;")
-        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         layout.addWidget(btn_ok)
 
-        btn_ok.clicked.connect(lambda: [
-            dialog.accept(),
-            self.startURLCheckForCategory(combo.currentText())
-        ])
-
+        btn_ok.clicked.connect(lambda: [dialog.accept(), self.startURLCheckForCategory(combo.currentText())])
         dialog.exec_()
 
     def startURLCheckForCategory(self, category_name):
@@ -2751,8 +2779,13 @@ class M3UEditor(QWidget):
         for ch in self.categories.get(category_name, []):
             name = ch.split(" (")[0].strip()
             url = self.getUrl(ch)
-            channels.append((name, url))
-            channel_category_mapping[name.lower()] = category_name
+            if url:
+                channels.append((name, url))
+                channel_category_mapping[name.lower()] = category_name
+
+        if not channels:
+            QMessageBox.warning(self, "No Channels", "No valid channels found in the selected category.")
+            return
 
         dialog = URLCheckerDialog(channels, channel_category_mapping, self)
         dialog.exec_()
@@ -2765,12 +2798,16 @@ class M3UEditor(QWidget):
             for ch in ch_list:
                 name = ch.split(" (")[0].strip()
                 url = self.getUrl(ch)
-                channels.append((name, url))
-                channel_category_mapping[name.lower()] = category
+                if url:
+                    channels.append((name, url))
+                    channel_category_mapping[name.lower()] = category
+
+        if not channels:
+            QMessageBox.warning(self, "No Channels", "No channels with valid URLs were found.")
+            return
 
         dialog = URLCheckerDialog(channels, channel_category_mapping, self)
         dialog.exec_()
-
 
     def openSmartScanDialog(self):
         dialog = QDialog(self)
@@ -2945,18 +2982,10 @@ class M3UEditor(QWidget):
         category_name = selected_category_item.text().split(" (")[0]
         channels_in_category = self.categories.get(category_name, [])
 
-        seen_names = set()
         for idx, channel in enumerate(channels_in_category):
-            name = channel.split(" (")[0].strip()
             url = self.getUrl(channel).strip()
-
             if url in urls_set:
-                if name not in seen_names:
-                    # זה הראשון – תשמור אותו ותדלג
-                    seen_names.add(name)
-                else:
-                    # זה השני או יותר – תבחר למחיקה
-                    self.channelList.item(idx).setSelected(True)
+                self.channelList.item(idx).setSelected(True)
 
     def removeChannelsByUrls(self, urls_set):
         removed_count = 0
@@ -3005,15 +3034,14 @@ class M3UEditor(QWidget):
 
     def deleteChannelsByNames(self, names_to_delete, urls_to_delete):
         removed = 0
+        targets = set(zip(names_to_delete, urls_to_delete))  # הפוך לרשימה של זוגות מדויקים
+
         for category, ch_list in self.categories.items():
             original_len = len(ch_list)
 
             self.categories[category] = [
                 ch for ch in ch_list
-                if not any(
-                    ch.startswith(name) and self.getUrl(ch) == url
-                    for name, url in zip(names_to_delete, urls_to_delete)
-                )
+                if (ch.split(" (")[0].strip(), self.getUrl(ch).strip()) not in targets
             ]
 
             removed += original_len - len(self.categories[category])
@@ -3044,8 +3072,10 @@ class M3UEditor(QWidget):
 
     def getUrl(self, channel_info):
         try:
-            return channel_info.split(" (")[1][:-1]
-        except IndexError:
+            if '(' in channel_info and ')' in channel_info:
+                return channel_info.split(" (")[-1].rstrip(")")
+            return ""
+        except Exception:
             return ""
 
     def findFullM3UEntry(self, channel_name, category):
