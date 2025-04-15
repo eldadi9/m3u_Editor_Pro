@@ -341,14 +341,45 @@ class M3UUrlConverterDialog(QDialog):
         self.setLayout(layout)
 
     def convertToM3U(self):
-        username = self.usernameInput.text()
-        password = self.passwordInput.text()
-        host = self.hostInput.text()
-        self.m3uURL = f"{host}/get.php?username={username}&password={password}&type=m3u_plus"
-        self.resultLabel.setText(self.m3uURL)
-        self.copyButton.show()
-        self.downloadButton.show()  # Show the download button once URL is generated
-        pass
+        username = self.usernameInput.text().strip()
+        password = self.passwordInput.text().strip()
+        host = self.hostInput.text().strip()
+
+        if not username or not password or not host:
+            self.resultLabel.setText("❌ Please fill all fields")
+            return
+
+        # הסרה של http/https אם יש
+        if host.startswith("http://") or host.startswith("https://"):
+            host = host.split("://")[1]
+
+        # בנה את שתי הגרסאות האפשריות
+        urls_to_try = [
+            f"https://{host}/get.php?username={username}&password={password}&type=m3u_plus",
+            f"http://{host}/get.php?username={username}&password={password}&type=m3u_plus"
+        ]
+
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "*/*"
+        }
+
+        for url in urls_to_try:
+            try:
+                response = requests.head(url, headers=headers, timeout=5)
+                if response.status_code == 200:
+                    self.m3uURL = url
+                    self.resultLabel.setText(f"✅ {self.m3uURL}")
+                    self.copyButton.show()
+                    self.downloadButton.show()
+                    return
+            except:
+                continue
+
+        # אם לא הצליח – תוצאה שקטה
+        self.resultLabel.setText("❌ Could not find a working M3U URL")
+        self.copyButton.hide()
+        self.downloadButton.hide()
 
     def copyResultToClipboard(self):
         resultText = self.resultLabel.text()
