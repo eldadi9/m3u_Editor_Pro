@@ -11,10 +11,12 @@ import traceback
 import pyperclip
 import json
 import threading
+from PyQt5.QtWidgets import QCompleter
 import requests  # You need to import requests to handle downloading
 from urllib.parse import urlparse
 from PyQt5.QtWidgets import QProgressBar
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_db.json")
 new_logos_counter = 0
 existing_logos_counter = 0
@@ -130,7 +132,6 @@ def exportM3UWithLogos(self, output_path):
                 out.write(url_line.strip() + "\n")
 
 
-
 def save_israeli_logos_background(self, parsed_channels):
     for channel_name, category, line in parsed_channels:
         if is_israeli_channel(category, channel_name):
@@ -176,9 +177,15 @@ class MoveChannelsDialog(QDialog):
         self.okButton.clicked.connect(self.accept)
         self.cancelButton.clicked.connect(self.reject)
         # Add a search bar and search button to the layout
-        self.search_input = QLineEdit(self)
-        self.search_button = QPushButton('Search', self)
+
+
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+        # כפתור הצגת EPG
+        self.epgViewerButton = QPushButton("📺 EPG Viewer")
+        self.epgViewerButton.setStyleSheet("background-color: purple; color: white; font-weight: bold;")
+        self.epgViewerButton.clicked.connect(self.openEPGViewerForSelectedChannel)
+        self.sidebarLayout.addWidget(self.epgViewerButton)
 
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
@@ -1004,7 +1011,6 @@ def setup_session() -> requests.Session:
     return session
 
 
-
 class M3UEditor(QWidget):
     def __init__(self):
         super().__init__()
@@ -1069,6 +1075,12 @@ class M3UEditor(QWidget):
         file_info_layout.addWidget(self.channelCountLabel)
         main_layout.addLayout(file_info_layout)
 
+        # 🔍 תיבת חיפוש חכמה (חיפוש קטגוריות וערוצים עם השלמה אוטומטית)
+        self.searchBox = QLineEdit()
+        self.searchBox.setPlaceholderText("🔍 חיפוש קטגוריה או ערוץ...")
+        self.searchBox.textChanged.connect(self.handleSearchTextChanged)
+        main_layout.insertWidget(2, self.searchBox)
+
         # Add other sections
         main_layout.addLayout(self.create_category_section())
         main_layout.addLayout(self.create_channel_section())
@@ -1085,6 +1097,67 @@ class M3UEditor(QWidget):
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
         # Ensure everything is added to main_layout
         self.setLayout(main_layout)
+
+    def create_channel_section(self):
+        layout = QVBoxLayout()
+
+        # כותרת
+        channel_title = QLabel("Channels", self)
+        channel_title.setAlignment(Qt.AlignCenter)
+        channel_title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(channel_title)
+
+        # שורת חיפוש חכמה - לא נדרשת פה אם כבר קיימת ב-initUI
+        # לכן נוותר עליה כאן לחלוטין כדי למנוע כפילות!
+
+        # קומבובוקס למיון
+        self.sortingComboBox = QComboBox(self)
+        self.sortingComboBox.addItems([
+            "Sort by Name A-Z",
+            "Sort by Name Z-A",
+            "Sort by Stream Type",
+            "Sort by Group Title",
+            "Sort by URL Length"
+        ])
+        self.sortingComboBox.currentIndexChanged.connect(self.sortChannels)
+        layout.addWidget(self.sortingComboBox)
+
+        # כפתורים לערוצים
+        button_layout = QHBoxLayout()
+        self.addChannelButton = QPushButton('Add Channel')
+        self.deleteChannelButton = QPushButton('Delete Selected')
+        self.moveChannelUpButton = QPushButton('Move Up')
+        self.moveChannelDownButton = QPushButton('Move Down')
+        self.selectAllChannelsButton = QPushButton('Select All')
+        self.clearChannelsSelectionButton = QPushButton('Deselect All')
+        self.moveSelectedChannelButton = QPushButton('Move Selected')
+        self.editSelectedChannelButton = QPushButton('Edit Selected')
+        self.checkDoublesButton = QPushButton('Check Duplicate')
+        self.checkDoublesButton.clicked.connect(self.checkDoubles)
+
+        for btn in [self.addChannelButton, self.deleteChannelButton, self.moveChannelUpButton,
+                    self.moveChannelDownButton, self.selectAllChannelsButton, self.clearChannelsSelectionButton,
+                    self.moveSelectedChannelButton, self.editSelectedChannelButton, self.checkDoublesButton]:
+            button_layout.addWidget(btn)
+
+        layout.addLayout(button_layout)
+
+        # רשימת ערוצים
+        self.channelList = QListWidget(self)
+        self.channelList.setSelectionMode(QListWidget.MultiSelection)
+        layout.addWidget(self.channelList)
+
+        # חיבורים
+        self.addChannelButton.clicked.connect(self.addChannel)
+        self.deleteChannelButton.clicked.connect(self.deleteSelectedChannels)
+        self.moveChannelUpButton.clicked.connect(self.moveChannelUp)
+        self.moveChannelDownButton.clicked.connect(self.moveChannelDown)
+        self.selectAllChannelsButton.clicked.connect(self.selectAllChannels)
+        self.clearChannelsSelectionButton.clicked.connect(self.deselectAllChannels)
+        self.moveSelectedChannelButton.clicked.connect(self.moveSelectedChannel)
+        self.editSelectedChannelButton.clicked.connect(self.editSelectedChannel)
+
+        return layout
 
     def load_logos_once(self):
         self.logo_cache = {}
@@ -1400,6 +1473,7 @@ class M3UEditor(QWidget):
             self.logos_loaded = True  # מונע סריקה חוזרת
 
         self.updateCategoryList()
+        self.buildSearchCompleter()
 
         if self.categoryList.count() > 0:
             self.categoryList.setCurrentRow(0)
@@ -1623,28 +1697,52 @@ class M3UEditor(QWidget):
             selected_category = selected_category.split('(')[0].strip()
         self.loadChannelsForCategory(selected_category)
 
-    def search_channels(self, query, filter_options):
-        results = []
+    def handleSearchTextChanged(self, text):
+        text = text.strip().lower()
+        if not text:
+            return
+
+        # חיפוש קטגוריה קודם
+        found_category = False
+        for i in range(self.categoryList.count()):
+            item = self.categoryList.item(i)
+            category_name = item.text().split(" (")[0].lower()
+            if text in category_name:
+                item.setBackground(QColor("yellow"))
+                self.categoryList.setCurrentItem(item)
+                self.display_channels(item)
+                found_category = True
+            else:
+                item.setBackground(QColor("white"))
+
+        # חיפוש ערוץ בתוך כל הקטגוריות
         for category, channels in self.categories.items():
             for channel in channels:
-                if query.lower() in channel.lower():
-                    results.append(channel)
-        return results
+                name = channel.split(" (")[0].lower()
+                if text in name:
+                    for i in range(self.categoryList.count()):
+                        item = self.categoryList.item(i)
+                        if category in item.text():
+                            item.setBackground(QColor("yellow"))
+                            self.categoryList.setCurrentItem(item)
+                            self.display_channels(item)
+                            break
 
-    def perform_search(self):
-        query = self.search_input.text().strip()
-        if query:  # Check if the query is not empty
-            results = self.search_channels(query, {})
-            self.display_search_results(results)
-        else:
-            self.display_search_results([])  # Clear results if query is empty
+                    for j in range(self.channelList.count()):
+                        ch_item = self.channelList.item(j)
+                        if text in ch_item.text().lower():
+                            ch_item.setSelected(True)
+                            self.channelList.scrollToItem(ch_item)
+                            return
 
-    def display_search_results(self, results):
-        self.channelList.clear()  # Clears the current list
-        self.textEdit.clear()  # Assuming 'textEdit' is your QTextEdit for M3U content
-        for channel in results:
-            self.channelList.addItem(channel)  # Adds channel to the list
-            self.textEdit.append(channel)  # Also append the full channel info to the M3U content area
+    def buildSearchCompleter(self):
+        search_terms = list(self.categories.keys())
+        for ch_list in self.categories.values():
+            for ch in ch_list:
+                search_terms.append(ch.split(" (")[0])
+        completer = QCompleter(sorted(set(search_terms)), self)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.searchBox.setCompleter(completer)
 
     def setup_channel_context_menu(self):
         self.channelList.setContextMenuPolicy(Qt.ActionsContextMenu)
@@ -1992,69 +2090,6 @@ class M3UEditor(QWidget):
         total_channels = sum(len(channels) for channels in self.categories.values())
         self.channelCountLabel.setText(f"Total Channels: {total_channels}")
 
-    def create_channel_section(self):
-        layout = QVBoxLayout()
-        channel_title = QLabel("Channels", self)
-        channel_title.setAlignment(Qt.AlignCenter)
-        channel_title.setStyleSheet("font-size: 18px; font-weight: bold;")
-        layout.addWidget(channel_title)
-
-        # Search components added here for channels
-        self.search_input = QLineEdit(self)
-        self.search_button = QPushButton('Search', self)
-        self.search_button.clicked.connect(
-            self.perform_search)  # Ensure this connects to a proper channel search method
-        search_layout = QHBoxLayout()
-        search_layout.addWidget(self.search_input)
-        search_layout.addWidget(self.search_button)
-        layout.addLayout(search_layout)
-
-        # Create the sorting combo box and add additional sorting options
-        self.sortingComboBox = QComboBox(self)
-        self.sortingComboBox.addItems([
-            "Sort by Name A-Z",
-            "Sort by Name Z-A",
-            "Sort by Stream Type",
-            "Sort by Group Title",
-            "Sort by URL Length"
-        ])
-        self.sortingComboBox.currentIndexChanged.connect(self.sortChannels)
-        layout.addWidget(self.sortingComboBox)
-
-        button_layout = QHBoxLayout()
-        self.addChannelButton = QPushButton('Add Channel')
-        self.deleteChannelButton = QPushButton('Delete Selected')
-        self.moveChannelUpButton = QPushButton('Move Up')
-        self.moveChannelDownButton = QPushButton('Move Down')
-        self.selectAllChannelsButton = QPushButton('Select All')
-        self.clearChannelsSelectionButton = QPushButton('Deselect All')
-        self.moveSelectedChannelButton = QPushButton('Move Selected')
-        self.editSelectedChannelButton = QPushButton('Edit Selected')
-        self.checkDoublesButton = QPushButton('Check Duplicate')
-        self.checkDoublesButton.clicked.connect(self.checkDoubles)
-        button_layout.addWidget(self.addChannelButton)
-        button_layout.addWidget(self.deleteChannelButton)
-        button_layout.addWidget(self.moveChannelUpButton)
-        button_layout.addWidget(self.moveChannelDownButton)
-        button_layout.addWidget(self.selectAllChannelsButton)
-        button_layout.addWidget(self.clearChannelsSelectionButton)
-        button_layout.addWidget(self.moveSelectedChannelButton)
-        button_layout.addWidget(self.editSelectedChannelButton)
-        button_layout.addWidget(self.checkDoublesButton)  # Add it to the button row
-        layout.addLayout(button_layout)
-
-        self.channelList = QListWidget(self)
-        self.channelList.setSelectionMode(QListWidget.MultiSelection)
-        layout.addWidget(self.channelList)
-        self.addChannelButton.clicked.connect(self.addChannel)
-        self.deleteChannelButton.clicked.connect(self.deleteSelectedChannels)
-        self.moveChannelUpButton.clicked.connect(self.moveChannelUp)
-        self.moveChannelDownButton.clicked.connect(self.moveChannelDown)
-        self.selectAllChannelsButton.clicked.connect(self.selectAllChannels)
-        self.clearChannelsSelectionButton.clicked.connect(self.deselectAllChannels)
-        self.moveSelectedChannelButton.clicked.connect(self.moveSelectedChannel)
-        self.editSelectedChannelButton.clicked.connect(self.editSelectedChannel)
-        return layout
 
     def sortChannels(self):
         sort_option = self.sortingComboBox.currentText()
@@ -3116,7 +3151,8 @@ class M3UEditor(QWidget):
             tree = ET.parse(epg_path)
             root = tree.getroot()
 
-            self.epg_data = {}  # Dictionary: tvg-id -> list of programs
+            if not hasattr(self, 'epg_data'):
+                self.epg_data = {}
 
             for programme in root.findall('programme'):
                 channel_id = programme.attrib.get('channel')
@@ -3134,16 +3170,85 @@ class M3UEditor(QWidget):
                     })
 
         except Exception as e:
-            QMessageBox.critical(self, "EPG Error", f"Failed to load epg.xml: {str(e)}")
+            QMessageBox.critical(self, "EPG Error", f"Failed to load EPG file:\n{str(e)}")
 
-    def showEPGForChannel(self, tvg_id):
+    from datetime import datetime, timedelta
+
+    def openEPGViewer(self, tvg_id):
         if not hasattr(self, 'epg_data') or tvg_id not in self.epg_data:
-            return "No EPG data"
+            QMessageBox.information(self, "EPG Viewer", "No EPG data available.")
+            return
 
-        now = datetime.datetime.now()
-        entries = self.epg_data[tvg_id]
-        # תוכל להוסיף סינון לפי הזמן הנוכחי
-        return entries[0]['title'] if entries else "No programs"
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"EPG for {tvg_id}")
+        dialog.resize(500, 600)
+        layout = QVBoxLayout(dialog)
+
+        entries = self.getRecentEPG(tvg_id)
+        if not entries:
+            layout.addWidget(QLabel("No recent programs"))
+        else:
+            for entry in entries:
+                label = QLabel(f"<b>{entry['title']}</b><br>{entry['desc']}<br>{entry['start']} → {entry['stop']}")
+                layout.addWidget(label)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def openEPGViewerForSelectedChannel(self):
+        selected_items = self.channelList.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "EPG Viewer", "Please select a channel.")
+            return
+
+        selected_name = selected_items[0].text()
+        current_category_item = self.categoryList.currentItem()
+        if not current_category_item:
+            QMessageBox.warning(self, "No Category", "No category selected.")
+            return
+
+        category = current_category_item.text().split(" (")[0]
+        channels = self.categories.get(category, [])
+
+        for ch in channels:
+            ch_name = ch.split(" (")[0].strip()
+            if ch_name == selected_name:
+                match = re.search(r'tvg-id="([^"]+)"', ch)
+                if match:
+                    tvg_id = match.group(1)
+                    self.openEPGViewer(tvg_id)
+                else:
+                    QMessageBox.information(self, "No EPG", "No tvg-id found for this channel.")
+                return
+
+    def getRecentEPG(self, tvg_id):
+        now = datetime.now()
+        week_ago = now - timedelta(days=7)
+
+        entries = self.epg_data.get(tvg_id, [])
+        filtered_entries = []
+
+        for entry in entries:
+            try:
+                start_raw = entry.get("start", "")[:14]
+                stop_raw = entry.get("stop", "")[:14]
+                start_time = datetime.strptime(start_raw, "%Y%m%d%H%M%S")
+                stop_time = datetime.strptime(stop_raw, "%Y%m%d%H%M%S")
+
+                if week_ago <= start_time <= now:
+                    filtered_entries.append({
+                        "title": entry.get("title", ""),
+                        "desc": entry.get("desc", ""),
+                        "start": start_time.strftime("%d/%m %H:%M"),
+                        "stop": stop_time.strftime("%H:%M"),
+                        "play_url": entry.get("play_url")
+                    })
+            except Exception:
+                continue
+
+    def playCatchupIfExists(self, epg_entry):
+        # בעתיד: אם יש catchup-url מובנה בתוך epg_entry
+        QMessageBox.information(self, "Play", f"Trying to play:\n{epg_entry.get('title')}")
 
     def saveM3U(self):
         options = QFileDialog.Options()
@@ -3212,6 +3317,8 @@ class M3UEditor(QWidget):
         for category, channels in self.categories.items():
             item = QListWidgetItem(f"{category} ({len(channels)})")  # Add count of channels to the category name
             self.categoryList.addItem(item)
+
+            self.buildSearchCompleter()
 
     def save_israeli_logos_background(self, content):
         def run():
