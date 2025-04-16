@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
-    QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView, QAction)
+    QApplication, QWidget, QVBoxLayout, QFileDialog,
+    QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem, QHeaderView,
+    QHBoxLayout, QLabel, QMessageBox, QLineEdit, QAbstractItemView, QAction)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont, QColor  # Add this line
 import sys
@@ -20,6 +20,50 @@ from datetime import datetime, timedelta
 LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_db.json")
 new_logos_counter = 0
 existing_logos_counter = 0
+
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton, QHBoxLayout
+
+class MoveChannelsDialog(QDialog):
+    def __init__(self, parent=None, categories=None):
+        super().__init__(parent)
+        self.setWindowTitle("Move Selected Channels")
+        self.setMinimumWidth(400)
+        self.categories = categories or []
+        self.initUI()
+
+    def initUI(self):
+        layout = QVBoxLayout(self)
+
+        label1 = QLabel("בחר קטגוריה קיימת להעברה:")
+        self.categoryCombo = QComboBox()
+        self.categoryCombo.addItems(self.categories)
+
+        label2 = QLabel("או הזן שם קטגוריה חדשה:")
+        self.newCategoryInput = QLineEdit()
+        self.newCategoryInput.setPlaceholderText("קטגוריה חדשה...")
+
+        layout.addWidget(label1)
+        layout.addWidget(self.categoryCombo)
+        layout.addWidget(label2)
+        layout.addWidget(self.newCategoryInput)
+
+        buttonBox = QHBoxLayout()
+        self.okButton = QPushButton("✔ OK")
+        self.cancelButton = QPushButton("✖ ביטול")
+        self.okButton.setStyleSheet("background-color: green; color: white; font-weight: bold;")
+        self.cancelButton.setStyleSheet("background-color: red; color: white; font-weight: bold;")
+        self.okButton.clicked.connect(self.accept)
+        self.cancelButton.clicked.connect(self.reject)
+
+        buttonBox.addWidget(self.okButton)
+        buttonBox.addWidget(self.cancelButton)
+        layout.addLayout(buttonBox)
+
+        self.setLayout(layout)
+
+    def getSelectedCategory(self):
+        return self.newCategoryInput.text().strip() if self.newCategoryInput.text().strip() else self.categoryCombo.currentText()
+
 
 
 def save_logo_for_channel(channel_name, logo_url):
@@ -151,41 +195,6 @@ def is_israeli_channel(category, name):
     text = f"{category} {name}".lower()
     return any(word in text for word in keywords)
 
-
-class MoveChannelsDialog(QDialog):
-    def __init__(self, parent=None, categories=None):
-        super().__init__(parent)
-        self.categories = categories or []
-        self.initUI()
-
-    def initUI(self):
-        self.setWindowTitle('Move Channels')
-        layout = QVBoxLayout(self)
-        self.categoryCombo = QComboBox(self)
-        self.categoryCombo.addItems(self.categories)
-        layout.addWidget(QLabel("Select category to move to:"))
-        layout.addWidget(self.categoryCombo)
-        self.newCategoryInput = QLineEdit(self)
-        layout.addWidget(QLabel("Or create a new category:"))
-        layout.addWidget(self.newCategoryInput)
-        buttonBox = QHBoxLayout()
-        self.okButton = QPushButton('OK', self)
-        self.cancelButton = QPushButton('Cancel', self)
-        buttonBox.addWidget(self.okButton)
-        buttonBox.addWidget(self.cancelButton)
-        layout.addLayout(buttonBox)
-        self.okButton.clicked.connect(self.accept)
-        self.cancelButton.clicked.connect(self.reject)
-        # Add a search bar and search button to the layout
-
-
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-
-        # כפתור הצגת EPG
-        self.epgViewerButton = QPushButton("📺 EPG Viewer")
-        self.epgViewerButton.setStyleSheet("background-color: purple; color: white; font-weight: bold;")
-        self.epgViewerButton.clicked.connect(self.openEPGViewerForSelectedChannel)
-        self.sidebarLayout.addWidget(self.epgViewerButton)
 
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
@@ -1075,11 +1084,21 @@ class M3UEditor(QWidget):
         file_info_layout.addWidget(self.channelCountLabel)
         main_layout.addLayout(file_info_layout)
 
-        # 🔍 תיבת חיפוש חכמה (חיפוש קטגוריות וערוצים עם השלמה אוטומטית)
+        # 🔍 תיבת חיפוש חכמה
         self.searchBox = QLineEdit()
         self.searchBox.setPlaceholderText("🔍 חיפוש קטגוריה או ערוץ...")
         self.searchBox.textChanged.connect(self.handleSearchTextChanged)
-        main_layout.insertWidget(2, self.searchBox)
+
+        # כפתור איפוס 🧹
+        reset_button = QPushButton("🔄 איפוס")
+        reset_button.setStyleSheet("padding: 3px; font-weight: bold;")
+        reset_button.clicked.connect(lambda: self.searchBox.setText(""))
+
+        # סידור אופקי של חיפוש + איפוס
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(self.searchBox)
+        search_layout.addWidget(reset_button)
+        main_layout.insertLayout(1, search_layout)  # מוסיף את שורת החיפוש מתחת לכותרת
 
         # Add other sections
         main_layout.addLayout(self.create_category_section())
@@ -1742,6 +1761,7 @@ class M3UEditor(QWidget):
                 search_terms.append(ch.split(" (")[0])
         completer = QCompleter(sorted(set(search_terms)), self)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)  # ← מאפשר חיפוש גם באמצע
         self.searchBox.setCompleter(completer)
 
     def setup_channel_context_menu(self):
@@ -2528,76 +2548,58 @@ class M3UEditor(QWidget):
 
     def moveSelectedChannel(self):
         """
-        Moves selected channels to a new or existing category and updates the M3U content.
+        Move selected channels to a new or existing category safely.
         """
-        # Validate the selected channels
         selected_items = self.channelList.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, "Warning", "No channels selected for moving.")
             return
 
-        # Open the dialog to select the target category or create a new one
+        # יצירת דיאלוג עם parent וקטגוריות קיימות
         dialog = MoveChannelsDialog(self, list(self.categories.keys()))
         if dialog.exec_():
-            # Get the target category from the dialog
             target_category = dialog.getSelectedCategory()
             if not target_category:
                 QMessageBox.warning(self, "Warning", "No target category specified.")
                 return
 
-            # Ensure the target category exists
+            # אם הקטגוריה לא קיימת – צור אותה
             if target_category not in self.categories:
-                # Dynamically create the new category
                 self.categories[target_category] = []
-                self.updateCategoryList()  # Refresh the UI with the new category
+                self.updateCategoryList()
 
-            # Validate the current category
-            current_category_item = self.categoryList.currentItem()
-            if current_category_item is None:
+            current_item = self.categoryList.currentItem()
+            if current_item is None:
                 QMessageBox.warning(self, "Warning", "No category selected.")
                 return
 
-            current_category = current_category_item.text().split(" (")[0]
+            current_category = current_item.text().split(" (")[0]
             if current_category not in self.categories:
-                QMessageBox.warning(self, "Warning", "The current category does not exist.")
+                QMessageBox.warning(self, "Warning", "Current category does not exist.")
                 return
 
             moved_channels = []
 
-            # Move the selected channels
             for item in selected_items:
-                if item is None:
-                    continue
-                channel_name = item.text()
-                if not channel_name:
-                    continue
-                # Check if the channel exists in the current category
-                for channel in self.categories[current_category]:
-                    if channel.split(" (")[0] == channel_name:
-                        moved_channels.append(channel)
-                        self.categories[current_category].remove(channel)
+                channel_name = item.text().strip()
+                for ch in self.categories[current_category]:
+                    if ch.split(" (")[0].strip() == channel_name:
+                        moved_channels.append(ch)
+                        self.categories[current_category].remove(ch)
                         break
 
-            # Add the moved channels to the target category
             self.categories[target_category].extend(moved_channels)
-
-            # Update the M3U content to reflect the changes
             self.updateM3UContent()
+            self.updateCategoryList()
 
-            # Refresh the UI
-            self.updateCategoryList()  # Update category list counts
-            self.display_channels(self.categoryList.currentItem())  # Update channel list for the current category
+            # מציג את הקטגוריה החדשה מיד
+            for i in range(self.categoryList.count()):
+                if self.categoryList.item(i).text().startswith(target_category):
+                    self.categoryList.setCurrentRow(i)
+                    self.display_channels(self.categoryList.item(i))
+                    break
 
-            # Show success message with the count of moved channels
-            QMessageBox.information(self, "Success",
-                                    f"{len(moved_channels)} channels have been successfully moved to '{target_category}'.")
-            current_category_item = self.categoryList.currentItem()
-            if current_category_item and hasattr(current_category_item, 'text') and current_category_item.text():
-                current_category = current_category_item.text().split(" (")[0]
-            else:
-                current_category = None  # Fallback
-
-                return
+            QMessageBox.information(self, "Success", f"{len(moved_channels)} channels moved to '{target_category}'.")
 
     def editSelectedChannel(self):
         """
@@ -3318,7 +3320,8 @@ class M3UEditor(QWidget):
             item = QListWidgetItem(f"{category} ({len(channels)})")  # Add count of channels to the category name
             self.categoryList.addItem(item)
 
-            self.buildSearchCompleter()
+            self.searchBox.setText("")  # ← איפוס חיפוש
+            self.buildSearchCompleter()  # ← בניית השלמה חכמה מחדש
 
     def save_israeli_logos_background(self, content):
         def run():
