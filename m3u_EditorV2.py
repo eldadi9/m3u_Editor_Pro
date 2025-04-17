@@ -2717,26 +2717,37 @@ class M3UEditor(QWidget):
     def display_channels(self, item):
         """
         Display channels for the selected category and update the total count label.
+        Handles category normalization to avoid "not found" errors.
         """
-        if item is None:  # Check if item is None
-            self.channelList.clear()
+        self.channelList.clear()
+
+        if item is None:
             self.channelCountLabel.setText("Total Channels: 0")
             return
 
-        category = item.text().split(" (")[0]  # Extract the category name
-        self.channelList.clear()
+        # נקה את השם שהתקבל מהתצוגה
+        category = item.text().split(" (")[0].strip()
 
-        # Get channels in the selected category
-        channels = self.categories.get(category, [])
+        # צור מילון של קטגוריות מנוקות → מקורי
+        normalized_categories = {k.strip(): k for k in self.categories.keys()}
+
+        if category not in normalized_categories:
+            QMessageBox.critical(self, "Error", f"Category '{category}' not found in categories.")
+            return
+
+        # קח את השם המקורי מתוך הקטגוריות
+        real_category = normalized_categories[category]
+
+        # טען את הערוצים
+        channels = self.categories.get(real_category, [])
         for channel in channels:
             channel_name = channel.split(" (")[0]
-            if not channel_name:  # Skip empty or invalid channel names
+            if not channel_name:
                 continue
-            channel_item = QListWidgetItem(channel_name)
-            self.channelList.addItem(channel_item)
+            item = QListWidgetItem(channel_name)
+            self.channelList.addItem(item)
 
-        # Update the total channel count label
-        self.channelCountLabel.setText(f"Channels in '{category}': {len(channels)}")
+        self.channelCountLabel.setText(f"Channels in '{real_category}': {len(channels)}")
 
     def checkDoubles(self):
         """
@@ -2820,12 +2831,22 @@ class M3UEditor(QWidget):
         if dialog:
             dialog.accept()
 
-        if category_name not in self.categories:
-            QMessageBox.warning(self, "Warning", "Selected category not found.")
+        # ניקוי השם מהשוואות לא תקינות (רווחים, תווים מוסתרים)
+        normalized_input = category_name.strip()
+
+        # יצירת מפה של קטגוריות מנורמלות → מקור
+        normalized_map = {k.strip(): k for k in self.categories.keys()}
+
+        # בדיקה האם הקטגוריה קיימת
+        if normalized_input not in normalized_map:
+            QMessageBox.warning(self, "Warning", f"Category '{normalized_input}' not found in categories.")
             return
 
+        # שלוף את הקטגוריה המקורית מהמערכת
+        real_category = normalized_map[normalized_input]
+
         channels = []
-        for ch in self.categories[category_name]:
+        for ch in self.categories[real_category]:
             name = ch.split(" (")[0]
             url = self.getUrl(ch)
             channels.append((name, url))
