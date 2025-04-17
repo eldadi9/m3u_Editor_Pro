@@ -1,8 +1,7 @@
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
-    QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QHBoxLayout, QLabel, QMessageBox, QDialog, QLineEdit, QAbstractItemView, QAction
-)
+    QApplication, QWidget, QVBoxLayout, QFileDialog,
+    QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem, QHeaderView,
+    QHBoxLayout, QLabel, QMessageBox, QLineEdit, QAbstractItemView, QAction)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont, QColor  # Add this line
 import sys
@@ -10,39 +9,193 @@ import os
 import re
 import traceback
 import pyperclip
+import json
+import threading
+from PyQt5.QtWidgets import QCompleter
 import requests  # You need to import requests to handle downloading
 from urllib.parse import urlparse
 from PyQt5.QtWidgets import QProgressBar
 import xml.etree.ElementTree as ET
+from PyQt5.QtCore import pyqtSignal
+from datetime import datetime, timedelta
+LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_db.json")
+new_logos_counter = 0
+existing_logos_counter = 0
+
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton, QHBoxLayout
+
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
         super().__init__(parent)
+        self.setWindowTitle("Move Selected Channels")
+        self.setMinimumWidth(400)
         self.categories = categories or []
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle('Move Channels')
         layout = QVBoxLayout(self)
-        self.categoryCombo = QComboBox(self)
+
+        label1 = QLabel("בחר קטגוריה קיימת להעברה:")
+        self.categoryCombo = QComboBox()
         self.categoryCombo.addItems(self.categories)
-        layout.addWidget(QLabel("Select category to move to:"))
+
+        label2 = QLabel("או הזן שם קטגוריה חדשה:")
+        self.newCategoryInput = QLineEdit()
+        self.newCategoryInput.setPlaceholderText("קטגוריה חדשה...")
+
+        layout.addWidget(label1)
         layout.addWidget(self.categoryCombo)
-        self.newCategoryInput = QLineEdit(self)
-        layout.addWidget(QLabel("Or create a new category:"))
+        layout.addWidget(label2)
         layout.addWidget(self.newCategoryInput)
+
         buttonBox = QHBoxLayout()
-        self.okButton = QPushButton('OK', self)
-        self.cancelButton = QPushButton('Cancel', self)
+        self.okButton = QPushButton("✔ OK")
+        self.cancelButton = QPushButton("✖ ביטול")
+        self.okButton.setStyleSheet("background-color: green; color: white; font-weight: bold;")
+        self.cancelButton.setStyleSheet("background-color: red; color: white; font-weight: bold;")
+        self.okButton.clicked.connect(self.accept)
+        self.cancelButton.clicked.connect(self.reject)
+
         buttonBox.addWidget(self.okButton)
         buttonBox.addWidget(self.cancelButton)
         layout.addLayout(buttonBox)
-        self.okButton.clicked.connect(self.accept)
-        self.cancelButton.clicked.connect(self.reject)
-        # Add a search bar and search button to the layout
-        self.search_input = QLineEdit(self)
-        self.search_button = QPushButton('Search', self)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+        self.setLayout(layout)
+
+    def getSelectedCategory(self):
+        return self.newCategoryInput.text().strip() if self.newCategoryInput.text().strip() else self.categoryCombo.currentText()
+
+
+def save_logo_for_channel(channel_name, logo_url):
+    try:
+        with threading.Lock():  # ננעל את הגישה במקרה של ריבוי תהליכים
+            # טען את המסד אם קיים
+            if os.path.exists(LOGO_DB_PATH):
+                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                    logos_db = json.load(f)
+            else:
+                logos_db = {}
+
+            # ודא שהערוץ נמצא ושהערך הוא רשימה
+            if channel_name not in logos_db:
+                logos_db[channel_name] = [logo_url]
+                added = True
+            else:
+                existing_logos = logos_db[channel_name]
+                if isinstance(existing_logos, str):
+                    existing_logos = [existing_logos]
+                if logo_url not in existing_logos:
+                    existing_logos.append(logo_url)
+                    logos_db[channel_name] = existing_logos
+                    added = True
+                else:
+                    added = False
+
+            if added:
+                # כתיבה לקובץ זמני ואז העתקה לקובץ המקורי
+                temp_path = LOGO_DB_PATH + ".tmp"
+                with open(temp_path, "w", encoding="utf-8") as f:
+                    json.dump(logos_db, f, indent=2, ensure_ascii=False)
+                os.replace(temp_path, LOGO_DB_PATH)
+                print(f"[LOGO] ✅ IL: {channel_name} | {logo_url}")
+            else:
+                print(f"[LOGO] ⚠️ Already exists: {channel_name} | {logo_url}")
+
+    except Exception as e:
+        print(f"[LOGO ERROR] Failed to save logo for {channel_name}: {e}")
+
+
+
+def get_saved_logo(channel_name):
+    if not os.path.exists(LOGO_DB_PATH):
+        return None
+
+    try:
+        with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        logo = data.get(channel_name)
+
+        # תמיכה בלוגו ישן (מחרוזת) או חדש (רשימה)
+        if isinstance(logo, list):
+            return logo[0] if logo else None
+        elif isinstance(logo, str):
+            return logo
+        else:
+            return None
+
+    except Exception as e:
+        print(f"[ERROR] Error loading logo DB: {e}")
+        return None
+
+
+
+def inject_logo(line, channel_name, logo_db=None):
+    """
+    Injects saved logo into a #EXTINF line if missing.
+    logo_db - optional dictionary to speed up repeated calls
+    """
+    if 'tvg-logo="' in line:
+        return line
+
+    if logo_db is None:
+        logo = get_saved_logo(channel_name)
+    else:
+        logo = logo_db.get(channel_name)
+        if isinstance(logo, list):
+            logo = logo[0] if logo else None
+        elif not isinstance(logo, str):
+            logo = None
+
+    if logo and isinstance(logo, str) and logo.startswith("http"):
+        return line.replace("#EXTINF:-1", f'#EXTINF:-1 tvg-logo="{logo}"')
+    return line
+
+    with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+        logo_db = json.load(f)
+
+    for line in m3u_lines:
+        new_line = inject_logo(line, channel_name, logo_db)
+
+def exportM3UWithLogos(self, output_path):
+    try:
+        with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+            logo_db = json.load(f)
+    except:
+        logo_db = {}
+
+    with open(output_path, "w", encoding="utf-8") as out:
+        for category, channels in self.categories.items():
+            for channel in channels:
+                # נניח channel זה EXTINF + URL
+                extinf_line, url_line = channel.splitlines()
+
+                name = channel.split(" (")[0].strip()
+                extinf_with_logo = inject_logo(extinf_line, name, logo_db)
+
+                out.write(extinf_with_logo + "\n")
+                out.write(url_line.strip() + "\n")
+
+
+def save_israeli_logos_background(self, parsed_channels):
+    for channel_name, category, line in parsed_channels:
+        if is_israeli_channel(category, channel_name):
+            match = re.search(r'tvg-logo="([^"]+)"', line)
+            if match:
+                logo_url = match.group(1)
+                save_logo_for_channel(channel_name, logo_url)
+                print(f"[LOGO] Saved logo for {channel_name}: {logo_url}")
+
+
+def is_israeli_channel(category, name):
+    keywords = [
+        'ישראל', 'israel', 'il', 'is', 'israel vip', 'israel hd',
+        'ערוץ', 'עברי', 'hot', 'yes', 'kan', 'keshet', 'reshet',
+        'i24', 'channel 9', 'iptv israel', 'Израиль', 'Израиль | ישראלי'
+    ]
+    text = f"{category} {name}".lower()
+    return any(word in text for word in keywords)
+
 
     def getSelectedCategory(self):
         return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
@@ -160,9 +313,14 @@ class M3UUrlConverterDialog(QDialog):
         self.setStyleSheet("QDialog { border: 5px solid red; background-color: white;}")
 
         # Input fields setup
+        self.hostInput = QLineEdit(self)
         self.usernameInput = QLineEdit(self)
         self.passwordInput = QLineEdit(self)
-        self.hostInput = QLineEdit(self)
+
+        # ⏩ מעבר אוטומטי לשדה הבא בלחיצה על Enter
+        self.hostInput.returnPressed.connect(lambda: self.usernameInput.setFocus())
+        self.usernameInput.returnPressed.connect(lambda: self.passwordInput.setFocus())
+        self.passwordInput.returnPressed.connect(lambda: self.convertButton.setFocus())
 
         # Convert button
         self.convertButton = QPushButton("Convert to M3U URL", self)
@@ -185,28 +343,60 @@ class M3UUrlConverterDialog(QDialog):
         layout.addWidget(self.copyButton)
 
         # Labels and Inputs
+
         usernameLabel = QLabel("Username:", self)
         passwordLabel = QLabel("Password:", self)
         hostLabel = QLabel("Host (e.g., example.com:8080):", self)
 
+        layout.addWidget(hostLabel)
+        layout.addWidget(self.hostInput)
         layout.addWidget(usernameLabel)
         layout.addWidget(self.usernameInput)
         layout.addWidget(passwordLabel)
         layout.addWidget(self.passwordInput)
-        layout.addWidget(hostLabel)
-        layout.addWidget(self.hostInput)
 
         self.setLayout(layout)
 
     def convertToM3U(self):
-        username = self.usernameInput.text()
-        password = self.passwordInput.text()
-        host = self.hostInput.text()
-        self.m3uURL = f"{host}/get.php?username={username}&password={password}&type=m3u_plus"
-        self.resultLabel.setText(self.m3uURL)
-        self.copyButton.show()
-        self.downloadButton.show()  # Show the download button once URL is generated
-        pass
+        username = self.usernameInput.text().strip()
+        password = self.passwordInput.text().strip()
+        host = self.hostInput.text().strip()
+
+        if not username or not password or not host:
+            self.resultLabel.setText("❌ Please fill all fields")
+            return
+
+        # הסרה של http/https אם יש
+        if host.startswith("http://") or host.startswith("https://"):
+            host = host.split("://")[1]
+
+        # בנה את שתי הגרסאות האפשריות
+        urls_to_try = [
+            f"https://{host}/get.php?username={username}&password={password}&type=m3u_plus",
+            f"http://{host}/get.php?username={username}&password={password}&type=m3u_plus"
+        ]
+
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "*/*"
+        }
+
+        for url in urls_to_try:
+            try:
+                response = requests.head(url, headers=headers, timeout=5)
+                if response.status_code == 200:
+                    self.m3uURL = url
+                    self.resultLabel.setText(f"✅ {self.m3uURL}")
+                    self.copyButton.show()
+                    self.downloadButton.show()
+                    return
+            except:
+                continue
+
+        # אם לא הצליח – תוצאה שקטה
+        self.resultLabel.setText("❌ Could not find a working M3U URL")
+        self.copyButton.hide()
+        self.downloadButton.hide()
 
     def copyResultToClipboard(self):
         resultText = self.resultLabel.text()
@@ -216,23 +406,38 @@ class M3UUrlConverterDialog(QDialog):
 
     def downloadM3U(self):
         try:
-            response = requests.get(self.m3uURL)
-            response.raise_for_status()  # Raises stored HTTPError, if one occurred
+            if not hasattr(self, 'm3uURL') or not self.m3uURL:
+                QMessageBox.warning(self, "Missing URL", "Please generate a valid M3U URL first.")
+                return
 
-            # Prompt to save file
+            # Headers חשובים – יש שרתים שלא עובדים בלי User-Agent
+            headers = {
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "*/*"
+            }
+
+            response = requests.get(self.m3uURL, headers=headers, timeout=10)
+            response.raise_for_status()  # מרים שגיאה אם הקובץ לא ירד תקין
+
+            # בדיקת תוכן
+            content = response.text.strip()
+            if not content.startswith("#EXTM3U"):
+                QMessageBox.critical(self, "Invalid File", "Downloaded file is not a valid M3U playlist.")
+                return
+
+            # בחירת מיקום שמירה
             options = QFileDialog.Options()
-            fileName, _ = QFileDialog.getSaveFileName(self,
-                                                      "Save M3U File",
-                                                      "",
-                                                      "M3U Files (*.m3u);;All Files (*)",
-                                                      options=options)
+            fileName, _ = QFileDialog.getSaveFileName(
+                self, "Save M3U File", "playlist.m3u",
+                "M3U Files (*.m3u);;All Files (*)", options=options
+            )
             if fileName:
-                with open(fileName, 'wb') as f:
-                    f.write(response.content)
-                QMessageBox.information(self, "Download Successful", "The M3U file has been downloaded successfully.")
+                with open(fileName, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                QMessageBox.information(self, "Success", "The M3U file has been downloaded successfully.")
+
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to download M3U file: {str(e)}")
-            pass
+            QMessageBox.critical(self, "Error", f"Failed to download M3U file:\n\n{str(e)}")
 
 
 class SmartScanDialog(QDialog):
@@ -265,6 +470,12 @@ class SmartScanThread(QThread):
         checked = offline = duplicate = 0
         duplicates_count = {}
 
+        headers = {
+            "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
+            "Accept": "*/*",
+            "Connection": "close"
+        }
+
         for name, url in self.channels:
             if self.stop_requested:
                 break
@@ -272,21 +483,37 @@ class SmartScanThread(QThread):
             status = "Online"
             reason = ""
 
+            # בדיקת דופליקייטים
+            duplicates_count[name] = duplicates_count.get(name, 0) + 1
+            is_duplicate = duplicates_count[name] > 1
+
+            # בדיקת כתובת URL בפועל
             try:
-                res = requests.head(url, timeout=2)
+                res = requests.get(url, headers=headers, stream=True, timeout=4)
+
                 if res.status_code >= 400:
                     status = "Offline"
-                    reason = "Bad Response"
-                    offline += 1
-            except:
+                    reason = f"HTTP {res.status_code}"
+                elif not any(x in res.text.lower() for x in ["#extm3u", "http", ".ts", ".m3u8", ".mp4", ".aac"]):
+                    status = "Offline"
+                    reason = "Invalid Content"
+
+            except requests.exceptions.Timeout:
+                status = "Offline"
+                reason = "Timeout"
+            except requests.exceptions.ConnectionError:
                 status = "Offline"
                 reason = "Connection Error"
-                offline += 1
+            except Exception as e:
+                status = "Offline"
+                reason = str(e)
 
-            duplicates_count[name] = duplicates_count.get(name, 0) + 1
-            if duplicates_count[name] > 1:  # החל מהשני מסומן ככפול
-                reason = reason + " & Duplicate" if reason else "Duplicate"
+            # עדכון מונים
+            if status == "Offline":
+                offline += 1
+            if is_duplicate:
                 duplicate += 1
+                reason = (reason + " & Duplicate") if reason else "Duplicate"
 
             checked += 1
             self.progress.emit(checked, offline, duplicate, (name, url, status, reason))
@@ -309,26 +536,47 @@ class URLCheckThread(QThread):
     def run(self):
         online, offline, checked = 0, 0, 0
 
+        headers = {
+            "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
+            "Accept": "*/*",
+            "Connection": "close"
+        }
+
         for name, url in self.channels:
             if self.stop_requested:
                 break
 
+            status = "Offline"
+            reason = "Unknown"
+
             try:
-                res = requests.head(url, timeout=3)
-                status = "Online" if res.status_code < 400 else "Offline"
-            except:
-                status = "Offline"
+                # שימוש ב-GET עם stream כדי לדמות נגן אמיתי
+                res = requests.get(url, headers=headers, stream=True, timeout=4)
 
-            parsed_url = urlparse(url)
-            server = parsed_url.hostname or "Unknown"
+                if res.status_code < 400:
+                    if "#EXTM3U" in res.text or url.endswith((".ts", ".m3u8", ".mp4", ".mp3", ".aac", ".mpd")):
+                        status = "Online"
+                        reason = ""
+                        online += 1
+                    else:
+                        reason = "Invalid Stream Content"
+                else:
+                    reason = f"HTTP {res.status_code}"
 
-            if status == "Online":
-                online += 1
-            else:
+            except requests.exceptions.Timeout:
+                reason = "Timeout"
+            except requests.exceptions.ConnectionError:
+                reason = "Connection Error"
+            except Exception as e:
+                reason = str(e)
+
+            if status == "Offline":
                 offline += 1
 
             checked += 1
-            # כאן לא מחפשים קטגוריה – רק שם, סטטוס, שרת וכתובת
+            parsed_url = urlparse(url)
+            server = parsed_url.hostname or "Unknown"
+
             self.progress_signal.emit(checked, online, offline, (name, status, server, url))
 
         self.finished_signal.emit()
@@ -489,23 +737,6 @@ class URLCheckerDialog(QDialog):
             self.thread.stop()
             self.statusLine.setText("Status: Stopping...")
 
-    def addChannelToTable(self, name, status, server, url):
-        row_position = self.channelTable.rowCount()
-        self.channelTable.insertRow(row_position)
-
-        # קבלת קטגוריה בצורה בטוחה בצד ה־GUI בלבד!
-        category_name = self.getCategoryByChannelName(name)
-
-        data_columns = [name, category_name, status, server, url]
-
-        for col, data in enumerate(data_columns):
-            item = QTableWidgetItem(data)
-            if col == 2:  # Status
-                item.setBackground(Qt.green if status == "Online" else Qt.red)
-            else:
-                item.setBackground(Qt.white)
-            item.setFlags(item.flags() ^ Qt.ItemIsEditable)
-            self.channelTable.setItem(row_position, col, item)
 
     def getCategoryByChannelName(self, channel_name):
         return self.channel_category_mapping.get(channel_name.lower().strip(), "Unknown")
@@ -618,7 +849,7 @@ class SmartScanStatusDialog(QDialog):
         total = self.progressBar.maximum()
         problematic = offline + duplicate
         self.labelStats.setText(
-            f"Scanned: {checked}/{total} | Offline: {offline} | Duplicates: {duplicate} | ❌ Total Not : {problematic}")
+            f"Scanned: {checked}/{total} | Offline: {offline} | Duplicates: {duplicate} | ❌ Total Not Good: {problematic}")
         self.progressBar.setValue(checked)
         self.scan_results.append((name, status, reason, url))
         row = self.table.rowCount()
@@ -683,33 +914,63 @@ class SmartScanStatusDialog(QDialog):
         self.stopBtn.setEnabled(False)
 
     def markProblematicChannels(self):
-        channels_to_mark = set()  # (name, url)
-        seen_names = set()
+        urls_to_mark = set()
+        channel_statuses = {}
+        duplicate_count = 0
+        offline_count = 0
 
+        # שלב ראשון: אסוף נתונים
         for row in range(self.table.rowCount()):
-            channel_name = self.table.item(row, 0).text().strip()
-            status = self.table.item(row, 1).text().lower()
-            reason = self.table.item(row, 2).text().lower()
+            name = self.table.item(row, 0).text().strip()
+            status = self.table.item(row, 1).text().lower().strip()
             url = self.table.item(row, 3).text().strip()
 
-            if "offline" in status:
-                channels_to_mark.add((channel_name, url))
-            elif "duplicate" in reason:
-                if channel_name in seen_names:
-                    channels_to_mark.add((channel_name, url))  # זה העותק הנוסף
-                else:
-                    seen_names.add(channel_name)
+            if name not in channel_statuses:
+                channel_statuses[name] = []
 
-        if hasattr(self.parent(), "selectChannelsByNameAndUrl"):
-            self.parent().selectChannelsByNameAndUrl(channels_to_mark)
+            channel_statuses[name].append({'status': status, 'url': url})
+
+        # שלב שני: סמן לפי החוקים
+        for name, entries in channel_statuses.items():
+            offline_entries = [e for e in entries if e['status'] == 'offline']
+            online_entries = [e for e in entries if e['status'] != 'offline']
+
+            # אם יש אופליין, תמיד לסמן אותם
+            for entry in offline_entries:
+                urls_to_mark.add(entry['url'])
+                offline_count += 1
+
+            # אם יותר מערוץ אחד (כפולים), נסמן רק את הכפולים שאינם כבר מסומנים (אונליין בלבד)
+            if len(entries) > 1:
+                duplicate_entries_to_mark = []
+                if len(online_entries) > 1:
+                    # יש יותר מאונליין אחד, נסמן את השני והלאה
+                    duplicate_entries_to_mark.extend(online_entries[1:])
+                elif len(online_entries) == 1 and offline_entries:
+                    # אחד אונליין ויתר אופליין - לא לסמן אונליין, כבר סימנו אופליין
+                    pass
+                elif len(offline_entries) > 1 and not online_entries:
+                    # כל הכפולים אופליין וכבר סומנו, אין צורך לעשות משהו נוסף
+                    pass
+
+                for entry in duplicate_entries_to_mark:
+                    urls_to_mark.add(entry['url'])
+                    duplicate_count += 1
+
+        total_marked = len(urls_to_mark)
+
+        # שלב שלישי: סימון בפועל
+        if hasattr(self.parent(), "selectChannelsByUrls"):
+            self.parent().selectChannelsByUrls(urls_to_mark)
             QMessageBox.information(
                 self, "Marked",
-                f"{len(channels_to_mark)} problematic channels (Offline or Duplicates) have been marked."
+                f"נמצאו {duplicate_count} כפולים וגם {offline_count} לא תקינים.\n"
+                f"סה\"כ סומנו {total_marked} ערוצים."
             )
         else:
             QMessageBox.warning(
                 self, "Error",
-                "Method selectChannelsByNameAndUrl not found."
+                "Method selectChannelsByUrls not found."
             )
 
     def selectProblematic(self):
@@ -744,11 +1005,35 @@ class SmartScanStatusDialog(QDialog):
             )
 
 
+def setup_session() -> requests.Session:
+    """
+    Configures a requests Session with retry logic.
+    """
+    session = requests.Session()
+    retries = Retry(
+        total=5,
+        backoff_factor=1,
+        status_forcelist=[502, 503, 504, 500],
+        allowed_methods=["HEAD", "GET", "POST"]
+    )
+    session.mount('http://', HTTPAdapter(max_retries=retries))
+    session.mount('https://', HTTPAdapter(max_retries=retries))
+    return session
+
+
 class M3UEditor(QWidget):
+    logosFinished = pyqtSignal()
+
     def __init__(self):
         super().__init__()
-        self.categories = {}
+        self.categories = {}  # ← הוסף שורה זו ממש בתחילת הפונקציה!
         self.initUI()
+        self.logosFinished.connect(self.onLogosFinished)
+
+
+    def onLogosFinished(self):
+        QMessageBox.information(self, "Logo Scan", "✅ סריקת הלוגואים הושלמה בהצלחה!")
+
 
     def initUI(self):
         self.setWindowTitle('M3U Playlist Editor')
@@ -802,10 +1087,27 @@ class M3UEditor(QWidget):
         self.channelCountLabel = QLabel("Total Channels: 0", self)
         self.channelCountLabel.setAlignment(Qt.AlignRight)
 
+
         # Change font size of 'Total Channels'
         self.channelCountLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
         file_info_layout.addWidget(self.channelCountLabel)
         main_layout.addLayout(file_info_layout)
+
+        # 🔍 תיבת חיפוש חכמה
+        self.searchBox = QLineEdit()
+        self.searchBox.setPlaceholderText("🔍 חיפוש קטגוריה או ערוץ...")
+        self.searchBox.textChanged.connect(self.handleSearchTextChanged)
+
+        # כפתור איפוס 🧹
+        reset_button = QPushButton("🔄 איפוס")
+        reset_button.setStyleSheet("padding: 3px; font-weight: bold;")
+        reset_button.clicked.connect(lambda: self.searchBox.setText(""))
+
+        # סידור אופקי של חיפוש + איפוס
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(self.searchBox)
+        search_layout.addWidget(reset_button)
+        main_layout.insertLayout(1, search_layout)  # מוסיף את שורת החיפוש מתחת לכותרת
 
         # Add other sections
         main_layout.addLayout(self.create_category_section())
@@ -824,32 +1126,636 @@ class M3UEditor(QWidget):
         # Ensure everything is added to main_layout
         self.setLayout(main_layout)
 
+    def create_channel_section(self):
+        layout = QVBoxLayout()
+
+        # כותרת
+        channel_title = QLabel("Channels", self)
+        channel_title.setAlignment(Qt.AlignCenter)
+        channel_title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(channel_title)
+
+        # שורת חיפוש חכמה - לא נדרשת פה אם כבר קיימת ב-initUI
+        # לכן נוותר עליה כאן לחלוטין כדי למנוע כפילות!
+
+        # קומבובוקס למיון
+        self.sortingComboBox = QComboBox(self)
+        self.sortingComboBox.addItems([
+            "Sort by Name A-Z",
+            "Sort by Name Z-A",
+            "Sort by Stream Type",
+            "Sort by Group Title",
+            "Sort by URL Length"
+        ])
+        self.sortingComboBox.currentIndexChanged.connect(self.sortChannels)
+        layout.addWidget(self.sortingComboBox)
+
+        # כפתורים לערוצים
+        button_layout = QHBoxLayout()
+        self.addChannelButton = QPushButton('Add Channel')
+        self.deleteChannelButton = QPushButton('Delete Selected')
+        self.moveChannelUpButton = QPushButton('Move Up')
+        self.moveChannelDownButton = QPushButton('Move Down')
+        self.selectAllChannelsButton = QPushButton('Select All')
+        self.clearChannelsSelectionButton = QPushButton('Deselect All')
+        self.moveSelectedChannelButton = QPushButton('Move Selected')
+        self.editSelectedChannelButton = QPushButton('Edit Selected')
+        self.checkDoublesButton = QPushButton('Check Duplicate')
+        self.checkDoublesButton.clicked.connect(self.checkDoubles)
+
+        for btn in [self.addChannelButton, self.deleteChannelButton, self.moveChannelUpButton,
+                    self.moveChannelDownButton, self.selectAllChannelsButton, self.clearChannelsSelectionButton,
+                    self.moveSelectedChannelButton, self.editSelectedChannelButton, self.checkDoublesButton]:
+            button_layout.addWidget(btn)
+
+        layout.addLayout(button_layout)
+
+        # רשימת ערוצים
+        self.channelList = QListWidget(self)
+        self.channelList.setSelectionMode(QListWidget.MultiSelection)
+        layout.addWidget(self.channelList)
+
+        # חיבורים
+        self.addChannelButton.clicked.connect(self.addChannel)
+        self.deleteChannelButton.clicked.connect(self.deleteSelectedChannels)
+        self.moveChannelUpButton.clicked.connect(self.moveChannelUp)
+        self.moveChannelDownButton.clicked.connect(self.moveChannelDown)
+        self.selectAllChannelsButton.clicked.connect(self.selectAllChannels)
+        self.clearChannelsSelectionButton.clicked.connect(self.deselectAllChannels)
+        self.moveSelectedChannelButton.clicked.connect(self.moveSelectedChannel)
+        self.editSelectedChannelButton.clicked.connect(self.editSelectedChannel)
+
+        return layout
+
+    def load_logos_once(self):
+        self.logo_cache = {}
+        if os.path.exists(LOGO_DB_PATH):
+            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                self.logo_cache = json.load(f)
+
+    def get_saved_logo(self, channel_name):
+        return self.logo_cache.get(channel_name)
+
     def openM3UConverterDialog(self):
         dialog = M3UUrlConverterDialog(self)
         dialog.exec_()
 
-    def search_channels(self, query, filter_options):
-        results = []
+    def downloadDirectM3U(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Direct M3U Downloader")
+        dialog.setGeometry(300, 300, 600, 300)
+
+        # ✅ כאן להוסיף את השורה שלך על dialog
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+        dialog.setStyleSheet("""
+            QDialog { background-color: white; border: 5px solid red; }
+            QPushButton { font-weight: bold; height: 40px; }
+            QLineEdit { font-size: 14px; padding: 6px; }
+        """)
+
+        layout = QVBoxLayout(dialog)
+
+        label = QLabel("Paste your M3U URL:")
+        layout.addWidget(label)
+
+        url_input = QLineEdit()
+        url_input.setPlaceholderText("http://example.com/get.php?username=...&password=...")
+        layout.addWidget(url_input)
+
+        download_button = QPushButton("Download M3U")
+        download_button.setStyleSheet("background-color: red; color: white;")
+        layout.addWidget(download_button)
+
+        close_button = QPushButton("Close")
+        close_button.setStyleSheet("background-color: black; color: white;")
+        layout.addWidget(close_button)
+
+        close_button.clicked.connect(dialog.close)
+
+        def handle_download():
+            url = url_input.text().strip()
+            if not url:
+                QMessageBox.warning(dialog, "Missing URL", "Please enter a valid M3U URL.")
+                return
+
+            if not re.match(r'^https?://', url):
+                QMessageBox.warning(dialog, "Invalid URL", "Please enter a valid URL starting with http:// or https://")
+                return
+
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                content = response.text.strip()
+
+                if not content.startswith("#EXTM3U"):
+                    QMessageBox.warning(dialog, "Invalid File", "The downloaded file is not a valid M3U playlist.")
+                    return
+
+                # שואל אם לטעון
+                choice = QMessageBox.question(
+                    dialog, "M3U Downloaded",
+                    "M3U file downloaded successfully.\n\nDo you want to load it into the system?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+
+                if choice == QMessageBox.Yes:
+                    self.loadM3UFromText(content)
+                else:
+                    # קובע שם ברירת מחדל
+                    match = re.search(r'username=([a-zA-Z0-9]+)', url)
+                    if match:
+                        default_name = f"{match.group(1)}.m3u"
+                    else:
+                        from datetime import datetime
+                        default_name = f"m3u_{datetime.now().strftime('%Y%m%d_%H%M%S')}.m3u"
+
+                    file_path, _ = QFileDialog.getSaveFileName(dialog, "Save M3U File", default_name,
+                                                               "M3U Files (*.m3u);;All Files (*)")
+                    if file_path:
+                        with open(file_path, 'w', encoding='utf-8') as f:
+                            f.write(content)
+                        QMessageBox.information(dialog, "Saved", "M3U file saved successfully.")
+
+                dialog.close()
+
+            except Exception as e:
+                QMessageBox.critical(dialog, "Download Error", f"Failed to download or parse M3U:\n{str(e)}")
+
+        download_button.clicked.connect(handle_download)
+
+        dialog.exec_()
+
+    def openBatchDownloader(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Multi M3U Downloader")
+        dialog.setGeometry(100, 100, 600, 500)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        dialog.setStyleSheet("""
+            QDialog { border: 5px solid red; background-color: white; }
+            QPushButton { font-weight: bold; height: 40px; }
+        """)
+
+        layout = QVBoxLayout(dialog)
+
+        url_label = QLabel("Paste M3U URLs (one per line):", dialog)
+        layout.addWidget(url_label)
+
+        url_input = QTextEdit(dialog)
+        url_input.setStyleSheet("font-size: 14px;")
+        url_input.setPlaceholderText("Example:\nhttp://site1.com/playlist\nhttp://site2.com/playlist")
+        layout.addWidget(url_input)
+
+        # כפתור טעינת קבצים מקומיים וטעינה מיידית
+        load_files_button = QPushButton("📂 Load M3U Files", dialog)
+        load_files_button.setStyleSheet("background-color: black; color: white;")
+        layout.addWidget(load_files_button)
+
+        def handle_load_local_files():
+            files, _ = QFileDialog.getOpenFileNames(dialog, "Select M3U Files", "",
+                                                    "M3U Files (*.m3u *.m3u8);;All Files (*)")
+            if not files:
+                return
+
+            combined_content = "#EXTM3U\n"
+            for path in files:
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        if content.strip().startswith("#EXTM3U"):
+                            lines = [line for line in content.splitlines() if
+                                     line.strip() and not line.startswith("#EXTM3U")]
+                            combined_content += "\n".join(lines) + "\n"
+                except Exception as e:
+                    QMessageBox.warning(dialog, "File Error", f"❌ Failed to load {path}:\n{str(e)}")
+
+            self.loadM3UFromText(combined_content, append=False)
+            QMessageBox.information(dialog, "Success", "All selected M3U files were loaded into the editor.")
+            dialog.close()
+
+        load_files_button.clicked.connect(handle_load_local_files)
+
+        # הדבקה חכמה + מעבר שורה
+        def on_url_text_changed():
+            text = url_input.toPlainText()
+            if "," in text:
+                clean = "\n".join([x.strip() for x in text.split(",") if x.strip()])
+                url_input.blockSignals(True)
+                url_input.setPlainText(clean)
+                url_input.blockSignals(False)
+                return
+            lines = text.splitlines()
+            if lines and not text.endswith("\n"):
+                url_input.blockSignals(True)
+                url_input.setPlainText(text + "\n")
+                cursor = url_input.textCursor()
+                cursor.movePosition(cursor.End)
+                url_input.setTextCursor(cursor)
+                url_input.blockSignals(False)
+
+        url_input.textChanged.connect(on_url_text_changed)
+
+        url_input.setAcceptDrops(True)
+
+        def dragEnterEvent(event):
+            if event.mimeData().hasUrls():
+                event.acceptProposedAction()
+
+        def dropEvent(event):
+            for url in event.mimeData().urls():
+                path = url.toLocalFile()
+                if path.endswith(".txt"):
+                    try:
+                        with open(path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                            url_input.append(content)
+                    except Exception as e:
+                        QMessageBox.warning(dialog, "Error", f"Failed to read dropped file:\n{str(e)}")
+
+        url_input.dragEnterEvent = dragEnterEvent
+        url_input.dropEvent = dropEvent
+
+        # כפתור סגירה
+        close_button = QPushButton("Close", dialog)
+        close_button.setStyleSheet("background-color: black; color: white;")
+        layout.addWidget(close_button)
+        close_button.clicked.connect(dialog.close)
+
+        # כפתור הורדת URL מרובים - נשאר למי שרוצה דרך URL
+        download_button = QPushButton("Download All", dialog)
+        download_button.setStyleSheet("background-color: red; color: white;")
+        layout.addWidget(download_button)
+
+        def start_batch_download():
+            lines = url_input.toPlainText().strip().splitlines()
+            urls = [line.strip() for line in lines if line.strip() and not line.startswith("#")]
+
+            if not urls:
+                QMessageBox.warning(dialog, "Error", "Please enter at least one valid URL or file.")
+                return
+
+            merged_content = "#EXTM3U\n"
+            valid_count = 0
+            url_data = []
+
+            for url in urls:
+                if not re.match(r'^https?://', url):
+                    continue
+                try:
+                    response = requests.get(url)
+                    response.raise_for_status()
+                    content = response.text.strip()
+                    if not content.startswith("#EXTM3U"):
+                        continue
+                    url_data.append((url, content))
+                    merged_content += "\n".join(
+                        line for line in content.splitlines() if line.strip() and not line.startswith("#EXTM3U")) + "\n"
+                    valid_count += 1
+                except Exception as e:
+                    print(f"Failed to download: {url} — {e}")
+
+            if valid_count == 0:
+                QMessageBox.warning(dialog, "No Valid URLs", "None of the URLs were valid M3U files.")
+                return
+
+            choice = QMessageBox.question(
+                dialog,
+                "📥 Load All?",
+                f"<b style='font-size:14px;'>✅ <u>{valid_count} M3U files</u> downloaded successfully.</b><br><br>"
+                "<span style='font-size:13px;'>Do you want to load them all into the <b>editor</b>?</span>",
+                QMessageBox.Yes | QMessageBox.No
+            )
+
+            if choice == QMessageBox.Yes:
+                full_combined = "#EXTM3U\n"
+                for (url, content) in url_data:
+                    lines = [line for line in content.splitlines() if line.strip() and not line.startswith("#EXTM3U")]
+                    full_combined += "\n".join(lines) + "\n"
+                self.loadM3UFromText(full_combined, append=False)
+                QMessageBox.information(dialog, "Loaded", "All M3U files were loaded into the editor.")
+                dialog.close()
+                return
+
+            merge_choice = QMessageBox.question(
+                dialog,
+                "📦 Save Merged File?",
+                f"<b style='font-size:14px;'>💾 Do you want to save all <u>{valid_count} files</u> as one merged M3U file?</b>",
+                QMessageBox.Yes | QMessageBox.No
+            )
+
+            if merge_choice == QMessageBox.Yes:
+                file_path, _ = QFileDialog.getSaveFileName(dialog, "Save Merged M3U File", "merged.m3u",
+                                                           "M3U Files (*.m3u);;All Files (*)")
+                if file_path:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(merged_content)
+                    QMessageBox.information(dialog, "Saved", "Merged M3U file saved successfully.")
+            else:
+                save_dir = QFileDialog.getExistingDirectory(dialog, "Select Folder to Save Each M3U Separately")
+                if save_dir:
+                    for i, (url, content) in enumerate(url_data):
+                        match = re.search(r'username=([a-zA-Z0-9]+)', url)
+                        file_name = f"{match.group(1)}.m3u" if match else f"playlist_{i + 1}.m3u"
+                        file_path = os.path.join(save_dir, file_name)
+                        with open(file_path, 'w', encoding='utf-8') as f:
+                            f.write(content)
+                    QMessageBox.information(dialog, "Saved", "All M3U files saved individually.")
+
+            dialog.close()
+
+        download_button.clicked.connect(start_batch_download)
+        dialog.exec_()
+
+    def loadM3UFromText(self, content, append=False):
+        if not append:
+            self.categories.clear()
+
+        self.load_logos_once()  # בדיקת קובץ json אם כבר נטען
+
+        self.parseM3UContentEnhanced(content)  # ← מציג מיד את הקטגוריות
+
+        self.updateCategoryList()
+        self.buildSearchCompleter()
+        self.logosFinished.connect(self.onLogosFinished)
+
+        # טען את הערוצים הראשונים
+        if self.categoryList.count() > 0:
+            self.categoryList.setCurrentRow(0)
+            self.display_channels(self.categoryList.currentItem())
+
+        # סריקת לוגואים ברקע בלבד
+        threading.Thread(
+            target=self.extract_and_save_logos_for_all_channels,
+            args=(content,),
+            daemon=True
+        ).start()
+
+    def extract_and_save_logos_for_all_channels(self, content):
+        """
+        Scans all channels in the M3U content and saves unique logos only if not already present.
+        """
+        try:
+            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                logo_db = json.load(f)
+        except:
+            logo_db = {}
+
+        seen = set()
+        lines = content.strip().splitlines()
+
+        for i in range(len(lines)):
+            if lines[i].startswith("#EXTINF:"):
+                name_match = re.search(r",(.+)", lines[i])
+                channel_name = name_match.group(1).strip() if name_match else ""
+
+                logo_match = re.search(r'tvg-logo="([^"]+)"', lines[i])
+                logo_url = logo_match.group(1).strip() if logo_match else ""
+
+                if channel_name and logo_url:
+                    existing = logo_db.get(channel_name, [])
+                    if isinstance(existing, str):
+                        existing = [existing]
+
+                    if logo_url not in existing and (channel_name, logo_url) not in seen:
+                        if channel_name not in logo_db:
+                            logo_db[channel_name] = []
+                        if isinstance(logo_db[channel_name], str):
+                            logo_db[channel_name] = [logo_db[channel_name]]
+                        logo_db[channel_name].append(logo_url)
+                        seen.add((channel_name, logo_url))
+                        print(f"[LOGO] ✅ {channel_name} | {logo_url}")
+
+        with open(LOGO_DB_PATH, "w", encoding="utf-8") as f:
+            json.dump(logo_db, f, indent=2, ensure_ascii=False)
+
+    def open_logo_manager(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("ניהול לוגואים לערוצים מישראל")
+        dialog.setGeometry(200, 200, 800, 500)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        dialog.setStyleSheet("""
+            QDialog {
+                border: 4px solid red;
+                background-color: white;
+            }
+            QHeaderView::section {
+                background-color: black;
+                color: white;
+                font-weight: bold;
+                padding: 4px;
+            }
+        """)
+
+        layout = QVBoxLayout(dialog)
+
+        # 🔍 שורת חיפוש
+        search_box = QLineEdit()
+        search_box.setPlaceholderText("🔍 חפש לפי שם ערוץ או כתובת לוגו")
+        layout.addWidget(search_box)
+
+        table = QTableWidget(dialog)
+        table.setColumnCount(3)
+        table.setHorizontalHeaderLabels(["✔", "שם ערוץ", "לוגו (URL)"])
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        table.setSortingEnabled(True)
+        layout.addWidget(table)
+
+        # ✅ רענון נתונים לטבלה
+        def load_table_data():
+            table.setRowCount(0)
+            seen = set()  # לא להציג כפולים
+
+            try:
+                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except:
+                data = {}
+
+            row = 0
+            for name, logos in data.items():
+                if is_israeli_channel("", name):
+                    # ודא שהערך הוא תמיד רשימה
+                    if isinstance(logos, str):
+                        logos = [logos]
+                    for logo in logos:
+                        if (name, logo) in seen:
+                            continue
+                        seen.add((name, logo))
+                        table.insertRow(row)
+                        checkbox_item = QTableWidgetItem()
+                        checkbox_item.setCheckState(Qt.Unchecked)
+                        table.setItem(row, 0, checkbox_item)
+                        table.setItem(row, 1, QTableWidgetItem(name))
+                        table.setItem(row, 2, QTableWidgetItem(logo))
+                        row += 1
+
+        load_table_data()  # טען פעם ראשונה
+
+        def filter_table():
+            text = search_box.text().lower()
+            for row in range(table.rowCount()):
+                show = False
+                for col in range(1, 3):  # שם ולוגו
+                    item = table.item(row, col)
+                    if item and text in item.text().lower():
+                        show = True
+                        break
+                table.setRowHidden(row, not show)
+
+        search_box.textChanged.connect(filter_table)
+
+        # 🔘 כפתורים
+        button_layout = QHBoxLayout()
+        style_black = """
+            QPushButton {
+                background-color: black;
+                color: white;
+                font-weight: bold;
+                padding: 8px;
+            }
+            QPushButton:hover {
+                background-color: #444;
+            }
+        """
+        style_red = """
+            QPushButton {
+                background-color: red;
+                color: white;
+                font-weight: bold;
+                padding: 8px;
+            }
+            QPushButton:hover {
+                background-color: #cc0000;
+            }
+        """
+
+        select_all_btn = QPushButton("בחר הכל")
+        deselect_all_btn = QPushButton("בטל בחירה")
+        refresh_btn = QPushButton("🔃 רענן טבלה")
+        delete_btn = QPushButton("🗑️ מחק ערוצים נבחרים")
+        close_btn = QPushButton("סגור")
+
+        for btn in [select_all_btn, deselect_all_btn, refresh_btn, close_btn]:
+            btn.setStyleSheet(style_black)
+        delete_btn.setStyleSheet(style_red)
+
+        def select_all():
+            for row in range(table.rowCount()):
+                item = table.item(row, 0)
+                if item:
+                    item.setCheckState(Qt.Checked)
+
+        def deselect_all():
+            for row in range(table.rowCount()):
+                item = table.item(row, 0)
+                if item:
+                    item.setCheckState(Qt.Unchecked)
+
+        def delete_selected():
+            try:
+                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                    logos_data = json.load(f)
+            except:
+                logos_data = {}
+
+            to_remove = {}  # name → [logos to remove]
+
+            for row in range(table.rowCount()):
+                checkbox_item = table.item(row, 0)
+                name_item = table.item(row, 1)
+                logo_item = table.item(row, 2)
+                if checkbox_item and checkbox_item.checkState() == Qt.Checked:
+                    name = name_item.text().strip()
+                    logo = logo_item.text().strip()
+                    to_remove.setdefault(name, []).append(logo)
+
+            removed_count = 0
+            for name, logos_to_remove in to_remove.items():
+                if name in logos_data:
+                    existing = logos_data[name]
+                    if isinstance(existing, str):
+                        existing = [existing]
+                    updated = [logo for logo in existing if logo not in logos_to_remove]
+                    if updated:
+                        logos_data[name] = updated
+                    else:
+                        del logos_data[name]
+                    removed_count += len(logos_to_remove)
+
+            if removed_count > 0:
+                with open(LOGO_DB_PATH, "w", encoding="utf-8") as f:
+                    json.dump(logos_data, f, indent=2, ensure_ascii=False)
+                QMessageBox.information(dialog, "בוצע", f"הוסרו {removed_count} פריטים.")
+                load_table_data()
+
+        select_all_btn.clicked.connect(select_all)
+        deselect_all_btn.clicked.connect(deselect_all)
+        refresh_btn.clicked.connect(load_table_data)
+        delete_btn.clicked.connect(delete_selected)
+        close_btn.clicked.connect(dialog.close)
+
+        button_layout.addWidget(select_all_btn)
+        button_layout.addWidget(deselect_all_btn)
+        button_layout.addWidget(refresh_btn)
+        button_layout.addWidget(delete_btn)
+        button_layout.addWidget(close_btn)
+        layout.addLayout(button_layout)
+
+        dialog.exec_()
+
+    def onCategorySelected(self, item):
+        selected_category = item.text().strip()
+        if '(' in selected_category:
+            selected_category = selected_category.split('(')[0].strip()
+        self.loadChannelsForCategory(selected_category)
+
+    def handleSearchTextChanged(self, text):
+        text = text.strip().lower()
+        if not text:
+            return
+
+        # חיפוש קטגוריה קודם
+        found_category = False
+        for i in range(self.categoryList.count()):
+            item = self.categoryList.item(i)
+            category_name = item.text().split(" (")[0].lower()
+            if text in category_name:
+                item.setBackground(QColor("yellow"))
+                self.categoryList.setCurrentItem(item)
+                self.display_channels(item)
+                found_category = True
+            else:
+                item.setBackground(QColor("white"))
+
+        # חיפוש ערוץ בתוך כל הקטגוריות
         for category, channels in self.categories.items():
             for channel in channels:
-                if query.lower() in channel.lower():
-                    results.append(channel)
-        return results
+                name = channel.split(" (")[0].lower()
+                if text in name:
+                    for i in range(self.categoryList.count()):
+                        item = self.categoryList.item(i)
+                        if category in item.text():
+                            item.setBackground(QColor("yellow"))
+                            self.categoryList.setCurrentItem(item)
+                            self.display_channels(item)
+                            break
 
-    def perform_search(self):
-        query = self.search_input.text().strip()
-        if query:  # Check if the query is not empty
-            results = self.search_channels(query, {})
-            self.display_search_results(results)
-        else:
-            self.display_search_results([])  # Clear results if query is empty
+                    for j in range(self.channelList.count()):
+                        ch_item = self.channelList.item(j)
+                        if text in ch_item.text().lower():
+                            ch_item.setSelected(True)
+                            self.channelList.scrollToItem(ch_item)
+                            return
 
-    def display_search_results(self, results):
-        self.channelList.clear()  # Clears the current list
-        self.textEdit.clear()  # Assuming 'textEdit' is your QTextEdit for M3U content
-        for channel in results:
-            self.channelList.addItem(channel)  # Adds channel to the list
-            self.textEdit.append(channel)  # Also append the full channel info to the M3U content area
+    def buildSearchCompleter(self):
+        search_terms = list(self.categories.keys())
+        for ch_list in self.categories.values():
+            for ch in ch_list:
+                search_terms.append(ch.split(" (")[0])
+        completer = QCompleter(sorted(set(search_terms)), self)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)  # ← מאפשר חיפוש גם באמצע
+        self.searchBox.setCompleter(completer)
 
     def setup_channel_context_menu(self):
         self.channelList.setContextMenuPolicy(Qt.ActionsContextMenu)
@@ -880,6 +1786,7 @@ class M3UEditor(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Choose scan type")
         dialog.setFixedSize(250, 130)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         dialog.setStyleSheet("""
             QDialog {
                 border: 4px solid red;
@@ -889,13 +1796,13 @@ class M3UEditor(QWidget):
 
         layout = QVBoxLayout(dialog)
 
-        label = QLabel("Choose scan type:", dialog)
+        label = QLabel("Choose scan type:")
         label.setAlignment(Qt.AlignCenter)
         layout.addWidget(label)
 
-        btn_scan_category = QPushButton("Scan Selected Category", dialog)
+        btn_scan_category = QPushButton("Scan Selected Category")
         btn_scan_category.setStyleSheet("background-color: purple; color: white; font-weight: bold; padding: 5px;")
-        btn_scan_all = QPushButton("Scan All Channels", dialog)
+        btn_scan_all = QPushButton("Scan All Channels")
         btn_scan_all.setStyleSheet("background-color: red; color: white; font-weight: bold; padding: 5px;")
 
         layout.addWidget(btn_scan_category)
@@ -913,18 +1820,45 @@ class M3UEditor(QWidget):
         if fileName:
             try:
                 with open(fileName, 'r', encoding='utf-8') as file:
-                    additional_content = file.read()
-                    current_content = self.textEdit.toPlainText()
-                    if not current_content.endswith('\n'):
-                        current_content += '\n'
-                    self.textEdit.setPlainText(current_content + additional_content)
+                    additional_content = file.read().strip().splitlines()
 
-                    # Update the label to show that a file was merged
-                    self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]} (Merged)")
-                    QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
+                # טען לוגואים לזיכרון לשימוש מהיר
+                try:
+                    with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                        logo_db = json.load(f)
+                except:
+                    logo_db = {}
 
-                    # Parse the merged content to update categories and channels display
-                    self.parseM3UContentEnhanced(self.textEdit.toPlainText())
+                merged_lines = []
+                i = 0
+                while i < len(additional_content):
+                    line = additional_content[i]
+                    if line.startswith("#EXTINF:"):
+                        extinf_line = line
+                        url_line = additional_content[i + 1] if i + 1 < len(additional_content) else ""
+
+                        name_match = re.search(r",(.+)", extinf_line)
+                        channel_name = name_match.group(1).strip() if name_match else ""
+
+                        extinf_line = inject_logo(extinf_line, channel_name, logo_db)
+                        merged_lines.append(extinf_line)
+                        merged_lines.append(url_line)
+                        i += 2
+                    else:
+                        i += 1
+
+                # מיזוג לשדה הטקסט
+                current_content = self.textEdit.toPlainText()
+                if not current_content.endswith('\n'):
+                    current_content += '\n'
+                merged_text = current_content + '\n'.join(merged_lines)
+                self.textEdit.setPlainText(merged_text)
+
+                self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]} (Merged)")
+                QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
+
+                # סריקה מחדש
+                self.parseM3UContentEnhanced(self.textEdit.toPlainText())
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
@@ -989,6 +1923,7 @@ class M3UEditor(QWidget):
 
         # Create category list widget
         self.categoryList = QListWidget(self)
+        self.categoryList.itemClicked.connect(self.onCategorySelected)
         self.categoryList.setSelectionMode(QAbstractItemView.MultiSelection)  # Ensure multiple selection is enabled
         layout.addWidget(self.categoryList)
 
@@ -1013,33 +1948,52 @@ class M3UEditor(QWidget):
         # Create a horizontal layout for the buttons
         buttons_layout = QHBoxLayout()
 
+        self.directM3UDownloadButton = QPushButton('🌐 M3U Direct', self)
+        self.directM3UDownloadButton.setStyleSheet("background-color: black; color: white;")
+        self.directM3UDownloadButton.clicked.connect(self.downloadDirectM3U)
+        buttons_layout.addWidget(self.directM3UDownloadButton)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+        self.batchM3UDownloadButton = QPushButton('🔀 Smart M3U Loader', self)
+        self.batchM3UDownloadButton.setStyleSheet("background-color: black; color: white;")
+        self.batchM3UDownloadButton.clicked.connect(self.openBatchDownloader)
+        buttons_layout.addWidget(self.batchM3UDownloadButton)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
         # M3U URL Converter button
-        self.m3uUrlConverterButton = QPushButton('M3U URL Converter', self)
+        self.m3uUrlConverterButton = QPushButton('🔐 Xtream Converter', self)
         self.m3uUrlConverterButton.setStyleSheet("background-color: black; color: white;")
         self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
         buttons_layout.addWidget(self.m3uUrlConverterButton)
 
-        self.convertPortalButton = QPushButton('Convert Portal MAC to M3U', self)
+        self.convertPortalButton = QPushButton('🔄 Stalker MAC to M3U', self)
         self.convertPortalButton.setStyleSheet("background-color: black; color: white;")
         self.convertPortalButton.clicked.connect(self.convertPortalToM3U)
         buttons_layout.addWidget(self.convertPortalButton)
 
         # Export Groups button
-        self.exportGroupButton = QPushButton('Export Groups', self)
+        self.exportGroupButton = QPushButton('📤 Export Groups', self)
         self.exportGroupButton.setStyleSheet("background-color: black; color: white;")
         self.exportGroupButton.clicked.connect(self.openExportDialog)
         buttons_layout.addWidget(self.exportGroupButton)
 
         # Filter Israeli Channels button
-        self.filterIsraelChannelsButton = QPushButton('Filter Israeli Channels', self)
+        self.filterIsraelChannelsButton = QPushButton('🇮🇱 IsraelX Export', self)
         self.filterIsraelChannelsButton.setStyleSheet("background-color: black; color: white;")
         self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
         buttons_layout.addWidget(self.filterIsraelChannelsButton)
 
-        self.smartScanButton = QPushButton('Smart Scan', self)
+        self.smartScanButton = QPushButton('🔍 Scan Master', self)
         self.smartScanButton.setStyleSheet("background-color: black; color: white; font-weight: ;")
         self.smartScanButton.clicked.connect(self.openSmartScanDialog)
         buttons_layout.addWidget(self.smartScanButton)
+
+        self.manageLogosButton = QPushButton('🖼️ Logo Manager', self)
+        self.manageLogosButton.setStyleSheet("background-color: black; color: red;")
+        self.manageLogosButton.clicked.connect(self.open_logo_manager)
+        buttons_layout.addWidget(self.manageLogosButton)
+
+
 
         # Add the horizontal layout to the vertical layout
         layout.addLayout(buttons_layout)
@@ -1047,10 +2001,51 @@ class M3UEditor(QWidget):
         return layout
 
     def convertPortalToM3U(self):
-        mac_address, ok_mac = QInputDialog.getText(self, 'Enter MAC Address', 'Enter your MAC Address:')
-        portal_url, ok_portal = QInputDialog.getText(self, 'Enter Portal URL', 'Enter your Portal URL:')
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Portal to M3U Converter")
+        dialog.setGeometry(300, 300, 600, 300)
+        dialog.setStyleSheet("""
+            QDialog { background-color: white; border: 5px solid red; }
+            QPushButton { font-weight: bold; height: 40px; }
+            QLineEdit { font-size: 14px; padding: 6px; }
+        """)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
-        if ok_mac and ok_portal and mac_address and portal_url:
+        layout = QVBoxLayout(dialog)
+
+        layout.addWidget(QLabel("Enter your Portal URL:"))
+        portal_input = QLineEdit()
+        portal_input.setPlaceholderText("http://example.com/stalker_portal/")
+        layout.addWidget(portal_input)
+
+        layout.addWidget(QLabel("Enter your MAC Address:"))
+        mac_input = QLineEdit()
+        mac_input.setPlaceholderText("00:1A:79:XX:XX:XX")
+        layout.addWidget(mac_input)
+
+        convert_button = QPushButton("Convert & Download")
+        convert_button.setStyleSheet("background-color: red; color: white;")
+        layout.addWidget(convert_button)
+
+        close_button = QPushButton("Close")
+        close_button.setStyleSheet("background-color: black; color: white;")
+        layout.addWidget(close_button)
+
+        close_button.clicked.connect(dialog.close)
+
+        def handle_conversion():
+            portal_url = portal_input.text().strip()
+            mac_address = mac_input.text().strip()
+
+            if not portal_url or not mac_address:
+                QMessageBox.warning(dialog, "Missing Input", "Please enter both Portal URL and MAC address.")
+                return
+
+            if not portal_url.endswith('/'):
+                portal_url += '/'
+
+            session = setup_session()
+
             headers = {
                 "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
                 "Referer": portal_url,
@@ -1058,127 +2053,56 @@ class M3UEditor(QWidget):
             }
 
             try:
-                # Step 1: Authentication (Handshake)
                 handshake_url = f"{portal_url}server/load.php"
                 handshake_data = {"type": "stb", "action": "handshake", "token": "", "mac": mac_address}
-                response = requests.post(handshake_url, headers=headers, json=handshake_data)
+                response = session.post(handshake_url, headers=headers, json=handshake_data, timeout=10)
 
-                # Debugging print
-                print("Handshake Response:", response.text)
-
-                # Validate JSON response
                 if response.status_code != 200 or not response.text.strip():
-                    QMessageBox.critical(self, "Error", "Failed to connect to portal. Check the Portal URL.")
+                    QMessageBox.critical(dialog, "Error", "Failed to connect to portal. Check the Portal URL.")
                     return
 
                 token = response.json().get("js", {}).get("token", None)
-
                 if not token:
-                    QMessageBox.critical(self, "Error", "Authentication failed. Check your MAC address and Portal URL.")
+                    QMessageBox.critical(dialog, "Error", "Authentication failed. Check your MAC and Portal URL.")
                     return
 
-                # Step 2: Fetch Channels
                 channels_url = f"{portal_url}stalker_portal/server/load.php?type=itv&action=get_all_channels&mac={mac_address}&token={token}"
-                channels_response = requests.get(channels_url, headers=headers)
+                channels_response = session.get(channels_url, headers=headers, timeout=10)
 
-                # Debugging print
-                print("Channels Response:", channels_response.text)
-
-                # Validate JSON response
                 if channels_response.status_code != 200 or not channels_response.text.strip():
-                    QMessageBox.critical(self, "Error", "Failed to retrieve channel list. Check your Portal URL.")
+                    QMessageBox.critical(dialog, "Error", "Failed to retrieve channel list.")
                     return
 
                 channels = channels_response.json().get("js", {}).get("data", [])
-
                 if not channels:
-                    QMessageBox.critical(self, "Error", "No channels found. Check your MAC and Portal URL.")
+                    QMessageBox.critical(dialog, "Error", "No channels found.")
                     return
 
-                # Step 3: Generate M3U File
                 m3u_content = "#EXTM3U\n"
                 for channel in channels:
                     name = channel.get("name", "Unknown Channel")
                     stream_url = channel.get("cmd", "")
                     m3u_content += f"#EXTINF:-1,{name}\n{stream_url}\n"
 
-                file_path, _ = QFileDialog.getSaveFileName(self, "Save M3U File", "playlist.m3u",
+                file_path, _ = QFileDialog.getSaveFileName(dialog, "Save M3U File", "playlist.m3u",
                                                            "M3U Files (*.m3u);;All Files (*)")
                 if file_path:
                     with open(file_path, "w", encoding="utf-8") as file:
                         file.write(m3u_content)
-                    QMessageBox.information(self, "Success", "M3U file successfully created!")
+                    QMessageBox.information(dialog, "Success", "M3U file successfully created!")
+
+                dialog.close()
 
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to convert Portal MAC to M3U: {str(e)}")
+                QMessageBox.critical(dialog, "Error", f"Failed to convert Portal MAC to M3U:\n{str(e)}")
+
+        convert_button.clicked.connect(handle_conversion)
+        dialog.exec_()
 
     def displayTotalChannels(self):
         total_channels = sum(len(channels) for channels in self.categories.values())
         self.channelCountLabel.setText(f"Total Channels: {total_channels}")
 
-    def create_channel_section(self):
-        layout = QVBoxLayout()
-        channel_title = QLabel("Channels", self)
-        channel_title.setAlignment(Qt.AlignCenter)
-        channel_title.setStyleSheet("font-size: 18px; font-weight: bold;")
-        layout.addWidget(channel_title)
-
-        # Search components added here for channels
-        self.search_input = QLineEdit(self)
-        self.search_button = QPushButton('Search', self)
-        self.search_button.clicked.connect(
-            self.perform_search)  # Ensure this connects to a proper channel search method
-        search_layout = QHBoxLayout()
-        search_layout.addWidget(self.search_input)
-        search_layout.addWidget(self.search_button)
-        layout.addLayout(search_layout)
-
-        # Create the sorting combo box and add additional sorting options
-        self.sortingComboBox = QComboBox(self)
-        self.sortingComboBox.addItems([
-            "Sort by Name A-Z",
-            "Sort by Name Z-A",
-            "Sort by Stream Type",
-            "Sort by Group Title",
-            "Sort by URL Length"
-        ])
-        self.sortingComboBox.currentIndexChanged.connect(self.sortChannels)
-        layout.addWidget(self.sortingComboBox)
-
-        button_layout = QHBoxLayout()
-        self.addChannelButton = QPushButton('Add Channel')
-        self.deleteChannelButton = QPushButton('Delete Selected')
-        self.moveChannelUpButton = QPushButton('Move Up')
-        self.moveChannelDownButton = QPushButton('Move Down')
-        self.selectAllChannelsButton = QPushButton('Select All')
-        self.clearChannelsSelectionButton = QPushButton('Deselect All')
-        self.moveSelectedChannelButton = QPushButton('Move Selected')
-        self.editSelectedChannelButton = QPushButton('Edit Selected')
-        self.checkDoublesButton = QPushButton('Check Duplicate')
-        self.checkDoublesButton.clicked.connect(self.checkDoubles)
-        button_layout.addWidget(self.addChannelButton)
-        button_layout.addWidget(self.deleteChannelButton)
-        button_layout.addWidget(self.moveChannelUpButton)
-        button_layout.addWidget(self.moveChannelDownButton)
-        button_layout.addWidget(self.selectAllChannelsButton)
-        button_layout.addWidget(self.clearChannelsSelectionButton)
-        button_layout.addWidget(self.moveSelectedChannelButton)
-        button_layout.addWidget(self.editSelectedChannelButton)
-        button_layout.addWidget(self.checkDoublesButton)  # Add it to the button row
-        layout.addLayout(button_layout)
-
-        self.channelList = QListWidget(self)
-        self.channelList.setSelectionMode(QListWidget.MultiSelection)
-        layout.addWidget(self.channelList)
-        self.addChannelButton.clicked.connect(self.addChannel)
-        self.deleteChannelButton.clicked.connect(self.deleteSelectedChannels)
-        self.moveChannelUpButton.clicked.connect(self.moveChannelUp)
-        self.moveChannelDownButton.clicked.connect(self.moveChannelDown)
-        self.selectAllChannelsButton.clicked.connect(self.selectAllChannels)
-        self.clearChannelsSelectionButton.clicked.connect(self.deselectAllChannels)
-        self.moveSelectedChannelButton.clicked.connect(self.moveSelectedChannel)
-        self.editSelectedChannelButton.clicked.connect(self.editSelectedChannel)
-        return layout
 
     def sortChannels(self):
         sort_option = self.sortingComboBox.currentText()
@@ -1198,7 +2122,7 @@ class M3UEditor(QWidget):
                 self.categories[current_category].sort(key=lambda x: len(x.split(",")[-1]))
 
             self.display_channels(self.categoryList.currentItem())
-            self.updateM3UContent()  # <-- Add this line
+            self.regenerateM3UTextOnly()  # <-- Add this line
 
     def create_m3u_content_section(self):
         layout = QVBoxLayout()
@@ -1239,6 +2163,28 @@ class M3UEditor(QWidget):
         for category, channels in self.categories.items():
             display_text = f"{category} ({len(channels)})"
             self.categoryList.addItem(display_text)
+
+    def loadChannelsForCategory(self, category_name):
+        try:
+            category_name = category_name.strip()
+            if category_name not in self.categories:
+                raise KeyError(f"Category '{category_name}' not found in categories.")
+
+            self.currentCategory = category_name
+            self.channelList.clear()
+
+            for channel in self.categories[category_name]:
+                if isinstance(channel, dict):  # במבנה החדש
+                    display_name = channel.get("name", "")
+                else:
+                    display_name = channel.split(" (")[0].strip()
+
+                self.channelList.addItem(display_name)
+
+        except KeyError as ke:
+            QMessageBox.critical(self, "Error", f"Failed to load category: {ke}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load category channels: {str(e)}")
 
     def updateCategoryName(self):
         """
@@ -1328,17 +2274,14 @@ class M3UEditor(QWidget):
             self.categoryList.insertItem(current_row - 1, current_item)
             self.categoryList.setCurrentRow(current_row - 1)
 
-            # Update the self.categories dictionary
             category_keys = list(self.categories.keys())
             category_keys[current_row], category_keys[current_row - 1] = category_keys[current_row - 1], category_keys[
                 current_row]
-
-            # Reorder the dictionary
             reordered_categories = {key: self.categories[key] for key in category_keys}
             self.categories = reordered_categories
 
-            # Regenerate the M3U content
-            self.updateM3UContent()
+            self.refreshCategoryListOnly(selected_index=current_row - 1)
+            self.regenerateM3UTextOnly()
 
     def moveCategoryDown(self):
         current_row = self.categoryList.currentRow()
@@ -1347,17 +2290,55 @@ class M3UEditor(QWidget):
             self.categoryList.insertItem(current_row + 1, current_item)
             self.categoryList.setCurrentRow(current_row + 1)
 
-            # Update the self.categories dictionary
             category_keys = list(self.categories.keys())
             category_keys[current_row], category_keys[current_row + 1] = category_keys[current_row + 1], category_keys[
                 current_row]
-
-            # Reorder the dictionary
             reordered_categories = {key: self.categories[key] for key in category_keys}
             self.categories = reordered_categories
 
-            # Regenerate the M3U content
-            self.updateM3UContent()
+            self.refreshCategoryListOnly(selected_index=current_row + 1)
+            self.regenerateM3UTextOnly()
+
+    def regenerateM3UTextOnly(self, fast_mode=True):
+        updated_lines = ["#EXTM3U"]
+        logo_db = {}
+
+        if fast_mode and os.path.exists(LOGO_DB_PATH):
+            try:
+                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                    logo_db = json.load(f)
+            except Exception as e:
+                print(f"[LOGO] Failed to load logo DB: {e}")
+
+        for category, channels in self.categories.items():
+            for channel in channels:
+                try:
+                    name, url = channel.split(" (", 1)
+                    name = name.strip()
+                    url = url.strip(") \n")
+                except:
+                    continue
+
+                logo_url = logo_db.get(name)
+                if isinstance(logo_url, list):
+                    logo_url = logo_url[0] if logo_url else None
+
+                extinf = f'#EXTINF:-1'
+                if logo_url:
+                    extinf += f' tvg-logo="{logo_url}"'
+                extinf += f' group-title="{category}",{name}'
+
+                updated_lines.append(f"{extinf}\n{url}")
+
+        self.textEdit.setPlainText("\n".join(updated_lines))
+
+    def refreshCategoryListOnly(self, selected_index=None):
+        self.categoryList.clear()
+        for category in self.categories:
+            channel_count = len(self.categories[category])
+            self.categoryList.addItem(f"{category} ({channel_count})")
+        if selected_index is not None:
+            self.categoryList.setCurrentRow(selected_index)
 
     def selectAllCategories(self):
         """Select all categories in the list."""
@@ -1384,58 +2365,97 @@ class M3UEditor(QWidget):
                 self.updateM3UContent()
 
     def deleteSelectedChannels(self):
-        """
-        Deletes only the channels that are explicitly selected in the channel list.
-        Works with the exact position (index) in the current category.
-        Shows a message at the end with the count of deleted channels.
-        """
-        current_category_item = self.categoryList.currentItem()
-        if not current_category_item:
-            QMessageBox.warning(self, "Warning", "No category selected.")
+        selected_indexes = []
+        for i in range(self.channelList.count()):
+            if self.channelList.item(i).isSelected():
+                selected_indexes.append(i)
+
+        if not selected_indexes:
+            QMessageBox.information(self, "No Selection", "No channels selected for deletion.")
             return
 
-        current_category = current_category_item.text().split(" (")[0]
-        if current_category not in self.categories:
-            QMessageBox.warning(self, "Warning", "Category not found.")
+        selected_category_item = self.categoryList.currentItem()
+        if not selected_category_item:
+            QMessageBox.warning(self, "No Category", "Please select a category.")
             return
 
-        selected_items = self.channelList.selectedItems()
-        if not selected_items:
-            QMessageBox.information(self, "Info", "No channels selected for deletion.")
+        category_name = selected_category_item.text().split(" (")[0]
+        if category_name not in self.categories:
+            QMessageBox.warning(self, "Invalid Category", "Selected category not found.")
             return
 
-        # We need to find the actual index positions of selected channels
-        selected_indexes = [self.channelList.row(item) for item in selected_items]
+        channels_in_category = self.categories[category_name]
+        original_len = len(channels_in_category)
 
-        # Delete by index — reverse so deletion does not shift indexes
-        selected_indexes.sort(reverse=True)
+        # מחיקה לפי אינדקסים מסומנים בלבד
+        self.categories[category_name] = [
+            ch for i, ch in enumerate(channels_in_category)
+            if i not in selected_indexes
+        ]
 
-        deleted_count = 0
+        deleted = original_len - len(self.categories[category_name])
 
-        for index in selected_indexes:
-            if 0 <= index < len(self.categories[current_category]):
-                del self.categories[current_category][index]
-                deleted_count += 1
+        self.updateCategoryList()
+        self.regenerateM3UTextOnly()
+        if self.categoryList.currentItem():
+            self.display_channels(self.categoryList.currentItem())
 
-        # Update the UI and M3U content
-        self.updateM3UContent()
-        self.display_channels(self.categoryList.currentItem())
-
-        QMessageBox.information(self, "Success", f"Deleted {deleted_count} channel(s).")
+        QMessageBox.information(self, "Success", f"Deleted {deleted} channel(s).")
 
     def updateM3UContent(self):
-        """
-        Regenerates the M3U content based on the current state of self.categories,
-        preserving all channel attributes.
-        """
+        try:
+            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                logo_db = json.load(f)
+        except:
+            logo_db = {}
+
+        skip_logos = getattr(self, 'skip_logo_scan', False)
         updated_lines = ["#EXTM3U"]
+
+        # טען פעם אחת את הלוגואים
         for category, channels in self.categories.items():
             for channel in channels:
-                extinf_line = self.getFullExtInfLine(channel)
-                url = self.getUrl(channel)
-                updated_lines.append(f"{extinf_line}\n{url}")
+                try:
+                    name, url = channel.split(" (", 1)
+                    name = name.strip()
+                    url = url.strip(") \n")
+                except:
+                    continue
 
-        self.textEdit.setPlainText("\n".join(updated_lines))
+                logo_url = ""
+
+                if not skip_logos:
+                    # בדוק אם קיים tvg-logo בשורה עצמה
+                    match = re.search(r'tvg-logo="([^"]+)"', channel)
+                    if match:
+                        logo_url = match.group(1).strip()
+                        existing = logo_db.get(name, [])
+                        if isinstance(existing, str):
+                            existing = [existing]
+
+                        # אל תשמור שוב אם כבר קיים
+                        if logo_url and logo_url not in existing:
+                            logo_db.setdefault(name, []).append(logo_url)
+                            save_logo_for_channel(name, logo_url)
+                    else:
+                        logo_url = get_saved_logo(name)
+                else:
+                    logo_url = get_saved_logo(name)
+
+                # צור EXTINF עם או בלי לוגו
+                if logo_url:
+                    extinf = f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{category}",{name}'
+                else:
+                    extinf = f'#EXTINF:-1 group-title="{category}",{name}'
+
+                updated_lines.append(f"{extinf}\n{url}")
+
+        # בדוק אם יש שינוי אמיתי בתוכן לפני setPlainText (מאוד איטי)
+        new_content = "\n".join(updated_lines)
+        if self.textEdit.toPlainText().strip() != new_content.strip():
+            self.textEdit.setPlainText(new_content)
+
+        print("[LOG] 🔄 עדכון M3U בוצע", "כולל סריקת לוגואים" if not skip_logos else "ללא סריקת לוגואים")
 
     def getCategoryName(self, channel):
         """
@@ -1451,18 +2471,14 @@ class M3UEditor(QWidget):
         return channel.split(' (')[1].strip(')')
 
     def moveChannelUp(self):
-        """
-        Moves the selected channel up in the list and updates the M3U content.
-        """
         current_row = self.channelList.currentRow()
         if current_row <= 0:
-            return  # Can't move the first item up
+            return
 
         current_item = self.channelList.takeItem(current_row)
         self.channelList.insertItem(current_row - 1, current_item)
         self.channelList.setCurrentRow(current_row - 1)
 
-        # Update the self.categories dictionary
         current_category_item = self.categoryList.currentItem()
         if not current_category_item:
             QMessageBox.warning(self, "Warning", "No category selected.")
@@ -1470,54 +2486,64 @@ class M3UEditor(QWidget):
 
         current_category = current_category_item.text().split(" (")[0]
         channels = self.categories[current_category]
-        if 0 <= current_row < len(channels):
-            # Swap the current channel with the one above it
-            channels[current_row], channels[current_row - 1] = channels[current_row - 1], channels[current_row]
-            self.categories[current_category] = channels
+        channels[current_row], channels[current_row - 1] = channels[current_row - 1], channels[current_row]
 
-        # Update the M3U content
-        self.updateM3UContent()
+        self.categories[current_category] = channels
+        self.regenerateM3UTextOnly()
 
     def moveChannelDown(self):
-        """
-        Moves the selected channel down in the list and updates the M3U content.
-        """
         current_row = self.channelList.currentRow()
         if current_row < 0 or current_row >= self.channelList.count() - 1:
-            return  # Can't move the last item down
+            return
 
         current_item = self.channelList.takeItem(current_row)
         self.channelList.insertItem(current_row + 1, current_item)
         self.channelList.setCurrentRow(current_row + 1)
 
-        # Update the self.categories dictionary
         current_category_item = self.categoryList.currentItem()
         if not current_category_item:
-            return  # No category selected
+            return
 
         current_category = current_category_item.text().split(" (")[0]
         channels = self.categories[current_category]
-        if 0 <= current_row < len(channels) - 1:
-            # Swap the current channel with the one below it
-            channels[current_row], channels[current_row + 1] = channels[current_row + 1], channels[current_row]
-            self.categories[current_category] = channels
+        channels[current_row], channels[current_row + 1] = channels[current_row + 1], channels[current_row]
 
-        # Update the M3U content
-        self.updateM3UContent()
+        self.categories[current_category] = channels
+        self.regenerateM3UTextOnly()
 
-    def updateM3UContent(self):
-        """
-        Regenerates the M3U content based on the current state of self.categories.
-        """
-        updated_lines = []
-        for category, channels in self.categories.items():
-            for channel in channels:
-                # Add EXTINF line
-                updated_lines.append(f"#EXTINF:-1 group-title=\"{category}\",{channel.split(' (')[0]}")
-                # Add URL line
-                updated_lines.append(channel.split(' (')[-1].strip(')'))
+    def saveToFile(self, file_path):
+        try:
+            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                logo_db = json.load(f)
+        except:
+            logo_db = {}
 
-        self.textEdit.setPlainText("\n".join(updated_lines))
+        content = self.textEdit.toPlainText()
+        self.extract_and_save_logos_for_all_channels(content)
+
+        lines = content.strip().splitlines()
+        fixed_lines = []
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if line.startswith("#EXTINF:"):
+                extinf_line = line
+                url_line = lines[i + 1] if i + 1 < len(lines) else ""
+                name_match = re.search(r",(.+)", extinf_line)
+                channel_name = name_match.group(1).strip() if name_match else ""
+                extinf_line = inject_logo(extinf_line, channel_name, logo_db)
+                fixed_lines.append(extinf_line)
+                fixed_lines.append(url_line)
+                i += 2
+            else:
+                fixed_lines.append(line)
+                i += 1
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(fixed_lines))
+
+        QMessageBox.information(self, "Success", "File saved successfully.")
 
     def selectAllChannels(self):
         for i in range(self.channelList.count()):
@@ -1529,76 +2555,69 @@ class M3UEditor(QWidget):
 
     def moveSelectedChannel(self):
         """
-        Moves selected channels to a new or existing category and updates the M3U content.
+        Move selected channels to a new or existing category safely and FAST.
         """
-        # Validate the selected channels
         selected_items = self.channelList.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, "Warning", "No channels selected for moving.")
             return
 
-        # Open the dialog to select the target category or create a new one
         dialog = MoveChannelsDialog(self, list(self.categories.keys()))
         if dialog.exec_():
-            # Get the target category from the dialog
-            target_category = dialog.getSelectedCategory()
+            target_category = dialog.getSelectedCategory().strip()
             if not target_category:
                 QMessageBox.warning(self, "Warning", "No target category specified.")
                 return
 
-            # Ensure the target category exists
             if target_category not in self.categories:
-                # Dynamically create the new category
                 self.categories[target_category] = []
-                self.updateCategoryList()  # Refresh the UI with the new category
 
-            # Validate the current category
-            current_category_item = self.categoryList.currentItem()
-            if current_category_item is None:
+            current_item = self.categoryList.currentItem()
+            if not current_item:
                 QMessageBox.warning(self, "Warning", "No category selected.")
                 return
 
-            current_category = current_category_item.text().split(" (")[0]
+            current_category = current_item.text().split(" (")[0].strip()
             if current_category not in self.categories:
-                QMessageBox.warning(self, "Warning", "The current category does not exist.")
+                QMessageBox.warning(self, "Warning", f"Category '{current_category}' does not exist.")
                 return
 
             moved_channels = []
+            selected_names = [item.text().strip() for item in selected_items]
+            original_list = self.categories[current_category]
+            remaining_channels = []
 
-            # Move the selected channels
-            for item in selected_items:
-                if item is None:
+            for channel in original_list:
+                match = re.match(r"^(.*?) \((.*?)\)$", channel.strip())
+                if not match:
+                    remaining_channels.append(channel)
                     continue
-                channel_name = item.text()
-                if not channel_name:
-                    continue
-                # Check if the channel exists in the current category
-                for channel in self.categories[current_category]:
-                    if channel.split(" (")[0] == channel_name:
-                        moved_channels.append(channel)
-                        self.categories[current_category].remove(channel)
+
+                name = match.group(1).strip()
+                if name in selected_names:
+                    moved_channels.append(channel)
+                    selected_names.remove(name)
+                else:
+                    remaining_channels.append(channel)
+
+            if moved_channels:
+                self.categories[current_category] = remaining_channels
+                self.categories[target_category].extend(moved_channels)
+
+                self.regenerateM3UTextOnly()
+                self.updateCategoryList()
+
+                for i in range(self.categoryList.count()):
+                    if self.categoryList.item(i).text().startswith(target_category):
+                        self.categoryList.setCurrentRow(i)
+                        self.display_channels(self.categoryList.item(i))
                         break
 
-            # Add the moved channels to the target category
-            self.categories[target_category].extend(moved_channels)
-
-            # Update the M3U content to reflect the changes
-            self.updateM3UContent()
-
-            # Refresh the UI
-            self.updateCategoryList()  # Update category list counts
-            self.display_channels(self.categoryList.currentItem())  # Update channel list for the current category
-
-            # Show success message with the count of moved channels
-            QMessageBox.information(self, "Success",
-                                    f"{len(moved_channels)} channels have been successfully moved to '{target_category}'.")
-            current_category_item = self.categoryList.currentItem()
-            if current_category_item and hasattr(current_category_item, 'text') and current_category_item.text():
-                current_category = current_category_item.text().split(" (")[0]
-            else:
-                current_category = None  # Fallback
-
-                return
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    f"{len(moved_channels)} channels moved to '{target_category}'."
+                )
 
     def editSelectedChannel(self):
         """
@@ -1796,22 +2815,16 @@ class M3UEditor(QWidget):
         """)
 
         layout = QVBoxLayout(dialog)
-        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-        combo = QComboBox(dialog)
-        categories = list(self.categories.keys())
-        combo.addItems(categories)
+
+        combo = QComboBox()
+        combo.addItems(list(self.categories.keys()))
         layout.addWidget(combo)
 
-        btn_ok = QPushButton("Start Scan", dialog)
+        btn_ok = QPushButton("Start Scan")
         btn_ok.setStyleSheet("background-color: purple; color: white; font-weight: bold; padding: 5px;")
-        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         layout.addWidget(btn_ok)
 
-        btn_ok.clicked.connect(lambda: [
-            dialog.accept(),
-            self.startURLCheckForCategory(combo.currentText())
-        ])
-
+        btn_ok.clicked.connect(lambda: [dialog.accept(), self.startURLCheckForCategory(combo.currentText())])
         dialog.exec_()
 
     def startURLCheckForCategory(self, category_name):
@@ -1821,8 +2834,13 @@ class M3UEditor(QWidget):
         for ch in self.categories.get(category_name, []):
             name = ch.split(" (")[0].strip()
             url = self.getUrl(ch)
-            channels.append((name, url))
-            channel_category_mapping[name.lower()] = category_name
+            if url:
+                channels.append((name, url))
+                channel_category_mapping[name.lower()] = category_name
+
+        if not channels:
+            QMessageBox.warning(self, "No Channels", "No valid channels found in the selected category.")
+            return
 
         dialog = URLCheckerDialog(channels, channel_category_mapping, self)
         dialog.exec_()
@@ -1835,17 +2853,24 @@ class M3UEditor(QWidget):
             for ch in ch_list:
                 name = ch.split(" (")[0].strip()
                 url = self.getUrl(ch)
-                channels.append((name, url))
-                channel_category_mapping[name.lower()] = category
+                if url:
+                    channels.append((name, url))
+                    channel_category_mapping[name.lower()] = category
+
+        if not channels:
+            QMessageBox.warning(self, "No Channels", "No channels with valid URLs were found.")
+            return
 
         dialog = URLCheckerDialog(channels, channel_category_mapping, self)
         dialog.exec_()
 
-
     def openSmartScanDialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Smart Scan")
+
+        # ✅ כאן להוסיף את השורה שלך על dialog
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
         dialog.setStyleSheet("""
             QDialog {
                 border: 6px solid red;
@@ -2012,18 +3037,10 @@ class M3UEditor(QWidget):
         category_name = selected_category_item.text().split(" (")[0]
         channels_in_category = self.categories.get(category_name, [])
 
-        seen_names = set()
         for idx, channel in enumerate(channels_in_category):
-            name = channel.split(" (")[0].strip()
             url = self.getUrl(channel).strip()
-
             if url in urls_set:
-                if name not in seen_names:
-                    # זה הראשון – תשמור אותו ותדלג
-                    seen_names.add(name)
-                else:
-                    # זה השני או יותר – תבחר למחיקה
-                    self.channelList.item(idx).setSelected(True)
+                self.channelList.item(idx).setSelected(True)
 
     def removeChannelsByUrls(self, urls_set):
         removed_count = 0
@@ -2072,21 +3089,20 @@ class M3UEditor(QWidget):
 
     def deleteChannelsByNames(self, names_to_delete, urls_to_delete):
         removed = 0
+        targets = set(zip(names_to_delete, urls_to_delete))  # הפוך לרשימה של זוגות מדויקים
+
         for category, ch_list in self.categories.items():
             original_len = len(ch_list)
 
             self.categories[category] = [
                 ch for ch in ch_list
-                if not any(
-                    ch.startswith(name) and self.getUrl(ch) == url
-                    for name, url in zip(names_to_delete, urls_to_delete)
-                )
+                if (ch.split(" (")[0].strip(), self.getUrl(ch).strip()) not in targets
             ]
 
             removed += original_len - len(self.categories[category])
 
         self.updateCategoryList()
-        self.updateM3UContent()
+        self.regenerateM3UTextOnly()
         if self.categoryList.currentItem():
             self.display_channels(self.categoryList.currentItem())
 
@@ -2111,8 +3127,10 @@ class M3UEditor(QWidget):
 
     def getUrl(self, channel_info):
         try:
-            return channel_info.split(" (")[1][:-1]
-        except IndexError:
+            if '(' in channel_info and ')' in channel_info:
+                return channel_info.split(" (")[-1].rstrip(")")
+            return ""
+        except Exception:
             return ""
 
     def findFullM3UEntry(self, channel_name, category):
@@ -2125,24 +3143,33 @@ class M3UEditor(QWidget):
 
     def loadM3U(self):
         options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getOpenFileName(self, "Open M3U File", "", "M3U Files (*.m3u *.m3u8);;All Files (*)",
-                                                  options=options)
+        fileName, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open M3U File",
+            "",
+            "M3U Files (*.m3u *.m3u8);;All Files (*)",
+            options=options
+        )
         if fileName:
             try:
                 with open(fileName, 'r', encoding='utf-8') as file:
                     content = file.read()
+
                 self.textEdit.setPlainText(content)
+
+                # מציג את התוכן ומעדכן קטגוריות
                 self.parseM3UContentEnhanced(content)
+
+                # סריקת לוגואים של כל הערוצים, לא רק ישראל
+                threading.Thread(
+                    target=self.extract_and_save_logos_for_all_channels,
+                    args=(content,),
+                    daemon=True
+                ).start()
 
                 total_channels = sum(len(channels) for channels in self.categories.values())
                 self.channelCountLabel.setText(f"Total Channels: {total_channels}")
                 self.fileNameLabel.setText(f"Loaded File: {os.path.basename(fileName)}")
-
-                # 👉 טעינת קובץ EPG אוטומטי אם קיים
-                epg_path = os.path.join(os.path.dirname(fileName), "epg.xml")
-                if os.path.exists(epg_path):
-                    self.loadEPG(epg_path)
-                    QMessageBox.information(self, "EPG Loaded", "epg.xml was loaded and connected successfully.")
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to load file: {str(e)}")
@@ -2152,7 +3179,8 @@ class M3UEditor(QWidget):
             tree = ET.parse(epg_path)
             root = tree.getroot()
 
-            self.epg_data = {}  # Dictionary: tvg-id -> list of programs
+            if not hasattr(self, 'epg_data'):
+                self.epg_data = {}
 
             for programme in root.findall('programme'):
                 channel_id = programme.attrib.get('channel')
@@ -2170,16 +3198,85 @@ class M3UEditor(QWidget):
                     })
 
         except Exception as e:
-            QMessageBox.critical(self, "EPG Error", f"Failed to load epg.xml: {str(e)}")
+            QMessageBox.critical(self, "EPG Error", f"Failed to load EPG file:\n{str(e)}")
 
-    def showEPGForChannel(self, tvg_id):
+    from datetime import datetime, timedelta
+
+    def openEPGViewer(self, tvg_id):
         if not hasattr(self, 'epg_data') or tvg_id not in self.epg_data:
-            return "No EPG data"
+            QMessageBox.information(self, "EPG Viewer", "No EPG data available.")
+            return
 
-        now = datetime.datetime.now()
-        entries = self.epg_data[tvg_id]
-        # תוכל להוסיף סינון לפי הזמן הנוכחי
-        return entries[0]['title'] if entries else "No programs"
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"EPG for {tvg_id}")
+        dialog.resize(500, 600)
+        layout = QVBoxLayout(dialog)
+
+        entries = self.getRecentEPG(tvg_id)
+        if not entries:
+            layout.addWidget(QLabel("No recent programs"))
+        else:
+            for entry in entries:
+                label = QLabel(f"<b>{entry['title']}</b><br>{entry['desc']}<br>{entry['start']} → {entry['stop']}")
+                layout.addWidget(label)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def openEPGViewerForSelectedChannel(self):
+        selected_items = self.channelList.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "EPG Viewer", "Please select a channel.")
+            return
+
+        selected_name = selected_items[0].text()
+        current_category_item = self.categoryList.currentItem()
+        if not current_category_item:
+            QMessageBox.warning(self, "No Category", "No category selected.")
+            return
+
+        category = current_category_item.text().split(" (")[0]
+        channels = self.categories.get(category, [])
+
+        for ch in channels:
+            ch_name = ch.split(" (")[0].strip()
+            if ch_name == selected_name:
+                match = re.search(r'tvg-id="([^"]+)"', ch)
+                if match:
+                    tvg_id = match.group(1)
+                    self.openEPGViewer(tvg_id)
+                else:
+                    QMessageBox.information(self, "No EPG", "No tvg-id found for this channel.")
+                return
+
+    def getRecentEPG(self, tvg_id):
+        now = datetime.now()
+        week_ago = now - timedelta(days=7)
+
+        entries = self.epg_data.get(tvg_id, [])
+        filtered_entries = []
+
+        for entry in entries:
+            try:
+                start_raw = entry.get("start", "")[:14]
+                stop_raw = entry.get("stop", "")[:14]
+                start_time = datetime.strptime(start_raw, "%Y%m%d%H%M%S")
+                stop_time = datetime.strptime(stop_raw, "%Y%m%d%H%M%S")
+
+                if week_ago <= start_time <= now:
+                    filtered_entries.append({
+                        "title": entry.get("title", ""),
+                        "desc": entry.get("desc", ""),
+                        "start": start_time.strftime("%d/%m %H:%M"),
+                        "stop": stop_time.strftime("%H:%M"),
+                        "play_url": entry.get("play_url")
+                    })
+            except Exception:
+                continue
+
+    def playCatchupIfExists(self, epg_entry):
+        # בעתיד: אם יש catchup-url מובנה בתוך epg_entry
+        QMessageBox.information(self, "Play", f"Trying to play:\n{epg_entry.get('title')}")
 
     def saveM3U(self):
         options = QFileDialog.Options()
@@ -2201,40 +3298,28 @@ class M3UEditor(QWidget):
     def parseM3UContentEnhanced(self, content):
         """
         Parse M3U content, handling group-title, #EXTGRP, and tvg-logo robustly.
-        - Use #EXTGRP to set group-title if missing and reset appropriately.
-        - Always preserve the tvg-logo attribute if it exists.
-        - Reset current_group after each #EXTINF to prevent misapplication.
+        לא סורק לוגואים – רק בונה קטגוריות ותוכן.
         """
         self.categories.clear()
         updated_lines = []
-        current_group = None  # To track the group name from #EXTGRP
-
+        current_group = None
         lines = content.splitlines()
 
         for line in lines:
             if line.startswith("#EXTGRP:"):
-                # Extract the group name from the #EXTGRP line
                 current_group = line.split(":", 1)[1].strip()
-                continue  # Skip the #EXTGRP line itself
+                continue
 
             if line.startswith("#EXTINF:"):
-                # Handle group-title, adding it if missing and current_group is set
                 if "group-title=" not in line and current_group:
                     line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
-                current_group = None  # Reset after usage to prevent misapplication
-
-                # Ensure the tvg-logo attribute remains intact
-                match = re.search(r'tvg-logo="([^"]+)"', line)
-                if match:
-                    logo_url = match.group(1)  # Extract the tvg-logo URL
-                    if 'tvg-logo' not in line:
-                        line += f' tvg-logo="{logo_url}"'
+                current_group = None  # Always reset group
 
             updated_lines.append(line)
 
-        # Combine updated lines into a modified M3U content
         updated_content = "\n".join(updated_lines)
-        # Parse categories and channels from the updated content
+
+        # פרס קטגוריות וערוצים
         category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
         for match in category_pattern.findall(updated_content):
             group_title, channel_name, channel_url = match
@@ -2242,12 +3327,31 @@ class M3UEditor(QWidget):
                 self.categories[group_title] = []
             self.categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
 
-        # Update the QTextEdit and the category list
         self.textEdit.setPlainText(updated_content)
         self.categoryList.clear()
         for category, channels in self.categories.items():
-            item = QListWidgetItem(f"{category} ({len(channels)})")  # Add count of channels to the category name
+            item = QListWidgetItem(f"{category} ({len(channels)})")
             self.categoryList.addItem(item)
+
+        self.searchBox.setText("")
+        self.buildSearchCompleter()
+
+    def save_israeli_logos_background(self, content):
+        def run():
+            lines = content.strip().splitlines()
+            for i in range(len(lines)):
+                line = lines[i].strip()
+                if line.startswith("#EXTINF:"):
+                    name_match = re.search(r',(.+)', line)
+                    logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                    if name_match and logo_match:
+                        name = name_match.group(1).strip()
+                        logo = logo_match.group(1).strip()
+                        if is_israeli_channel("", name):
+                            save_logo_for_channel(name, logo)
+                            print(f"[LOGO] Saved logo for {name}: {logo}")
+
+        threading.Thread(target=run, daemon=True).start()
 
     def filterIsraelChannels(self):
         israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il', 'IL HD',
@@ -2365,7 +3469,7 @@ class M3UEditor(QWidget):
         # Update categories and regenerate M3U content
         self.categories = filtered_channels
         self.updateCategoryList()
-        self.updateM3UContent()
+        self.regenerateM3UTextOnly()
 
         # Refresh the UI category list
         self.categoryList.clear()

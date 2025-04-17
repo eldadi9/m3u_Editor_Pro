@@ -1307,7 +1307,7 @@ class M3UEditor(QWidget):
         layout.addWidget(url_input)
 
         # כפתור טעינת קבצים מקומיים וטעינה מיידית
-        load_files_button = QPushButton("📂 Load M3U Files", dialog)
+        load_files_button = QPushButton("📂 Load Files.M3U", dialog)
         load_files_button.setStyleSheet("background-color: black; color: white;")
         layout.addWidget(load_files_button)
 
