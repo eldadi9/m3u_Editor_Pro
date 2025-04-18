@@ -259,8 +259,11 @@ class ExportGroupsDialog(QDialog):
                 file.write("#EXTM3U\n")
                 for channel in self.categories[category]:
                     extinf_line = self.getFullExtInfLine(channel, category)
-                    url = self.getUrl(channel)  # Correctly extracts URL
-                    file.write(f"{extinf_line}\n{url}\n")  # Newline between properties and URL
+                    url = self.getUrl(channel)
+                    channel_name = channel.split(" (")[0].strip()  # חילוץ שם הערוץ
+                    url = self.append_channel_name_to_url(url, channel_name)
+                    file.write(f"{extinf_line}\n{url}\n")
+
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {str(e)}")
 
@@ -272,14 +275,18 @@ class ExportGroupsDialog(QDialog):
         """
         # Assume the channel format includes the full EXTINF line with properties followed by URL in parentheses
         properties_part = channel.split(' (')[0]  # Separate properties from URL
-        channel_name = properties_part.split(',')[
-            -1] if ',' in properties_part else properties_part  # Get last part after comma as channel name
+        channel_name = properties_part.split(',')[-1].strip() if ',' in properties_part else "Unknown Channel"
 
-        # Check if "group-title" is included and add it if missing
+        # 🛠 תיקון: הוספת שם ערוץ תקני אחרי הפסיק
         if "group-title=" not in properties_part:
-            properties_part = f"#EXTINF:-1, group-title=\"{category}\", {channel_name}"
+            properties_part = f'#EXTINF:-1 group-title="{category}",{channel_name}'
         else:
-            properties_part = f"#EXTINF:-1, {properties_part}"
+            # שמור על כל הנתונים הקיימים + ודא שם אחרי פסיק
+            properties_part = properties_part.strip()
+            if not properties_part.startswith("#EXTINF"):
+                properties_part = "#EXTINF:-1 " + properties_part
+            if ',' not in properties_part:
+                properties_part += f",{channel_name}"
 
         return properties_part
 
@@ -1027,6 +1034,11 @@ class M3UEditor(QWidget):
         self.categories = {}  # ← הוסף שורה זו ממש בתחילת הפונקציה!
         self.initUI()
         self.logosFinished.connect(self.onLogosFinished)
+
+    def append_channel_name_to_url(self, url, channel_name):
+        channel_name_clean = channel_name.strip().replace(" ", "_")
+        separator = "&" if "?" in url else "?"
+        return f"{url}{separator}title={channel_name_clean}"
 
     def getUrl(self, channel_string):
         try:
