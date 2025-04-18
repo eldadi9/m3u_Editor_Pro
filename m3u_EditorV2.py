@@ -259,9 +259,9 @@ class ExportGroupsDialog(QDialog):
                 file.write("#EXTM3U\n")
                 for channel in self.categories[category]:
                     extinf_line = self.getFullExtInfLine(channel, category)
-                    url = self.getUrl(channel)
-                    channel_name = channel.split(" (")[0].strip()  # חילוץ שם הערוץ
-                    url = self.append_channel_name_to_url(url, channel_name)
+                    url = self.parent.getUrl(channel)
+                    channel_name = channel.split(" (")[0].strip()
+                    url = self.parent.append_channel_name_to_url(url, channel_name)
                     file.write(f"{extinf_line}\n{url}\n")
 
         except Exception as e:
@@ -1036,9 +1036,12 @@ class M3UEditor(QWidget):
         self.logosFinished.connect(self.onLogosFinished)
 
     def append_channel_name_to_url(self, url, channel_name):
-        channel_name_clean = channel_name.strip().replace(" ", "_")
-        separator = "&" if "?" in url else "?"
-        return f"{url}{separator}title={channel_name_clean}"
+        if not url or not channel_name:
+            return url
+        if "?" in url:
+            return f"{url}&channel={channel_name.replace(' ', '_')}"
+        else:
+            return f"{url}?channel={channel_name.replace(' ', '_')}"
 
     def getUrl(self, channel_string):
         try:
@@ -2016,13 +2019,14 @@ class M3UEditor(QWidget):
         self.exportGroupButton.clicked.connect(self.openExportDialog)
         buttons_layout.addWidget(self.exportGroupButton)
 
-        # Filter Israeli Channels button
         self.filterIsraelChannelsButton = QPushButton('🇮🇱 IsraelX Export', self)
         self.filterIsraelChannelsButton.setStyleSheet("background-color: black; color: white;")
-        self.filterIsraelChannelsButton.clicked.connect(self.filterIsraelChannels)
+        self.filterIsraelChannelsButton.clicked.connect(self.chooseLanguageAndFilterIsraelChannels)
+
+
         buttons_layout.addWidget(self.filterIsraelChannelsButton)
 
-        self.smartScanButton = QPushButton('🔍 Scan Master', self)
+        self.smartScanButton = QPushButton('🔍 Smart Scan', self)
         self.smartScanButton.setStyleSheet("background-color: black; color: white; font-weight: ;")
         self.smartScanButton.clicked.connect(self.openSmartScanDialog)
         buttons_layout.addWidget(self.smartScanButton)
@@ -2961,10 +2965,7 @@ class M3UEditor(QWidget):
     def openSmartScanDialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Smart Scan")
-
-        # ✅ כאן להוסיף את השורה שלך על dialog
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-
         dialog.setStyleSheet("""
             QDialog {
                 border: 6px solid red;
@@ -2972,17 +2973,13 @@ class M3UEditor(QWidget):
             }
         """)
 
-
         layout = QVBoxLayout(dialog)
         label = QLabel("Choose scan type:")
-        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         label.setAlignment(Qt.AlignCenter)
         layout.addWidget(label)
 
-
         category_btn = QPushButton("Scan Selected Category")
         all_btn = QPushButton("Scan All Channels")
-        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         category_btn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
         all_btn.setStyleSheet("background-color: red; color: white; font-weight: bold;")
@@ -3118,12 +3115,12 @@ class M3UEditor(QWidget):
 
         start_btn.clicked.connect(lambda: [dialog.accept(), self.startSmartScan(category=combo.currentText())])
 
-        dialog.setLayout(layout)
-        dialog.exec_()
+        dialog.setLayout(layout)  # ← חובה
+        dialog.exec_()  # ← חובה
 
     def selectChannelsByUrls(self, urls_set):
         self.channelList.clearSelection()
-
+        SmartScanStatusDialog
         selected_category_item = self.categoryList.currentItem()
         if not selected_category_item:
             return
@@ -3449,96 +3446,45 @@ class M3UEditor(QWidget):
 
         threading.Thread(target=run, daemon=True).start()
 
-    def filterIsraelChannels(self):
-        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il', 'IL HD',
-                           'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'WWE ', 'nba tv',
+    def chooseLanguageAndFilterIsraelChannels(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("בחר שפה")
+        layout = QVBoxLayout(dialog)
+        label = QLabel("בחר שפה לסינון ערוצים:")
+        layout.addWidget(label)
+
+        hebrew_btn = QPushButton("עברית 🇮🇱")
+        english_btn = QPushButton("English 🇬🇧")
+        layout.addWidget(hebrew_btn)
+        layout.addWidget(english_btn)
+
+        hebrew_btn.clicked.connect(lambda: self._apply_filter_and_close(dialog, "he"))
+        english_btn.clicked.connect(lambda: self._apply_filter_and_close(dialog, "en"))
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+        def apply_filter(lang):
+            dialog.accept()
+            self.filterIsraelChannelsFromKeywords(lang)
+
+        hebrew_btn.clicked.connect(lambda: apply_filter("he"))
+        english_btn.clicked.connect(lambda: apply_filter("en"))
+
+
+    def _apply_filter_and_close(self, dialog, lang):
+        dialog.accept()
+        self.filterIsraelChannelsFromKeywords(lang)
+
+    def filterIsraelChannelsFromKeywords(self, lang):
+        from channel_keywords import CATEGORY_KEYWORDS_EN, CATEGORY_KEYWORDS_HE
+
+        keywords_map = CATEGORY_KEYWORDS_HE if lang == "he" else CATEGORY_KEYWORDS_EN
+        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il',
+                           'IL HD', 'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'WWE ', 'nba tv',
                            'music', 'IL:', 'Hebrew']
-        category_keywords = {
 
-            'News📺': ['Keshet 12 IL', 'Channel 9 HD IL', '9 Channel IL', 'CHANNEL 9 HD IL', 'KAN 11 IL', '12 Keshet IL',
-                      'C13 Keshet IL', 'KAN 14 IL', 'Channel 9 IL', 'Kan 11 IL', 'Knesset Channel IL',
-                      'MAKAN HD IL', 'i24 IL', 'Channel 14', 'Kan Educational HD IL', 'Reshet 13 IL', 'KHAN 11','CBS reality [IL]',
-                      'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13',  'Reshet 13 [IL]', 'Knesset [IL]', 'I24 News [IL]','Keshet 12 HD [IL]','Keshet 12 [IL]','Reshet 13 HD [IL]','13 Keshet IL','KAN 11 HD [IL]','KAN 11 [IL]','Makan 33 HD', 'Reshet 13 IL',
-                      'Kan Chinuchit 23', 'i24 News', 'Channel 9','Now 14 HD [IL]','Mikan 33 [IL]','Kabbalah channel [IL]', 'Channel 11','KAN23 [IL]','Kan Educational HD [IL]', 'Channel 12', 'Channel 13',
-                      'Channel 24', 'Channel 14', 'ערוץ 14', 'ערוץ 24', 'Channel 98 IL', 'CHANNEL 12 HD IL',
-                      'CHANNEL 13 HD'],
-            'Hot🔥': ['HOT', 'HOT CINEMA', 'HOT Cinema 1 HD IL', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4',
-                     'HOT3 HD', 'HOT 8 HD', 'Hot HBO', 'HOT cinema 1', 'HOT cinema 2', 'HOT cinema 3', 'HOT8 HD',
-                     'HOT COMEDY CENTRAL', 'HOT CINEMA 4', 'HOT CINEMA 3', 'hot-IL', 'HoT'],
-            'Yes👑': ['yes', 'Yes', 'YES', 'Yes_IL', 'YES_IL', 'yes Israeli Cinema HD', 'Yes E', 'YES_IL',
-                     'Yes TV Drama HD', 'YES_IL', 'YES_IL', 'Sport-IL', 'YES HD IL', 'YES TV', 'yes tv'],
-            'Partner🌈': ['Partner Yladim', 'Partner Sratim', 'Partner Sdarot'],
-            'Cellcom🐶': ['Cellcom Israel', 'Cellcom Rus', 'Cellcom Sratim', 'Cellcom Yeladim', 'Cellcom HBO HD',
-                         'Cellcom Doco HD', 'YES HD IL', 'YES TV', 'yes tv'],
-            'Free Tv🌞': ['Free Tv Drama HD', 'Free Tv Comedy HD', 'Free Tv Lifestyle HD', 'Free Israeli Movies HD',
-                         'Free Movies Family HD', 'Free Movies Horror HD', 'Free Movies Romantic HD',
-                         'Free Movies Comedy HD', 'Free Movies Drama HD', 'Free Series Global HD',
-                         'Free Movies Action HD', 'Free Tv Cooking HD', 'Free Tv Doco HD', 'Free Tv Hatuna HD',
-                         'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'],
-            'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
-                        'ONE HD', 'Eurosport 2', 'ONE HD', 'Sport 1 HD', 'EXTREME IL', 'Sport 5+ Live HD IL',
-                        'ONE 2 HD IL', 'Sport 3 HD IL', 'Sport 5 HD IL ', 'SPORT 2 HD IL', 'Sport 1 HD IL',
-                        'Sport 2 HD', 'Sport 3 HD', 'Sport 4 HD','5 Live IL','ONE1 HD IL','ONE2 HD IL','ONE2 HD [IL]','ONE2  [IL]','Sport 4 HD','Sport 4 HD',
-                        'Sport 5 HD', 'Sport 5 Live HD', 'Eurosport 1 HD', 'ESPN 2 HD USA', 'ESPN USA',
-                        'Eurosport 1 HD', 'Red Bull TV HD',
-                        'WWE Russian', 'Red Bull TV', 'MMA-TV.com HD', 'MMA-TV.com', 'MMA-TV.com orig', 'NHL', 'nba',
-                        'NBA', 'wwe', 'WWE Network HD', 'Eurosport 2',
-                        'Eurosport 2', 'EXTREME', 'SPORT'],
-            'Kids🍦': ['Hop!', 'Israelit', 'Baby IL', 'Yaldut IL', 'BABY TV IL', 'hop', 'HOT A+ Kids', 'Nick Jr',
-                      'Nickelodeon', 'Disney Junior', 'Luli', 'Junior', 'Disney HD', 'Baby', 'Hop! Childhood', 'Yaldut','Disney Jr [IL]',
-                      'ZOOM', 'Disney Channel H', 'YoYo', 'NICK JR HD IL', 'Nick Jr IL', 'NICK HD IL','FOMO [IL]','HOP [IL]','Yoyo [IL]','Disney [IL]',
-                      'Junior IL', 'hop IL', 'HOP HD IL', 'JUNIOR IL', 'Zoom', 'Zoom Toon HD', 'Wiz', 'Yalduti',
-                      'TeenNick', 'Nick HD', 'Nick Jr HD', 'Luli', 'Logi', 'Junior', 'Jim Jam', 'Disney Jr.', 'LULI IL',
-                      'Disney Jr IL', 'Baby TV', 'DISNEY JR IL', 'TeenNick IL',
-                      'ZOOM IL', 'HOP CHILDHOOD IL', 'KIDS HD IL', 'Hop', 'Hop Israeli Childhood', 'Hop Pele HD',
-                      'Kids IL', 'DISNEY CHANNEL', 'WIZ IL'],
-            'Entertainment🧸': ['Home Plus IL', 'Good Life', 'FOOD CHANNE IL', '5Stars HD IL', 'Polsat HD', 'Home Plus',
-                               'Food Channel', 'Ego Total', 'Health', 'EGO TOTAL HD IL', 'STARS IL',
-                               'CANAL+ FAMILY HD PL', 'HISTORY HD IL', 'Star Channel', 'Reality HD', 'Savri HD',
-                               'A+ HD IL', 'LIFETIME HD IL', 'STARS HD IL',
-                               'Ego Total', 'Food Network', 'Game Show Channel HD IL', 'Health', 'E!',
-                               'Horse and Country TV', 'ZONE HD', 'Good Life', 'TLC HD', 'Horse and Country TV',
-                               'Home Plus', 'Love Island', 'History HD', 'Humor Channel', 'Fomo', 'Fashion','Holiday channel [IL]',
-                               'Food Channel HD', 'Foody HD', 'Erez Nehederet HD', 'Big', 'CBS Reality', 'Boomerang',
-                               'Entertainment IL', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'],
-            'Music🎵': ['music', 'MUSIC', 'MUSIC 24', 'MTV Hits', 'MTV Base HD', 'Stingray ', 'MTV Hits',
-                       'Stingray Hot Country HD', 'Stingray Pop Adult HD', 'Stingray Hit List HD', 'MTV Hits',
-                       'MTV Club', 'Clubbing TV HD', 'IL: MTV HD', 'MTV 80s', 'MTV', 'MTV Pulse HD', 'IT: MTV HD',
-                       'MTV Idol HD', 'VH1 Classic', 'Rock Classics', 'Europa Plus TV HD', 'Music Box Gold', 'music 24',
-                       'MTV Hits orig', 'Music Channel [IL]',
-                       'Club MTV', 'Bridge Deluxe HD', 'Now 90s HD UK', 'Now 80s HD UK', 'NOW 70s UK', 'Bridge TV',
-                       'Bridge Deluxe HD orig', 'Bridge Hits',
-                       'Bridge Rock', 'Europa Plus TV', 'Europa Plus TV orig', 'MTV Live HD', 'MTV Live HD orig',
-                       'MTV 90s', 'MUSIC 24', 'Yosso TV Music Hits', 'Fresh Concerts', 'Fresh Dance',
-                       'Sky High Concert HD', 'Movistar Musica HD', 'MTV' '1HD Music Television orig',
-                       '4ever Music HD UA', '4ever Music UA', 'B4U Music IN', 'BOX Music 4K HDR', 'Backus TV Music HD',
-                       'Baraza Music HD', 'Biz Music HD UZ', 'CHANNEL 24 MUSIC HD IL', 'Classic Music',
-                       'Classic Music HD', 'Disco Polo Music PL', 'EU Music HD UA', 'EU Music UA', 'FRESH Sad Music HD',
-                       'HMTV IN', 'KLI Music HD', "MTV 00's PT", 'MTV 00s RO', 'MTV 80s RO', 'MTV 90s',
-                       'MTV Aitio HD SE', 'MTV Base UK', 'MTV Classic', 'MTV Classic USA', 'MTV Club', 'MTV HD CA',
-                       'MTV Hits', 'MTV Hits RO', 'MTV India IN', 'MTV Live HD', 'MTV Live HD orig', 'MTV MUSIC IL',
-                       'MTV Music UK', 'MTV POLSKA PL', 'MTV RO', 'MTV SE', 'MTV Viihde HD FI', 'MTV Viihde HD SE',
-                       'MUSIC 24 IL', 'Music Box Gold', 'Music Box Russia', 'Music Box Russia HD',
-                       'Music Box Russia orig', 'Music Channel RO', 'MusicBox GE', 'Prokop TV Music', 'Public Music IN',
-                       'Retro Music TV HD CZ', 'SUN Music IN', 'Sochi Music HD', 'VB MTV Old Россия HD', 'VF Music',
-                       'Vox Music TV PL', 'Yosso TV Music Hits', 'Z!Music HD', 'ТНТ Music', 'ТНТ Music HD',
-                       'ТНТ Music orig'],
-            'Nature🌴': ['Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Travel Channel',
-                        'DISCOVERY CHANNEL HD IL', 'Nat Geo HD', 'Nat Geo Wild', 'Animal Planet HD',
-                        'National Geographic [IL]', 'NET GEO_WILD HD IL', 'Sky Select 5 HD', 'NAT GEO WILD IL','History [IL]','IETV [IL]','ZEE TV [IL]',
-                        'TRAVEL CHANNEL IL','Animal Planet [IL]','National Geographic HD [IL]',
-                        'NATIONAL GEOGRAPHICS HD IL'],
-            'world series🌍': ['Viva Premium HD IL', 'Turkish Dramas 3 HD IL', 'Turkish Dramas 2 HD IL',
-                              'Turkish Dramas Plus HD IL', 'Viva', 'Turkish Dramas 3 HD IL', 'Yam Tihoni 25',
-                              'Viva plus', 'Aruch Sdarot Hahodiot', 'Aruch Sdarot Hahodiot 2', 'Yam Tihoni Plus',
-                              'Vamos HD', 'Yam Tihoni HD', 'Yam Tihoni 2', 'Viva+ IL', 'Viva+', 'Viva Vintage','Star channel [IL]','Mediterranean [IL]','Bollywood [IL]','Turkish Dramas Plus HD [IL]',
-                              'Viva Premium HD', 'VIVA IL', 'Yamtihoni IL', 'VIVA HD IL', 'VIVA+ IL','The Mediterranean HD [IL]','The Mediterranean [IL]','The Mediterranean+ HD [IL]','The Mediterranean+ [IL]',
-                              'YAM TIHONI HD IL', 'HALA TV IL', 'BOLLYWOOD HD IL', 'BOLLYSHOW HD IL', 'Bollywood HD','Turkish Dramas Plus [IL]','Turkish Dramas 2 HD [IL]','Turkish Dramas 2 [IL]','Turkish Dramas 3 HD [IL]',
-                              'Turkish Drama Plus', 'Turkish Drama 2', 'Turkish Drama 3', 'Viva'],
-
-        }
-
-        filtered_channels = {category: [] for category in category_keywords.keys()}
+        filtered_channels = {cat: [] for cat in keywords_map}
         filtered_channels['Other'] = []
         filtered_channels['Israel Radio📻'] = []
         filtered_channels['World Radio🌍'] = []
@@ -3547,31 +3493,30 @@ class M3UEditor(QWidget):
             for channel in channels:
                 if any(keyword in channel for keyword in israel_keywords):
                     placed = False
-                    for key, keywords in category_keywords.items():
-                        if any(keyword in channel for keyword in keywords):
-                            filtered_channels[key].append(channel)
+                    for cat_name, keyword_list in keywords_map.items():
+                        if any(k.lower() in channel.lower() for k in keyword_list):
+                            filtered_channels[cat_name].append(channel)
                             placed = True
                             break
                     if not placed:
                         filtered_channels['Other'].append(channel)
 
-        # טוען רק את תחנות הרדיו מישראל ומעולם, ללא Radio by Category
+        # טעינת תחנות רדיו
         self.loadRadioChannels(filtered_channels, 'Israel Radio📻',
                                r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\IsraeliRadios.m3u")
 
         self.loadRadioChannels(filtered_channels, 'World Radio🌍',
                                r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\RADIO World.m3u")
 
-        # Update categories and regenerate M3U content
+        # עדכון UI
         self.categories = filtered_channels
         self.updateCategoryList()
         self.regenerateM3UTextOnly()
-
-        # Refresh the UI category list
         self.categoryList.clear()
         for category, channels in self.categories.items():
-            display_text = f"{category} ({len(channels)})"
-            self.categoryList.addItem(QListWidgetItem(display_text))
+            self.categoryList.addItem(f"{category} ({len(channels)})")
+
+
 
     def loadRadioCategories(self, filtered_channels, file_path):
         try:
