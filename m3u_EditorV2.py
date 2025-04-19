@@ -269,26 +269,38 @@ class ExportGroupsDialog(QDialog):
 
     def getFullExtInfLine(self, channel, category="Default Category"):
         """
-        Constructs the full EXTINF line from channel information,
-        preserving all properties such as tvg-logo, tvg-id, catchup-days, etc.
-        The category parameter is optional and will default to 'Default Category' if not provided.
+        Constructs a full EXTINF line from the channel string.
+        Ensures it includes group-title and channel name.
         """
-        # Assume the channel format includes the full EXTINF line with properties followed by URL in parentheses
-        properties_part = channel.split(' (')[0]  # Separate properties from URL
-        channel_name = properties_part.split(',')[-1].strip() if ',' in properties_part else "Unknown Channel"
+        try:
+            # חלק ראשון: חילוץ מידע מהשורה של EXTINF
+            properties_part = channel.split(" (")[0].strip()
 
-        # 🛠 תיקון: הוספת שם ערוץ תקני אחרי הפסיק
-        if "group-title=" not in properties_part:
-            properties_part = f'#EXTINF:-1 group-title="{category}",{channel_name}'
-        else:
-            # שמור על כל הנתונים הקיימים + ודא שם אחרי פסיק
-            properties_part = properties_part.strip()
-            if not properties_part.startswith("#EXTINF"):
-                properties_part = "#EXTINF:-1 " + properties_part
-            if ',' not in properties_part:
-                properties_part += f",{channel_name}"
+            # חילוץ שם הערוץ (אחרי הפסיק)
+            if "," in properties_part:
+                channel_name = properties_part.split(",")[-1].strip()
+                if not channel_name:
+                    channel_name = "Unknown"
+            else:
+                channel_name = "Unknown"
 
-        return properties_part
+            # אם אין group-title נוסיף אותו
+            if 'group-title="' not in properties_part:
+                properties_part = f'#EXTINF:-1 group-title="{category}",{channel_name}'
+            else:
+                # ודא שהשורה מתחילה ב־#EXTINF
+                if not properties_part.startswith("#EXTINF"):
+                    properties_part = "#EXTINF:-1 " + properties_part
+
+                # ודא שיש פסיק ושם ערוץ
+                if "," not in properties_part:
+                    properties_part += f",{channel_name}"
+
+            return properties_part
+
+        except Exception as e:
+            print(f"[getFullExtInfLine] Error: {e}")
+            return f'#EXTINF:-1 group-title="{category}",Unknown'
 
     def parseChannelInfo(self, channel):
         # Regex to extract name, url and optional tvg-logo
@@ -1036,12 +1048,22 @@ class M3UEditor(QWidget):
         self.logosFinished.connect(self.onLogosFinished)
 
     def append_channel_name_to_url(self, url, channel_name):
-        if not url or not channel_name:
+        """
+        Appends the channel name to the URL as a parameter for debugging or tracking.
+        Example: http://example.com → http://example.com?channel=Sport5_HD
+        """
+        try:
+            if not url or not channel_name:
+                return url
+
+            clean_name = channel_name.strip().replace(" ", "_")
+            if "?" in url:
+                return f"{url}&channel={clean_name}"
+            else:
+                return f"{url}?channel={clean_name}"
+        except Exception as e:
+            print(f"[append_channel_name_to_url] Error: {e}")
             return url
-        if "?" in url:
-            return f"{url}&channel={channel_name.replace(' ', '_')}"
-        else:
-            return f"{url}?channel={channel_name.replace(' ', '_')}"
 
     def getUrl(self, channel_string):
         try:
@@ -3217,13 +3239,18 @@ class M3UEditor(QWidget):
                 self.channelList.item(idx).setSelected(True)
 
     def getUrl(self, channel_info):
+        """
+        Extracts the URL part from the channel string.
+        Example: "Channel Name (http://...)" → returns http://...
+        """
         try:
             if '(' in channel_info and ')' in channel_info:
-                url = channel_info.split(" (")[-1].rstrip(")")
+                url = channel_info.split(" (")[-1].rstrip(")").strip()
                 if url.startswith("http"):
                     return url
             return ""
-        except Exception:
+        except Exception as e:
+            print(f"[getUrl] Error: {e}")
             return ""
 
     def findFullM3UEntry(self, channel_name, category):
@@ -3391,13 +3418,16 @@ class M3UEditor(QWidget):
     def parseM3UContentEnhanced(self, content):
         """
         Parse M3U content, handling group-title, #EXTGRP, and tvg-logo robustly.
-        לא סורק לוגואים – רק בונה קטגוריות ותוכן.
+        Stores channel entries as 'Channel Name (URL)' for UI display,
+        and saves original #EXTINF line in self.extinf_lookup for export.
         """
         self.categories.clear()
+        self.extinf_lookup = {}  # ← שומר את שורת ה־EXTINF המקורית לכל ערוץ
         updated_lines = []
         current_group = None
         lines = content.splitlines()
 
+        # שלב 1: עיבוד EXTGRP → הוספת group-title אם חסר
         for line in lines:
             if line.startswith("#EXTGRP:"):
                 current_group = line.split(":", 1)[1].strip()
@@ -3412,14 +3442,39 @@ class M3UEditor(QWidget):
 
         updated_content = "\n".join(updated_lines)
 
-        # פרס קטגוריות וערוצים
-        category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
-        for match in category_pattern.findall(updated_content):
-            group_title, channel_name, channel_url = match
-            if group_title not in self.categories:
-                self.categories[group_title] = []
-            self.categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
+        # שלב 2: בניית קטגוריות
+        lines = updated_content.splitlines()
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            if line.startswith("#EXTINF:"):
+                extinf_line = line
+                url_line = lines[i + 1].strip() if i + 1 < len(lines) else ""
 
+                # חילוץ קטגוריה
+                group_match = re.search(r'group-title="([^"]+)"', extinf_line)
+                group_title = group_match.group(1).strip() if group_match else "Other"
+
+                # חילוץ שם הערוץ
+                name_match = re.search(r",(.+)", extinf_line)
+                channel_name = name_match.group(1).strip() if name_match else "Unknown"
+
+                # יצירת ערך להצגה בתצוגה
+                entry = f"{channel_name} ({url_line})"
+
+                # הוספה לקטגוריה
+                if group_title not in self.categories:
+                    self.categories[group_title] = []
+                self.categories[group_title].append(entry)
+
+                # שמירת שורת EXTINF המקורית
+                self.extinf_lookup[entry] = extinf_line
+
+                i += 2  # עבור לשורה הבאה אחרי ה־URL
+            else:
+                i += 1
+
+        # שלב 3: עדכון GUI
         self.textEdit.setPlainText(updated_content)
         self.categoryList.clear()
         for category, channels in self.categories.items():
@@ -3448,18 +3503,55 @@ class M3UEditor(QWidget):
 
     def chooseLanguageAndFilterIsraelChannels(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle("בחר שפה")
+        dialog.setWindowTitle("בחר שפה לסינון ערוצים")
+        dialog.setMinimumWidth(300)
+        dialog.setMinimumHeight(180)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: white;
+                border: 5px solid black;
+            }
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: black;
+            }
+            QPushButton {
+                font-size: 16px;
+                padding: 10px;
+                margin: 8px;
+                font-weight: bold;
+                border: 2px solid black;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+            }
+            QPushButton:focus {
+                outline: none;
+                border: 2px solid red;
+            }
+            QPushButton:disabled {
+                color: gray;
+            }
+        """)
+
         layout = QVBoxLayout(dialog)
+
         label = QLabel("בחר שפה לסינון ערוצים:")
+        label.setAlignment(Qt.AlignCenter)
         layout.addWidget(label)
 
-        hebrew_btn = QPushButton("עברית 🇮🇱")
+        hebrew_btn = QPushButton("🇮🇱 עברית")
+        hebrew_btn.setStyleSheet("background-color: black; color: white;")
         english_btn = QPushButton("English 🇬🇧")
+        english_btn.setStyleSheet("background-color: red; color: white;")
+
         layout.addWidget(hebrew_btn)
         layout.addWidget(english_btn)
 
-        hebrew_btn.clicked.connect(lambda: self._apply_filter_and_close(dialog, "he"))
-        english_btn.clicked.connect(lambda: self._apply_filter_and_close(dialog, "en"))
+        hebrew_btn.clicked.connect(lambda: [dialog.accept(), self.filterIsraelChannelsFromKeywords("he")])
+        english_btn.clicked.connect(lambda: [dialog.accept(), self.filterIsraelChannelsFromKeywords("en")])
 
         dialog.setLayout(layout)
         dialog.exec_()
