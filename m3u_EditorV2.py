@@ -1439,16 +1439,17 @@ class M3UEditor(QWidget):
         url_input.dragEnterEvent = dragEnterEvent
         url_input.dropEvent = dropEvent
 
+        # כפתור הורדת URL מרובים - נשאר למי שרוצה דרך URL
+        download_button = QPushButton("Download URL", dialog)
+        download_button.setStyleSheet("background-color: red; color: white;")
+        layout.addWidget(download_button)
+
         # כפתור סגירה
         close_button = QPushButton("Close", dialog)
         close_button.setStyleSheet("background-color: black; color: white;")
         layout.addWidget(close_button)
         close_button.clicked.connect(dialog.close)
 
-        # כפתור הורדת URL מרובים - נשאר למי שרוצה דרך URL
-        download_button = QPushButton("Download All", dialog)
-        download_button.setStyleSheet("background-color: red; color: white;")
-        layout.addWidget(download_button)
 
         def start_batch_download():
             lines = url_input.toPlainText().strip().splitlines()
