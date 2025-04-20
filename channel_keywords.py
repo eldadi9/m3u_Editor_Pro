@@ -11,7 +11,8 @@ CATEGORY_KEYWORDS_EN = {
         'I24 News [IL]', 'Keshet 12 HD [IL]', 'Keshet 12 [IL]', 'Reshet 13 HD [IL]', '13 Keshet IL',
         'KAN 11 HD [IL]', 'KAN 11 [IL]', 'Makan 33 HD', 'Kan Chinuchit 23', 'i24 News', 'Channel 9',
         'Now 14 HD [IL]', 'Mikan 33 [IL]', 'Kabbalah channel [IL]', 'KAN23 [IL]', 'Kan Educational HD [IL]',
-        'Channel 24', 'Channel 98 IL', 'CHANNEL 12 HD IL', 'CHANNEL 13 HD', 'ערוץ 14', 'ערוץ 24'
+        'Channel 24', 'Channel 98 IL', 'CHANNEL 12 HD IL', 'CHANNEL 13 HD', 'ערוץ 14', 'ערוץ 24', 'Kan 11 HD IL', 'Kan Educational IL', 'Keshet 12 FHD IL'
+        , 'Keshet 12 HD IL' , 'Reshet 13 HD IL'
     ],
     'Hot🔥': [
         'HOT', 'HOT CINEMA', 'HOT Cinema 1 HD IL', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4', 'HOT3 HD',
@@ -56,7 +57,7 @@ CATEGORY_KEYWORDS_EN = {
         'Reality HD', 'Savri HD', 'A+ HD IL', 'LIFETIME HD IL', 'STARS HD IL', 'Game Show Channel HD IL',
         'E!', 'Horse and Country TV', 'ZONE HD', 'TLC HD', 'Love Island', 'History HD', 'Humor Channel',
         'Fomo', 'Fashion', 'Holiday channel [IL]', 'Food Channel HD', 'Foody HD', 'Erez Nehederet HD',
-        'Big', 'CBS Reality', 'Boomerang', 'Entertainment IL', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL'
+        'Big', 'CBS Reality', 'Boomerang', 'Entertainment IL', 'HEALTH CHANNEL', 'HUMOR CHANNEL', 'E! IL', 'Arutz Haofna Haisraeli HD IL'
     ],
     'Music🎵': [
         'music', 'MUSIC', 'MUSIC 24', 'MTV Hits', 'MTV Base HD', 'Stingray ', 'MTV Hits', 'Stingray Hot Country HD',
@@ -76,7 +77,7 @@ CATEGORY_KEYWORDS_EN = {
         'Discovery', 'Travel Channel', 'DISCOVERY CHANNEL HD IL', 'Nat Geo HD', 'Nat Geo Wild', 'Animal Planet HD',
         'National Geographic [IL]', 'NET GEO_WILD HD IL', 'Sky Select 5 HD', 'NAT GEO WILD IL', 'History [IL]',
         'IETV [IL]', 'ZEE TV [IL]', 'TRAVEL CHANNEL IL', 'Animal Planet [IL]', 'National Geographic HD [IL]',
-        'NATIONAL GEOGRAPHICS HD IL'
+        'NATIONAL GEOGRAPHICS HD IL', 'National Geographic IL', 'National Geographic HD IL'
     ],
     'World Series🌍': [
         'Viva Premium HD IL', 'Turkish Dramas 3 HD IL', 'Turkish Dramas 2 HD IL', 'Turkish Dramas Plus HD IL',
@@ -84,7 +85,8 @@ CATEGORY_KEYWORDS_EN = {
         'Yam Tihoni HD', 'Yam Tihoni 2', 'Viva+ IL', 'Viva+', 'Viva Vintage', 'Star channel [IL]',
         'Mediterranean [IL]', 'Bollywood [IL]', 'Turkish Dramas Plus HD [IL]', 'VIVA IL', 'Yamtihoni IL',
         'VIVA HD IL', 'VIVA+ IL', 'The Mediterranean HD [IL]', 'The Mediterranean [IL]',
-        'The Mediterranean+ HD [IL]', 'HALA TV IL', 'BOLLYWOOD HD IL', 'BOLLYSHOW HD IL', 'Bollywood HD'
+        'The Mediterranean+ HD [IL]', 'HALA TV IL', 'BOLLYWOOD HD IL', 'BOLLYSHOW HD IL', 'Bollywood HD', 'Turkish Dramas 2 FHD IL', 'Turkish Dramas 3 FHD IL', 'Turkish Dramas Plus FHD IL'
+        , 'Turkish Dramas Plus IL', 'Yam Tichoni HD IL', 'Yam Tichoni IL', 'Yam Tichoni+ HD IL'
     ]
 }
 
@@ -101,4 +103,5 @@ CATEGORY_KEYWORDS_HE = {
     '🎶 מוזיקה': CATEGORY_KEYWORDS_EN['Music🎵'],
     '🌿 טבע ודוקו': CATEGORY_KEYWORDS_EN['Nature🌴'],
     '📺 סדרות זרות': CATEGORY_KEYWORDS_EN['World Series🌍']
+    
 }

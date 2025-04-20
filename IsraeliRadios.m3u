@@ -1,85 +1,105 @@
 #EXTM3U
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/103fm.png", 103FM - Lelo Hafsaka
-https://cdn.cybercdn.live/103FM/Live/icecast.audio
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_88.png", 88FM
-http://kanliveicy.media.kan.org.il/icy/kan88_mp3
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/eco99fm.png", Eco 99 FM
-http://99.livecdn.biz/99fm)
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/glglz-alt.png", Galgalaz - Alternative
-http://glzwizzlv.bynetcdn.com/glglz_alt_mp3?awCollectionId=misc&awEpisodeId=glglz_alt
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/glglz-rock.png", Galgalaz - Classic Rock
-http://glzwizzlv.bynetcdn.com/glglz_rock_mp3?awCollectionId=misc&awEpisodeId=glglz_rock
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/glglz-hits.png", Galgalaz - Hits
-http://glzwizzlv.bynetcdn.com/glglz_mp3?awCollectionId=misc&awEpisodeId=glglz
-
-#EXTINF:-1 group-title="Israel-radio", Kan 88
-http://kanliveicy.media.kan.org.il/icy/749623_mp3
-
-#EXTINF:-1 group-title="Israel-radio", Kol Hai Music
-http://kcm.ecast.co.il:8090/3
-
-#EXTINF:-1 group-title="Israel-radio", tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_musika.png", Kol Hamusica
-http://kanliveicy.media.kan.org.il/icy/kankolhamusica_mp3
-
-#EXTINF:-1 group-title="Israel-radio", Kol Rega
-http://radio.96fm.co.il:8000/96fm
-
-#EXTINF:-1 group-title="Israel-radio"tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/nostalgia_radio.png", Nostalgy
-http://194.213.4.197:8000/;
-
-#EXTINF:-1 group-title="Israel-radio", Radio 103FM
-https://cdn.cybercdn.live/103FM/Live/icecast.audio
-
-#EXTINF:-1 group-title="Israel-radio", Radio Agape
-http://91.121.148.49:9777/point_de_montage_stream_1/
-
-#EXTINF:-1 group-title="Israel-radio", Radio Emtsa Haderech
-http://90.cdnwz.net/90fm
-
-#EXTINF:-1 group-title="Israel-radio", Radio Galey Israel
-https://cdn.cybercdn.live/Galei_Israel/Live/icecast.audio
-
-#EXTINF:-1 group-title="Israel-radio", Radio Haïfa
-http://cp11.livecdn.biz/radiohaifa
-
-#EXTINF:-1 group-title="Israel-radio", Radio Kol Netanya
-https://radio.streamgates.net/stream/netanya
-
-#EXTINF:-1 group-title="Israel-radio", Radio Lev Hamedina 91 FM
-http://91fm.streamgates.net/Lev91Fm
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_tarbut.png", Tarbut
-http://kanliveicy.media.kan.org.il/icy/kantarbut_mp3
-
-#EXTINF:-1group-title="Israel-radio" tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/Glgltz.jpg",גלגלצ
-http://glzwizzlv.bynetcdn.com/glglz_mp3
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://ofirapps.github.io/Israeli-radios/galatz.png",גלי צה"ל
-http://glzwizzlv.bynetcdn.com/glz_mp3
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://ofirapps.github.io/Israeli-radios/88FM.png",כאן 88 רדיו 88
-https://kanliveicy.media.kan.org.il/icy/kan88_mp3
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://ofirapps.github.io/Israeli-radios/kanB.png",כאן ב' רשת
-https://kanliveicy.media.kan.org.il/icy/kanbet_mp3
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://ofirapps.github.io/Israeli-radios/KanG.png",כאן גימל רשת ג
-https://www.radio-head.co.il/station/glgltz/
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://ofirapps.github.io/Israeli-radios/101-jerusalem.png",רדיו ירושלים
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Radius.png" group-title="Israel Radio📻",100 fm רדיוס
+https://cdn.cybercdn.live/Radios_100FM/Audio/icecast.audio
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Radio-Jerusalem.png" group-title="Israel Radio📻",101 fm רדיו ירושלים
 https://radio.streamgates.net/stream/101fm
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://ofirapps.github.io/Israeli-radios/telavivradio.png",רדיו תל אביב
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Radio-Beer-Sheva.png" group-title="Israel Radio📻",101.5 fm רדיו באר-שבע
+https://cdn.cybercdn.live/Darom_1015FM/Live/icecast.audio
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Kol-Hayam-Haadom.png" group-title="Israel Radio📻",102 fm קול הים האדום אילת
+https://cdn.cybercdn.live/Eilat_Radio/Live/icecast.audio
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Radio-Tel-Aviv.png" group-title="Israel Radio📻",102 fm רדיו תל אביב
 https://102.livecdn.biz/102fm_aac
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_bet.png", רשת ב
-http://kanliveicy.media.kan.org.il/icy/kanbet_mp3
-
-#EXTINF:-1 group-title="Israel-radio" tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_gimmel.png", רשת ג
-http://kanliveicy.media.kan.org.il/icy/kangimmel_mp3
-
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Radio-Lelo-Hafsaka.png" group-title="Israel Radio📻",103 fm רדיו ללא הפסקה
+https://cdn.cybercdn.live/103FM/Live/icecast.audio
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/103fm.png" group-title="Israel Radio📻",103FM - Lelo Hafsaka
+https://cdn.cybercdn.live/103FM/Live/icecast.audio) tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/103fm.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Radio-Haifa.png" group-title="Israel Radio📻",107.5 fm רדיו חיפה
+https://1075.livecdn.biz/radiohaifa
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Kan-88.png" group-title="Israel Radio📻",88 כאן
+https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_88.mp3
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_88.png" group-title="Israel Radio📻",88FM
+http://kanliveicy.media.kan.org.il/icy/kan88_mp3) tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_88.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Radio-Emtza-Haderech.png" group-title="Israel Radio📻",90 fm אמצע הדרך
+https://cdn.cybercdn.live/Emtza_Haderech/Live_Audio/icecast.audio
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Lev-Hamedina.png" group-title="Israel Radio📻",91 fm רדיו לב המדינה
+https://cdn.cybercdn.live/Lev_Hamedina/Audio/icecast.audio
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Kol-Barama.png" group-title="Israel Radio📻",92.1 fm רדיו קול ברמה
+https://cdn.cybercdn.live/Kol_Barama/Live_Audio/icecast.audio
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Kol-Chai.png" group-title="Israel Radio📻",93 fm רדיו קול חי
+http://media.93fm.co.il/live
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Galey-Israel.png" group-title="Israel Radio📻",94 fm גלי ישראל
+https://cdn.cybercdn.live/Galei_Israel/Live/icecast.audio
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Kol-Rega.png" group-title="Israel Radio📻",96 fm רדיו קול רגע
+https://cdn.cybercdn.live/Kol_Rega/Live_Audio/icecast.audio
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Radio-Darom.png" group-title="Israel Radio📻",97 fm רדיו דרום
+https://cdn.cybercdn.live/Darom_97FM/Live/icecast.audio
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Eco99.png" group-title="Israel Radio📻",99 fm אקו
+https://99.mediacast.co.il/99fm_aac
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Cham-Esh.png" group-title="Israel Radio📻",99.5 fm רדיו חם אש
+http://995.livecdn.biz:8000/995fm
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/eco99fm.png" group-title="Israel Radio📻",Eco 99 FM
+http://99.livecdn.biz/99fm)) tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/eco99fm.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/glglz-alt.png" group-title="Israel Radio📻",Galgalaz - Alternative
+http://glzwizzlv.bynetcdn.com/glglz_alt_mp3?awCollectionId=misc&awEpisodeId=glglz_alt) tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/glglz-alt.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/glglz-rock.png" group-title="Israel Radio📻",Galgalaz - Classic Rock
+http://glzwizzlv.bynetcdn.com/glglz_rock_mp3?awCollectionId=misc&awEpisodeId=glglz_rock) tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/glglz-rock.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/glglz-hits.png" group-title="Israel Radio📻",Galgalaz - Hits
+http://glzwizzlv.bynetcdn.com/glglz_mp3?awCollectionId=misc&awEpisodeId=glglz) tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/glglz-hits.png"
+#EXTINF:-1 group-title="Israel Radio📻",Kan 88
+http://kanliveicy.media.kan.org.il/icy/749623_mp3
+#EXTINF:-1 group-title="Israel Radio📻",Kol Hai Music
+http://kcm.ecast.co.il:8090/3
+#EXTINF:-1 group-title="Israel Radio📻",Kol Hamusica
+http://kanliveicy.media.kan.org.il/icy/kankolhamusica_mp3) tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_musika.png"
+#EXTINF:-1 group-title="Israel Radio📻",Kol Rega
+http://radio.96fm.co.il:8000/96fm
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/nostalgia_radio.png" group-title="Israel Radio📻",Nostalgy
+http://194.213.4.197:8000/;) tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/nostalgia_radio.png"
+#EXTINF:-1 group-title="Israel Radio📻",Radio 103FM
+https://cdn.cybercdn.live/103FM/Live/icecast.audio
+#EXTINF:-1 group-title="Israel Radio📻",Radio Agape
+http://91.121.148.49:9777/point_de_montage_stream_1/
+#EXTINF:-1 group-title="Israel Radio📻",Radio Emtsa Haderech
+http://90.cdnwz.net/90fm
+#EXTINF:-1 group-title="Israel Radio📻",Radio Galey Israel
+https://cdn.cybercdn.live/Galei_Israel/Live/icecast.audio
+#EXTINF:-1 group-title="Israel Radio📻",Radio Haïfa
+http://cp11.livecdn.biz/radiohaifa
+#EXTINF:-1 group-title="Israel Radio📻",Radio Kol Netanya
+https://radio.streamgates.net/stream/netanya
+#EXTINF:-1 group-title="Israel Radio📻",Radio Lev Hamedina 91 FM
+http://91fm.streamgates.net/Lev91Fm
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_tarbut.png" group-title="Israel Radio📻",Tarbut
+http://kanliveicy.media.kan.org.il/icy/kantarbut_mp3) tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_tarbut.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Galgalatz.png" group-title="Israel Radio📻",גלגלצ
+https://glzwizzlv.bynetcdn.com/glglz_mp3
+#EXTINF:-1 tvg-logo="https://ofirapps.github.io/Israeli-radios/galatz.png" group-title="Israel Radio📻",גלי צה"ל
+http://glzwizzlv.bynetcdn.com/glz_mp3) tvg-logo="https://ofirapps.github.io/Israeli-radios/galatz.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Galatz.png" group-title="Israel Radio📻",גלצ
+http://glzwizzlv.bynetcdn.com/glz_mp3
+#EXTINF:-1 tvg-logo="https://ofirapps.github.io/Israeli-radios/88FM.png" group-title="Israel Radio📻",כאן 88 רדיו 88
+https://kanliveicy.media.kan.org.il/icy/kan88_mp3) tvg-logo="https://ofirapps.github.io/Israeli-radios/88FM.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Kan-Bet.png" group-title="Israel Radio📻",כאן ב
+https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_BET.mp3
+#EXTINF:-1 tvg-logo="https://ofirapps.github.io/Israeli-radios/kanB.png" group-title="Israel Radio📻",כאן ב' רשת
+https://kanliveicy.media.kan.org.il/icy/kanbet_mp3) tvg-logo="https://ofirapps.github.io/Israeli-radios/kanB.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Gimmel.png" group-title="Israel Radio📻",כאן ג
+https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_GIMMEL.mp3
+#EXTINF:-1 tvg-logo="https://ofirapps.github.io/Israeli-radios/KanG.png" group-title="Israel Radio📻",כאן גימל רשת ג
+https://www.radio-head.co.il/station/glgltz/) tvg-logo="https://ofirapps.github.io/Israeli-radios/KanG.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Kan-Moreshet.png" group-title="Israel Radio📻",כאן מורשת
+https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_MORESHET.mp3
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Kol-Hamuzika.png" group-title="Israel Radio📻",כאן קול המוזיקה
+https://cdnapisec.kaltura.com/p/2717431/sp/2717431/playManifest/entryId/1_f383er43/deliveryProfileId/672/protocol/https/format/applehttp/a.m3u8
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Kan-Reka.png" group-title="Israel Radio📻",כאן רקע
+https://cfvod.kaltura.com/hls/p/2717431/sp/271743100/serveFlavor/entryId/1_xlhfcu25/v/1/ev/3/flavorId/1_skbk7757/name/a.mp4/index.m3u8
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/dtp80/test02/main/files/light/Kan-Tarbut.png" group-title="Israel Radio📻",כאן תרבות
+https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_TARBUT.mp3
+#EXTINF:-1 tvg-logo="https://ofirapps.github.io/Israeli-radios/101-jerusalem.png" group-title="Israel Radio📻",רדיו ירושלים
+https://radio.streamgates.net/stream/101fm) tvg-logo="https://ofirapps.github.io/Israeli-radios/101-jerusalem.png"
+#EXTINF:-1 tvg-logo="https://ofirapps.github.io/Israeli-radios/telavivradio.png" group-title="Israel Radio📻",רדיו תל אביב
+https://102.livecdn.biz/102fm_aac) tvg-logo="https://ofirapps.github.io/Israeli-radios/telavivradio.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_bet.png" group-title="Israel Radio📻",רשת ב
+http://kanliveicy.media.kan.org.il/icy/kanbet_mp3) tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_bet.png"
+#EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_gimmel.png" group-title="Israel Radio📻",רשת ג
+http://kanliveicy.media.kan.org.il/icy/kangimmel_mp3) tvg-logo="https://raw.githubusercontent.com/RokuIL/Live-From-Israel/master/Logos/ipbc_radio_gimmel.png"
