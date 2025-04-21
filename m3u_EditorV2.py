@@ -17,9 +17,13 @@ from urllib.parse import urlparse
 from PyQt5.QtWidgets import QProgressBar
 import xml.etree.ElementTree as ET
 import subprocess
-from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import QSize
 from PyQt5.QtCore import pyqtSignal
 from datetime import datetime, timedelta
+from PyQt5.QtWidgets import QMessageBox
+from tempfile import NamedTemporaryFile
+from PyQt5.QtGui import QIcon
+from telegram_uploader import send_to_telegram
 LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_db.json")
 new_logos_counter = 0
 existing_logos_counter = 0
@@ -2197,26 +2201,41 @@ class M3UEditor(QWidget):
 
     def create_m3u_content_section(self):
         layout = QVBoxLayout()
+
         m3u_title = QLabel("M3U Content", self)
         m3u_title.setAlignment(Qt.AlignCenter)
         m3u_title.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(m3u_title)
+
         self.textEdit = QTextEdit(self)
         layout.addWidget(self.textEdit)
+
         button_layout = QHBoxLayout()
+
         self.loadButton = QPushButton('Load M3U')
         self.saveButton = QPushButton('Save M3U')
         self.mergeButton = QPushButton('Merge M3Us')
-        button_layout.addWidget(self.loadButton)
-        button_layout.addWidget(self.saveButton)
-        button_layout.addWidget(self.mergeButton)
-        layout.addLayout(button_layout)
-        self.loadButton.clicked.connect(self.loadM3U)
-        self.saveButton.clicked.connect(self.saveM3U)
-        self.mergeButton.clicked.connect(self.mergeM3Us)
+        self.exportTelegramButton = QPushButton("Export to Telegram")  # ← כפתור חדש
+        self.exportTelegramButton.setIcon(QIcon("icons/telegram.png"))
+        self.exportTelegramButton.setIconSize(QSize(20, 20))
+
         self.loadButton.setStyleSheet("background-color: green; color: white;")
         self.saveButton.setStyleSheet("background-color: red; color: white;")
         self.mergeButton.setStyleSheet("background-color: blue; color: white;")
+        self.exportTelegramButton.setStyleSheet("background-color: teal; color: white;")
+
+        self.loadButton.clicked.connect(self.loadM3U)
+        self.saveButton.clicked.connect(self.saveM3U)
+        self.mergeButton.clicked.connect(self.mergeM3Us)
+        self.exportTelegramButton.clicked.connect(self.exportToTelegram)  # ← חיבור לפונקציה
+
+        # הוספה ללייאאוט
+        button_layout.addWidget(self.loadButton)
+        button_layout.addWidget(self.saveButton)
+        button_layout.addWidget(self.mergeButton)
+        button_layout.addWidget(self.exportTelegramButton)  # ← בסוף מימין
+
+        layout.addLayout(button_layout)
 
         return layout
 
@@ -3411,6 +3430,25 @@ class M3UEditor(QWidget):
         if fileName:
             with open(fileName, 'w', encoding='utf-8') as file:
                 file.write(self.textEdit.toPlainText())
+
+    def exportToTelegram(self):
+        name, ok = QInputDialog.getText(self, "ייצוא לטלגרם", "איך לקרוא לקובץ (למשל playlist.m3u)?")
+        if not ok or not name.strip():
+            return
+
+        if not name.lower().endswith(".m3u"):
+            name += ".m3u"
+
+        from tempfile import NamedTemporaryFile
+        with NamedTemporaryFile(mode="w", delete=False, suffix=".m3u", encoding="utf-8") as tmp:
+            tmp.write(self.textEdit.toPlainText())
+            tmp_path = tmp.name
+
+        success = send_to_telegram(tmp_path, filename=name)
+        if success:
+            QMessageBox.information(self, "Telegram", f"✅ הקובץ '{name}' נשלח לטלגרם.")
+        else:
+            QMessageBox.warning(self, "Telegram", f"❌ שליחה נכשלה.")
 
     def openExportDialog(self):
         try:
