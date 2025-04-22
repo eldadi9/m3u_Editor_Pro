@@ -17,13 +17,14 @@ from urllib.parse import urlparse
 from PyQt5.QtWidgets import QProgressBar
 import xml.etree.ElementTree as ET
 import subprocess
-from PyQt5.QtCore import QSize
+import tempfile
 from PyQt5.QtCore import pyqtSignal
 from datetime import datetime, timedelta
 from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtCore import QThread
 from tempfile import NamedTemporaryFile
-from PyQt5.QtGui import QIcon
 from telegram_uploader import send_to_telegram
+from PyQt5.QtGui import QIcon
 LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_db.json")
 new_logos_counter = 0
 existing_logos_counter = 0
@@ -164,6 +165,9 @@ def inject_logo(line, channel_name, logo_db=None):
         new_line = inject_logo(line, channel_name, logo_db)
 
 def exportM3UWithLogos(self, output_path):
+    """
+    כותב קובץ M3U תקני עם שמות ערוצים תקינים (EXTINF) ולוגואים אם קיימים.
+    """
     try:
         with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
             logo_db = json.load(f)
@@ -171,16 +175,17 @@ def exportM3UWithLogos(self, output_path):
         logo_db = {}
 
     with open(output_path, "w", encoding="utf-8") as out:
+        out.write("#EXTM3U\n")
         for category, channels in self.categories.items():
             for channel in channels:
-                # נניח channel זה EXTINF + URL
-                extinf_line, url_line = channel.splitlines()
+                extinf_line = self.extinf_lookup.get(channel, f'#EXTINF:-1,{channel.split(" (")[0].strip()}')
+                url_line = channel.split(" (")[-1].strip(")")
 
                 name = channel.split(" (")[0].strip()
                 extinf_with_logo = inject_logo(extinf_line, name, logo_db)
 
                 out.write(extinf_with_logo + "\n")
-                out.write(url_line.strip() + "\n")
+                out.write(url_line + "\n")
 
 
 def save_israeli_logos_background(self, parsed_channels):
@@ -1056,6 +1061,37 @@ class M3UEditor(QWidget):
         self.initUI()
         self.logosFinished.connect(self.onLogosFinished)
 
+    def play_channel_with_name(self, entry):
+        """
+        מנגן ערוץ עם VLC ומוודא ששם הערוץ יוצג תקין ע"י שימוש בשורת EXTINF המקורית.
+        """
+        try:
+            if "(" in entry and entry.endswith(")"):
+                name = entry.split(" (")[0].strip()
+                url = entry.split(" (")[-1].strip(")")
+            else:
+                name = "Unknown"
+                url = entry.strip()
+
+            # נסה להביא את שורת ה-EXTINF המקורית
+            extinf_line = self.extinf_lookup.get(entry)
+
+            # אם לא קיימת שורה מקורית – נבנה אחת פשוטה
+            if not extinf_line:
+                extinf_line = f'#EXTINF:-1 group-title="Live",{name}'
+
+            # צור קובץ זמני
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".m3u", delete=False, encoding="utf-8") as f:
+                f.write("#EXTM3U\n")
+                f.write(extinf_line + "\n")
+                f.write(url + "\n")
+                temp_path = f.name
+
+            subprocess.Popen(["vlc", temp_path])
+
+        except Exception as e:
+            QMessageBox.critical(self, "שגיאה", f"שגיאה בהרצת VLC:\n{e}")
+
     def append_channel_name_to_url(self, url, channel_name):
         """
         Appends the channel name to the URL as a parameter for debugging or tracking.
@@ -1077,7 +1113,9 @@ class M3UEditor(QWidget):
     def getUrl(self, channel_string):
         try:
             if '(' in channel_string and ')' in channel_string:
-                return channel_string.split(" (")[-1].rstrip(")")
+                url = channel_string.split(" (")[-1].rstrip(")")
+                if url.startswith("http"):
+                    return url
             return ""
         except Exception:
             return ""
@@ -2215,9 +2253,8 @@ class M3UEditor(QWidget):
         self.loadButton = QPushButton('Load M3U')
         self.saveButton = QPushButton('Save M3U')
         self.mergeButton = QPushButton('Merge M3Us')
-        self.exportTelegramButton = QPushButton("Export to Telegram")  # ← כפתור חדש
+        self.exportTelegramButton = QPushButton(" Export to Telegram")  # ← כפתור חדש
         self.exportTelegramButton.setIcon(QIcon("icons/telegram.png"))
-        self.exportTelegramButton.setIconSize(QSize(20, 20))
 
         self.loadButton.setStyleSheet("background-color: green; color: white;")
         self.saveButton.setStyleSheet("background-color: red; color: white;")
@@ -3460,74 +3497,93 @@ class M3UEditor(QWidget):
             print(error_message)  # Print the full traceback to the console
 
     def parseM3UContentEnhanced(self, content):
+        """
+        ✅ ממיר EXTGRP → group-title
+        ✅ מסיר את שורת EXTGRP
+        ✅ בונה קטגוריות מתוך EXTINF
+        ✅ תומך בערוצים ללא EXTINF (מוסיף אחד ריק)
+        ✅ שומר שם ערוץ ברור לשורת EXTINF עבור VLC
+        """
         self.categories.clear()
         self.extinf_lookup = {}
         updated_lines = []
         current_group = None
-        lines = content.splitlines()
-
-        # תיקון קבצים פגומים – הוספת EXTINF ריק אם חסר
         fixed_lines = []
-        for i in range(len(lines)):
-            line = lines[i].strip()
-            if line.startswith("http"):
-                if i == 0 or not lines[i - 1].strip().startswith("#EXTINF"):
-                    fixed_lines.append("#EXTINF:-1,Unknown")
-            fixed_lines.append(line)
-        lines = fixed_lines
 
-        # שלב 1: EXTGRP → group-title
-        for line in lines:
+        lines = content.strip().splitlines()
+        i = 0
+
+        while i < len(lines):
+            line = lines[i].strip()
+
             if line.startswith("#EXTGRP:"):
                 current_group = line.split(":", 1)[1].strip()
+                i += 1
                 continue
 
             if line.startswith("#EXTINF:"):
-                if "group-title=" not in line and current_group:
-                    line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
+                # הוספת group-title אם חסר
+                if current_group and 'group-title="' not in line:
+                    line = re.sub(r'(#EXTINF:[^,]+),', rf'\g<1> group-title="{current_group}",', line)
+
+                # הוספת שם ערוץ אם חסר
+                if "," not in line:
+                    line += ",Unknown"
+                elif line.strip().endswith(","):
+                    line += "Unknown"
+
                 current_group = None
+                fixed_lines.append(line)
 
-            updated_lines.append(line)
+            elif line.startswith("http"):
+                # אם אין EXTINF לפני – נוסיף אחד ריק
+                if i == 0 or not lines[i - 1].strip().startswith("#EXTINF"):
+                    fixed_lines.append('#EXTINF:-1 group-title="לא מוגדר",Unknown')
+                fixed_lines.append(line)
+            else:
+                fixed_lines.append(line)
 
-        updated_content = "\n".join(updated_lines)
+            i += 1
 
-        # שלב 2: קטגוריות
-        lines = updated_content.splitlines()
+        # שלב 2: בניית קטגוריות וערוצים
         i = 0
-        while i < len(lines):
-            line = lines[i].strip()
+        while i < len(fixed_lines):
+            line = fixed_lines[i].strip()
+
             if line.startswith("#EXTINF:"):
                 extinf_line = line
-
-                # חיפוש URL אחרי ה-EXTINF
                 url_line = ""
-                for j in range(i + 1, len(lines)):
-                    if lines[j].strip() and not lines[j].startswith("#"):
-                        url_line = lines[j].strip()
-                        break
+                group_title = "לא מוגדר"
+                channel_name = "Unknown"
 
-                # חילוץ קטגוריה
-                group_match = re.search(r'group-title="([^"]+)"', extinf_line)
-                group_title = group_match.group(1).strip() if group_match else "Other"
+                # הבא אחריו הוא ה־URL
+                if i + 1 < len(fixed_lines):
+                    url_line = fixed_lines[i + 1].strip()
+                    i += 1
 
-                # ✅ חילוץ שם הערוץ - בצורה אמינה
+                # חילוץ group-title
+                match = re.search(r'group-title="([^"]+)"', extinf_line)
+                if match:
+                    group_title = match.group(1).strip()
+
+                # חילוץ שם ערוץ
                 if "," in extinf_line:
-                    channel_name = extinf_line.split(",")[-1].strip()
+                    channel_name = extinf_line.split(",", 1)[-1].strip()
                 else:
                     channel_name = "Unknown"
 
                 entry = f"{channel_name} ({url_line})"
+                updated_lines.append(extinf_line)
+                updated_lines.append(url_line)
 
                 if group_title not in self.categories:
                     self.categories[group_title] = []
                 self.categories[group_title].append(entry)
-
                 self.extinf_lookup[entry] = extinf_line
 
-                i += 1
             i += 1
 
-        # שלב 3: GUI
+        updated_content = "\n".join(updated_lines)
         self.textEdit.setPlainText(updated_content)
         self.categoryList.clear()
         for category, channels in self.categories.items():
@@ -3535,23 +3591,6 @@ class M3UEditor(QWidget):
 
         self.searchBox.setText("")
         self.buildSearchCompleter()
-
-    def save_israeli_logos_background(self, content):
-        def run():
-            lines = content.strip().splitlines()
-            for i in range(len(lines)):
-                line = lines[i].strip()
-                if line.startswith("#EXTINF:"):
-                    name_match = re.search(r',(.+)', line)
-                    logo_match = re.search(r'tvg-logo="([^"]+)"', line)
-                    if name_match and logo_match:
-                        name = name_match.group(1).strip()
-                        logo = logo_match.group(1).strip()
-                        if is_israeli_channel("", name):
-                            save_logo_for_channel(name, logo)
-                            print(f"[LOGO] Saved logo for {name}: {logo}")
-
-        threading.Thread(target=run, daemon=True).start()
 
     def chooseLanguageAndFilterIsraelChannels(self):
         dialog = QDialog(self)

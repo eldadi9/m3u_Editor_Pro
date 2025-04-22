@@ -1,26 +1,61 @@
-import requests
 import os
+import requests
+import random
 from dotenv import load_dotenv
 
-# טוען את קובץ .env
+# טוען משתני סביבה
 load_dotenv()
 
-# שואב את הטוקן מהסביבה
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = "-1002464592389"
 TOPIC_ID = 6
 
-def send_to_telegram(file_path, token=BOT_TOKEN, chat_id=CHAT_ID, topic_id=TOPIC_ID, filename=None):
+# חתימות EG מתחלפות
+signatures = [
+    "◢◤ 𝗘𝗚 ◥◣\n📡 STREAM • SYNC • SHARE\n╰┈➤ https://t.me/Olam_Haoradot_IL/6",
+    "◢◤ 𝗘𝗚 ◥◣\n📺 IPTV IS POWERED HERE\n╰┈➤ https://t.me/Olam_Haoradot_IL/6",
+    "◢◤ 𝗘𝗚 ◥◣\n📲 APPS • LINKS • UPDATES\n╰┈➤ https://t.me/Olam_Haoradot_IL/6",
+    "◢◤ 𝗘𝗚 ◥◣\n🛰️ SIGNALS FROM THE UNDERGROUND\n╰┈➤ https://t.me/Olam_Haoradot_IL/6",
+    "◢◤ 𝗘𝗚 ◥◣\n🎛️ STREAM. CODE. UPGRADE.\n╰┈➤ https://t.me/Olam_Haoradot_IL/6",
+    "◢◤ 𝗘𝗚 ◥◣\n🧠 SMART CONTENT FOR SMART PEOPLE\n╰┈➤ https://t.me/Olam_Haoradot_IL/6",
+    "◢◤ 𝗘𝗚 ◥◣\n📦 UNPACKING THE INTERNET\n╰┈➤ https://t.me/Olam_Haoradot_IL/6",
+    "◢◤ 𝗘𝗚 ◥◣\n🔥 BEST LINKS. NO NOISE.\n╰┈➤ https://t.me/Olam_Haoradot_IL/6",
+    "◢◤ 𝗘𝗚 ◥◣\n🔁 DAILY STREAM. ZERO DELAY.\n╰┈➤ https://t.me/Olam_Haoradot_IL/6",
+    "◢◤ 𝗘𝗚 ◥◣\n📥 DOWNLOADING A BETTER WORLD\n╰┈➤ https://t.me/Olam_Haoradot_IL/6"
+]
+
+# משפטים לפלייליסט
+playlist_phrases = [
+    "פלייליסט חדש באוויר",
+    "עלה פלייליסט חדש",
+    "הגיע עדכון חדש",
+    "עלינו עם פלייליסט",
+    "הורידו את החדש",
+    "חדש בעולם ההורדות",
+    "העדכון חם מהתנור",
+    "תפסו את הפלייליסט",
+    "הפלייליסט כבר פה",
+    "הפלייליסט בדרך אליכם"
+]
+
+def get_random_caption():
+    signature = random.choice(signatures)
+    phrase = random.choice(playlist_phrases)
+    return f"{signature}\n\n📺 {phrase} 🎉"
+
+def send_to_telegram(file_path, token=BOT_TOKEN, chat_id=CHAT_ID, topic_id=TOPIC_ID, filename=None, caption=None, image_path=None):
     """
-    שולח קובץ לטלגרם לקבוצה וטופיק ספציפיים.
+    שולח קובץ לטלגרם עם חתימה רנדומלית וטקסט מתחלף.
+    :param file_path: נתיב לקובץ לשליחה
+    :param caption: ניתן להזין טקסט קבוע (לא חובה)
     """
-    url = f"https://api.telegram.org/bot{token}/sendDocument"
     try:
+        url = f"https://api.telegram.org/bot{token}/sendDocument"
         with open(file_path, "rb") as f:
             files = {"document": (filename or os.path.basename(file_path), f)}
             data = {
                 "chat_id": chat_id,
-                "caption": "📺 עדכון פלייליסט חדש 🎉",
+                "caption": caption or get_random_caption(),
             }
             if topic_id:
                 data["message_thread_id"] = topic_id
@@ -33,6 +68,7 @@ def send_to_telegram(file_path, token=BOT_TOKEN, chat_id=CHAT_ID, topic_id=TOPIC
         else:
             print(f"❌ שגיאה בהעלאה: {response.status_code} - {response.text}")
             return False
+
     except Exception as e:
         print(f"⚠️ שגיאה כללית בשליחה לטלגרם: {e}")
         return False
