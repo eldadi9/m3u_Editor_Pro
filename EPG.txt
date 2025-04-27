@@ -1,0 +1,80 @@
+
+📺 ⚜️ EPG ⚜️
+
+ILOOK TV (Edem TV) - 
+http://epg.it999.ru/epg.xml.gz
+http://epg.it999.ru/edem.xml.gz
+http://epg.it999.ru/epg2.xml.gz
+
+https://iptvx.one/EPG_LITE
+https://iptvx.one/EPG
+https://iptvx.one/EPG.gz
+https://iptvx.one/epg/epg.xml.gz
+https://iptvx.one/epg/epg_lite.xml.gz
+http://www.teleguide.info/download/new3/xmltv.xml.gz
+https://gabbarit.page.link/epg14
+https://gabbarit.page.link/epg
+http://1lot.tv/epg/epg.xml
+http://iptv-content.rv77.pw/epg.xml.gz
+http://api.catcast.tv/api/timetable/epg.xml?channel_ids=38850,38821,38896,39484,38801,39161
+http://api.catcast.tv/api/timetable/epg.xml?channel_ids=39161,38801,38821,38896,38850
+http://epg.streaming-elbrus.su/xmltv/epg.xml.gz
+http://f1-mania.ru/janitor/EPG.xml.gz
+https://list.playtv.pro/f/epg_vod.xml.gz
+https://ip-tv.dev/epg/epg.xml.gz
+glanz - 
+http://ottg.tv/epg.xml.gz
+ProgramTV - 
+http://programtv.ru/xmltv.xml.gz
+Epgdo - 
+http://epg.do.am/tv.gz
+TopIPTV - 
+http://topiptv.info/download/topiptv.xml.gz
+k210 - http://tv.k210.org/xmltv.xml.gz
+Shara CLUB - 
+https://list.satfor.pro/f/epg.xml.gz
+Filmax -
+https://filmax-tv.ru/epg.xml.gz
+spacetv - 
+http://spacetv.in/api/epg.xml.gz
+KIT - http://bit.ly/voc-tv
+FOX-TV -
+http://epg.fox-tv.fun/1.xmltv
+https://epg.fox-tv.fun/1.xmltv  (может не у всех работать) 
+Light Iptv - 
+http://epg.lightiptv.cc/epg.xml.gz
+Рошен - 
+http://epg.roshen.live/tvguide.xml
+Bcumedia (И не только кинозалы) - 
+https://bcumedia.pro/epg.xml.gz
+TV team - http://epg.team/tvteam.xml.gz
+TV team - http://epg.team/tvteam.xml.7.2 - Телегид с архивом на 7 дней
+Premiere Group 
+http://epg-iptv.ru/premiere-group.xml
+CineMan
+https://cineman.su/epg/epg_cineman.xml.gz
+Teleguide - http://www.teleguide.info/download/new3/xmltv.xml.gz
+Shara - http://stb.shara-tv.org/epg/epgtv.xml.gz
+Megane - http://georgemikl.ucoz.ru/epg/xmltv.xml.gz 
+Dortmundez - http://dortmundez.ucoz.net/epg/epg.xml.gz
+Kineskop TV - http://st.kineskop.tv/epg.xml.gz
+Sharavoz TV - http://iptv-content.webhop.net/guide.xml
+Great - https://epg.greatiptv.cc/iptv.xml.gz
+Iptvxtv -
+http://epg.iptvx.tv/xmltv.xml.gz
+Openboxfan - http://epg.openboxfan.com/xmltv.xml.gz
+Ottepg - https://ottepg.ru/ottepg.xml.gz
+OTTCLUB - http://myott.top/api/epg/xml.gz
+prosto tv - http://mw.prosto.tv/jtv_utc2.zip
+NTTV http://api.ttv.world/ttv.xmltv.xml.gz
+Antifriz.TV - http://antifriz.tv/xmltv/xml/gz
+
+📺 Epg источники от Sharavoz tv:
+
+http://iptv-content.webhop.net/guide.xml
+http://iptv-content.webhop.net/epg.xml.gz
+http://iptv-content.webhop.net/epg.xml.xz
+LITE EPG
+http://iptv-content.webhop.net/guide-lite.xml
+http://iptv-content.webhop.net/epg-lite.xml.gz
+http://iptv-content.webhop.net/epg-lite.xml.xz

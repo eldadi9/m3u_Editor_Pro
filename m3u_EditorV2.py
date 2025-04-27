@@ -21,7 +21,6 @@ import tempfile
 from PyQt5.QtCore import pyqtSignal
 from datetime import datetime, timedelta
 from PyQt5.QtWidgets import QMessageBox
-from PyQt5.QtCore import QThread
 from tempfile import NamedTemporaryFile
 from telegram_uploader import send_to_telegram
 from PyQt5.QtGui import QIcon
@@ -3498,23 +3497,71 @@ class M3UEditor(QWidget):
 
     def parseM3UContentEnhanced(self, content):
         """
-        ✅ ממיר EXTGRP → group-title
-        ✅ מסיר את שורת EXTGRP
-        ✅ בונה קטגוריות מתוך EXTINF
-        ✅ תומך בערוצים ללא EXTINF (מוסיף אחד ריק)
-        ✅ שומר שם ערוץ ברור לשורת EXTINF עבור VLC
+        Parse M3U content, handling group-title, #EXTGRP, and tvg-logo robustly.
+        לא סורק לוגואים – רק בונה קטגוריות ותוכן.
         """
         self.categories.clear()
-        self.extinf_lookup = {}
         updated_lines = []
         current_group = None
+        lines = content.splitlines()
+
+        for line in lines:
+            if line.startswith("#EXTGRP:"):
+                current_group = line.split(":", 1)[1].strip()
+                continue
+
+            if line.startswith("#EXTINF:"):
+                if "group-title=" not in line and current_group:
+                    line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
+                current_group = None  # Always reset group
+
+            updated_lines.append(line)
+
+        updated_content = "\n".join(updated_lines)
+
+        # פרס קטגוריות וערוצים
+        category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
+        for match in category_pattern.findall(updated_content):
+            group_title, channel_name, channel_url = match
+            if group_title not in self.categories:
+                self.categories[group_title] = []
+            self.categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
+
+        self.textEdit.setPlainText(updated_content)
+        self.categoryList.clear()
+        for category, channels in self.categories.items():
+            item = QListWidgetItem(f"{category} ({len(channels)})")
+            self.categoryList.addItem(item)
+
+        self.searchBox.setText("")
+        self.buildSearchCompleter()
+
+    def parseM3UContentEnhanced(self, content):
+        """
+        ✅ קורא EXTGRP ומשלב אותו ב־group-title אם צריך
+        ✅ מתעלם מ-EXTGRP עצמו
+        ✅ בונה קטגוריות מתוך EXTINF
+        ✅ מוסיף EXTINF ריק אם צריך
+        ✅ תומך בערוצים גם בלי EXTINF
+        ✅ שומר שם ערוץ ברור
+        ✅ ממלא self.extinf_lookup תמיד
+        """
+
+        self.categories.clear()
+        self.extinf_lookup = {}  # חייב להתחיל חדש בכל טעינה
+        updated_lines = []
         fixed_lines = []
+        current_group = None
 
         lines = content.strip().splitlines()
         i = 0
 
         while i < len(lines):
             line = lines[i].strip()
+
+            if not line:
+                i += 1
+                continue
 
             if line.startswith("#EXTGRP:"):
                 current_group = line.split(":", 1)[1].strip()
@@ -3529,23 +3576,32 @@ class M3UEditor(QWidget):
                 # הוספת שם ערוץ אם חסר
                 if "," not in line:
                     line += ",Unknown"
-                elif line.strip().endswith(","):
+                elif line.endswith(","):
                     line += "Unknown"
 
-                current_group = None
                 fixed_lines.append(line)
 
+                # בדיקה אם יש URL אחריו
+                if i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    if next_line.startswith("http"):
+                        fixed_lines.append(next_line)
+                        i += 1  # לדלג גם על ה-URL
+                    else:
+                        fixed_lines.append("http://missing-link")
+
             elif line.startswith("http"):
-                # אם אין EXTINF לפני – נוסיף אחד ריק
-                if i == 0 or not lines[i - 1].strip().startswith("#EXTINF"):
-                    fixed_lines.append('#EXTINF:-1 group-title="לא מוגדר",Unknown')
+                # URL בודד בלי EXTINF – נוסיף EXTINF ריק מעליו
+                fixed_lines.append('#EXTINF:-1 group-title="לא מוגדר",Unknown')
                 fixed_lines.append(line)
+
             else:
+                # שורה רגילה (טקסט) – נשמור אותה
                 fixed_lines.append(line)
 
             i += 1
 
-        # שלב 2: בניית קטגוריות וערוצים
+        # שלב 2: בניית קטגוריות + מילוי extinf_lookup
         i = 0
         while i < len(fixed_lines):
             line = fixed_lines[i].strip()
@@ -3556,7 +3612,6 @@ class M3UEditor(QWidget):
                 group_title = "לא מוגדר"
                 channel_name = "Unknown"
 
-                # הבא אחריו הוא ה־URL
                 if i + 1 < len(fixed_lines):
                     url_line = fixed_lines[i + 1].strip()
                     i += 1
@@ -3572,6 +3627,7 @@ class M3UEditor(QWidget):
                 else:
                     channel_name = "Unknown"
 
+                # בניית ערך
                 entry = f"{channel_name} ({url_line})"
                 updated_lines.append(extinf_line)
                 updated_lines.append(url_line)
@@ -3579,7 +3635,8 @@ class M3UEditor(QWidget):
                 if group_title not in self.categories:
                     self.categories[group_title] = []
                 self.categories[group_title].append(entry)
-                self.extinf_lookup[entry] = extinf_line
+
+                self.extinf_lookup[entry] = extinf_line  # ✅ מילוי המילון
 
             i += 1
 
