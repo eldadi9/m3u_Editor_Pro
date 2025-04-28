@@ -3501,6 +3501,7 @@ class M3UEditor(QWidget):
         לא סורק לוגואים – רק בונה קטגוריות ותוכן.
         """
         self.categories.clear()
+        self.extinf_lookup = {}  # ← ← ← ✅ מוסיפים יצירה של המילון הזה
         updated_lines = []
         current_group = None
         lines = content.splitlines()
@@ -3532,119 +3533,6 @@ class M3UEditor(QWidget):
         for category, channels in self.categories.items():
             item = QListWidgetItem(f"{category} ({len(channels)})")
             self.categoryList.addItem(item)
-
-        self.searchBox.setText("")
-        self.buildSearchCompleter()
-
-    def parseM3UContentEnhanced(self, content):
-        """
-        ✅ קורא EXTGRP ומשלב אותו ב־group-title אם צריך
-        ✅ מתעלם מ-EXTGRP עצמו
-        ✅ בונה קטגוריות מתוך EXTINF
-        ✅ מוסיף EXTINF ריק אם צריך
-        ✅ תומך בערוצים גם בלי EXTINF
-        ✅ שומר שם ערוץ ברור
-        ✅ ממלא self.extinf_lookup תמיד
-        """
-
-        self.categories.clear()
-        self.extinf_lookup = {}  # חייב להתחיל חדש בכל טעינה
-        updated_lines = []
-        fixed_lines = []
-        current_group = None
-
-        lines = content.strip().splitlines()
-        i = 0
-
-        while i < len(lines):
-            line = lines[i].strip()
-
-            if not line:
-                i += 1
-                continue
-
-            if line.startswith("#EXTGRP:"):
-                current_group = line.split(":", 1)[1].strip()
-                i += 1
-                continue
-
-            if line.startswith("#EXTINF:"):
-                # הוספת group-title אם חסר
-                if current_group and 'group-title="' not in line:
-                    line = re.sub(r'(#EXTINF:[^,]+),', rf'\g<1> group-title="{current_group}",', line)
-
-                # הוספת שם ערוץ אם חסר
-                if "," not in line:
-                    line += ",Unknown"
-                elif line.endswith(","):
-                    line += "Unknown"
-
-                fixed_lines.append(line)
-
-                # בדיקה אם יש URL אחריו
-                if i + 1 < len(lines):
-                    next_line = lines[i + 1].strip()
-                    if next_line.startswith("http"):
-                        fixed_lines.append(next_line)
-                        i += 1  # לדלג גם על ה-URL
-                    else:
-                        fixed_lines.append("http://missing-link")
-
-            elif line.startswith("http"):
-                # URL בודד בלי EXTINF – נוסיף EXTINF ריק מעליו
-                fixed_lines.append('#EXTINF:-1 group-title="לא מוגדר",Unknown')
-                fixed_lines.append(line)
-
-            else:
-                # שורה רגילה (טקסט) – נשמור אותה
-                fixed_lines.append(line)
-
-            i += 1
-
-        # שלב 2: בניית קטגוריות + מילוי extinf_lookup
-        i = 0
-        while i < len(fixed_lines):
-            line = fixed_lines[i].strip()
-
-            if line.startswith("#EXTINF:"):
-                extinf_line = line
-                url_line = ""
-                group_title = "לא מוגדר"
-                channel_name = "Unknown"
-
-                if i + 1 < len(fixed_lines):
-                    url_line = fixed_lines[i + 1].strip()
-                    i += 1
-
-                # חילוץ group-title
-                match = re.search(r'group-title="([^"]+)"', extinf_line)
-                if match:
-                    group_title = match.group(1).strip()
-
-                # חילוץ שם ערוץ
-                if "," in extinf_line:
-                    channel_name = extinf_line.split(",", 1)[-1].strip()
-                else:
-                    channel_name = "Unknown"
-
-                # בניית ערך
-                entry = f"{channel_name} ({url_line})"
-                updated_lines.append(extinf_line)
-                updated_lines.append(url_line)
-
-                if group_title not in self.categories:
-                    self.categories[group_title] = []
-                self.categories[group_title].append(entry)
-
-                self.extinf_lookup[entry] = extinf_line  # ✅ מילוי המילון
-
-            i += 1
-
-        updated_content = "\n".join(updated_lines)
-        self.textEdit.setPlainText(updated_content)
-        self.categoryList.clear()
-        for category, channels in self.categories.items():
-            self.categoryList.addItem(QListWidgetItem(f"{category} ({len(channels)})"))
 
         self.searchBox.setText("")
         self.buildSearchCompleter()

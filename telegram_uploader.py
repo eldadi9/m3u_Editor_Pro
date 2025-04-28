@@ -13,16 +13,16 @@ TOPIC_ID = 6
 # חתימות EG מתחלפות
 signatures = [
     "◢◤ 𝗘𝗚 ◥◣\n⚡️ 𝘾𝙊𝘿𝙀. 𝘾𝙍𝙀𝘼𝙏𝙀. 𝘿𝙊 𝙈𝘼𝙂𝙄𝘾 ⚡️\n╰┈➤ https://t.me/Olam_Haoradot_IL",
-    "◢◤ 𝗘𝗚 ◥◣\n📡 STREAM • SYNC • SHARE\n╰┈➤ https://t.me/+lStb9Ec7Bg8xNTc0",
-    "◢◤ 𝗘𝗚 ◥◣\n📺 IPTV IS POWERED HERE\n╰┈➤ https://t.me/+lStb9Ec7Bg8xNTc0",
-    "◢◤ 𝗘𝗚 ◥◣\n📲 APPS • LINKS • UPDATES\n╰┈➤ https://t.me/+lStb9Ec7Bg8xNTc0",
-    "◢◤ 𝗘𝗚 ◥◣\n🛰️ SIGNALS FROM THE UNDERGROUND\n╰┈➤ https://t.me/+lStb9Ec7Bg8xNTc0",
-    "◢◤ 𝗘𝗚 ◥◣\n🎛️ STREAM. CODE. UPGRADE.\n╰┈➤ https://t.me/+lStb9Ec7Bg8xNTc0",
-    "◢◤ 𝗘𝗚 ◥◣\n🧠 SMART CONTENT FOR SMART PEOPLE\n╰┈➤ https://t.me/+lStb9Ec7Bg8xNTc0",
-    "◢◤ 𝗘𝗚 ◥◣\n📦 UNPACKING THE INTERNET\n╰┈➤ https://t.me/+lStb9Ec7Bg8xNTc0",
-    "◢◤ 𝗘𝗚 ◥◣\n🔥 BEST LINKS. NO NOISE.\n╰┈➤ https://t.me/+lStb9Ec7Bg8xNTc0",
-    "◢◤ 𝗘𝗚 ◥◣\n🔁 DAILY STREAM. ZERO DELAY.\n╰┈➤ https://t.me/+lStb9Ec7Bg8xNTc0",
-    "◢◤ 𝗘𝗚 ◥◣\n📥 DOWNLOADING A BETTER WORLD\n╰┈➤ https://t.me/+lStb9Ec7Bg8xNTc0"
+    "◢◤ 𝗘𝗚 ◥◣\n📡 STREAM • SYNC • SHARE\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ 𝗘𝗚 ◥◣\n📺 IPTV IS POWERED HERE\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ 𝗘𝗚 ◥◣\n📲 APPS • LINKS • UPDATES\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ 𝗘𝗚 ◥◣\n🛰️ SIGNALS FROM THE UNDERGROUND\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ 𝗘𝗚 ◥◣\n🎛️ STREAM. CODE. UPGRADE.\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ 𝗘𝗚 ◥◣\n🧠 SMART CONTENT FOR SMART PEOPLE\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ 𝗘𝗚 ◥◣\n📦 UNPACKING THE INTERNET\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ 𝗘𝗚 ◥◣\n🔥 BEST LINKS. NO NOISE.\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ 𝗘𝗚 ◥◣\n🔁 DAILY STREAM. ZERO DELAY.\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ 𝗘𝗚 ◥◣\n📥 DOWNLOADING A BETTER WORLD\n╰┈➤ https://t.me/Olam_Haoradot_IL"
 ]
 
 
