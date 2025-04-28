@@ -2000,7 +2000,12 @@ class M3UEditor(QWidget):
         self.categorySortComboBox.addItems([
             "Sort Categories A-Z",
             "Sort Categories Z-A",
-            "Sort by Channel Count"
+            "Sort by Channel Count (Most to Least)",
+            "Sort by Channel Count (Least to Most)",
+            "Sort Hebrew Categories A-Z",
+            "Sort by Channel Name Length",
+            "Sort by Online Channel Count (Descending)",
+            "Sort by Country/Language in Category"
         ])
         self.categorySortComboBox.currentIndexChanged.connect(self.sortCategories)
         layout.addWidget(self.categorySortComboBox)
@@ -2439,21 +2444,55 @@ class M3UEditor(QWidget):
         if not self.categories:
             return
 
+        def is_hebrew(text):
+            return any('\u0590' <= c <= '\u05EA' for c in text)
+
         if sort_option == "Sort Categories A-Z":
             sorted_items = sorted(self.categories.items(), key=lambda x: x[0].lower())
+
         elif sort_option == "Sort Categories Z-A":
             sorted_items = sorted(self.categories.items(), key=lambda x: x[0].lower(), reverse=True)
-        elif sort_option == "Sort by Channel Count":
+
+        elif sort_option == "Sort by Channel Count (Most to Least)":
             sorted_items = sorted(self.categories.items(), key=lambda x: len(x[1]), reverse=True)
+
+        elif sort_option == "Sort by Channel Count (Least to Most)":
+            sorted_items = sorted(self.categories.items(), key=lambda x: len(x[1]))
+
+        elif sort_option == "Sort Hebrew Categories A-Z":
+            hebrew_categories = {k: v for k, v in self.categories.items() if is_hebrew(k)}
+            non_hebrew_categories = {k: v for k, v in self.categories.items() if not is_hebrew(k)}
+            sorted_hebrew = sorted(hebrew_categories.items(), key=lambda x: x[0])
+            sorted_non_hebrew = sorted(non_hebrew_categories.items(), key=lambda x: x[0])
+            sorted_items = sorted_hebrew + sorted_non_hebrew
+
+        elif sort_option == "Sort by Channel Name Length":
+            sorted_items = sorted(self.categories.items(),
+                                  key=lambda x: sum(len(ch.split(' (')[0]) for ch in x[1]) / (len(x[1]) or 1))
+
+        elif sort_option == "Sort by Online Channel Count (Descending)":
+            # Placeholder - אין מידע אמיתי בשלב זה, אז נמיין לפי סתם מספר ערוצים
+            sorted_items = sorted(self.categories.items(), key=lambda x: len(x[1]), reverse=True)
+            # בעתיד נחליף את זה אם תשלב מערכת בדיקה אונליין
+
+        elif sort_option == "Sort by Country/Language in Category":
+            country_order = ['il', 'usa', 'uk', 'fr', 'es', 'de', 'ru', 'ar']  # דוגמא
+
+            def get_country_index(name):
+                for i, country in enumerate(country_order):
+                    if country in name.lower():
+                        return i
+                return len(country_order) + 1
+
+            sorted_items = sorted(self.categories.items(), key=lambda x: get_country_index(x[0]))
+
         else:
             return
 
+        # עדכון
         self.categories = dict(sorted_items)
         self.refreshCategoryListOnly()
         self.regenerateM3UTextOnly()
-
-
-
 
     def regenerateM3UTextOnly(self, fast_mode=True):
         updated_lines = ["#EXTM3U"]
