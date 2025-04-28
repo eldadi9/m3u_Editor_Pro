@@ -1988,14 +1988,26 @@ class M3UEditor(QWidget):
 
     def create_category_section(self):
         layout = QVBoxLayout()
+
+        # כותרת קטגוריות
         category_title = QLabel("Categories", self)
         category_title.setAlignment(Qt.AlignCenter)
         category_title.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(category_title)
 
+        # קומבובוקס מיון קטגוריות
+        self.categorySortComboBox = QComboBox(self)
+        self.categorySortComboBox.addItems([
+            "Sort Categories A-Z",
+            "Sort Categories Z-A",
+            "Sort by Channel Count"
+        ])
+        self.categorySortComboBox.currentIndexChanged.connect(self.sortCategories)
+        layout.addWidget(self.categorySortComboBox)
+
+        # כפתורי פעולות
         button_layout = QHBoxLayout()
 
-        # Create buttons
         self.addCategoryButton = QPushButton('Add Category')
         self.updateCategoryButton = QPushButton('Edit Category Name')
         self.deleteCategoryButton = QPushButton('Delete Selected')
@@ -2003,24 +2015,19 @@ class M3UEditor(QWidget):
         self.moveCategoryDownButton = QPushButton('Move Category Down')
         self.selectAllButton = QPushButton('Select All')
         self.deselectAllButton = QPushButton('Deselect All')
-
-        # New button to show total channels
         self.showTotalChannelsButton = QPushButton('Show Total Channels')
-        self.showTotalChannelsButton.clicked.connect(self.displayTotalChannels)
 
-        # Apply button colors
+        # צבעים לכפתורים
         self.selectAllButton.setStyleSheet("background-color: blue; color: white;")
         self.deselectAllButton.setStyleSheet("background-color: blue; color: white;")
-
         self.updateCategoryButton.setStyleSheet("background-color: red; color: white;")
-        self.deleteCategoryButton.setStyleSheet("background-color:red; color: white;")
-
+        self.deleteCategoryButton.setStyleSheet("background-color: red; color: white;")
         self.addCategoryButton.setStyleSheet("background-color: green; color: white;")
         self.moveCategoryUpButton.setStyleSheet("background-color: green; color: white;")
-        self.moveCategoryDownButton.setStyleSheet("background-color:green; color: white;")
-        self.showTotalChannelsButton.setStyleSheet("background-color:black; color: white;")
+        self.moveCategoryDownButton.setStyleSheet("background-color: green; color: white;")
+        self.showTotalChannelsButton.setStyleSheet("background-color: black; color: white;")
 
-        # Add buttons to layout
+        # הוספת הכפתורים לשורה
         button_layout.addWidget(self.addCategoryButton)
         button_layout.addWidget(self.updateCategoryButton)
         button_layout.addWidget(self.deleteCategoryButton)
@@ -2028,25 +2035,26 @@ class M3UEditor(QWidget):
         button_layout.addWidget(self.moveCategoryDownButton)
         button_layout.addWidget(self.selectAllButton)
         button_layout.addWidget(self.deselectAllButton)
-        button_layout.addWidget(self.showTotalChannelsButton)  # Add the new button
+        button_layout.addWidget(self.showTotalChannelsButton)
 
         layout.addLayout(button_layout)
 
-        # Create category list widget
+        # רשימת קטגוריות
         self.categoryList = QListWidget(self)
-        self.categoryList.itemClicked.connect(self.onCategorySelected)
-        self.categoryList.setSelectionMode(QAbstractItemView.MultiSelection)  # Ensure multiple selection is enabled
+        self.categoryList.setSelectionMode(QAbstractItemView.MultiSelection)  # בחירה מרובה
         layout.addWidget(self.categoryList)
 
-        # Connect buttons to their respective functions
+        # חיבור פעולות
         self.addCategoryButton.clicked.connect(self.addCategory)
         self.updateCategoryButton.clicked.connect(self.updateCategoryName)
         self.deleteCategoryButton.clicked.connect(self.deleteSelectedCategories)
         self.moveCategoryUpButton.clicked.connect(self.moveCategoryUp)
         self.moveCategoryDownButton.clicked.connect(self.moveCategoryDown)
-        self.selectAllButton.clicked.connect(self.selectAllCategories)  # Assign to select all function
-        self.deselectAllButton.clicked.connect(self.deselectAllCategories)  # Assign to deselect all function
+        self.selectAllButton.clicked.connect(self.selectAllCategories)
+        self.deselectAllButton.clicked.connect(self.deselectAllCategories)
+        self.showTotalChannelsButton.clicked.connect(self.displayTotalChannels)
         self.categoryList.itemClicked.connect(self.display_channels)
+
         return layout
 
     def create_Tools(self):
@@ -2424,6 +2432,28 @@ class M3UEditor(QWidget):
 
             self.refreshCategoryListOnly(selected_index=current_row + 1)
             self.regenerateM3UTextOnly()
+
+    def sortCategories(self):
+        sort_option = self.categorySortComboBox.currentText()
+
+        if not self.categories:
+            return
+
+        if sort_option == "Sort Categories A-Z":
+            sorted_items = sorted(self.categories.items(), key=lambda x: x[0].lower())
+        elif sort_option == "Sort Categories Z-A":
+            sorted_items = sorted(self.categories.items(), key=lambda x: x[0].lower(), reverse=True)
+        elif sort_option == "Sort by Channel Count":
+            sorted_items = sorted(self.categories.items(), key=lambda x: len(x[1]), reverse=True)
+        else:
+            return
+
+        self.categories = dict(sorted_items)
+        self.refreshCategoryListOnly()
+        self.regenerateM3UTextOnly()
+
+
+
 
     def regenerateM3UTextOnly(self, fast_mode=True):
         updated_lines = ["#EXTM3U"]
