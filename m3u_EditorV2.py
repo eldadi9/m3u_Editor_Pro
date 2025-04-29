@@ -60,7 +60,7 @@ class MoveChannelsDialog(QDialog):
         self.cancelButton = QPushButton("✖ ביטול")
         self.okButton.setStyleSheet("background-color: green; color: white; font-weight: bold;")
         self.cancelButton.setStyleSheet("background-color: red; color: white; font-weight: bold;")
-        self.okButton.clicked.connect(self.accept)
+        self.okButton.clicked.connect(self.onAcceptClicked)
         self.cancelButton.clicked.connect(self.reject)
 
         buttonBox.addWidget(self.okButton)
@@ -72,6 +72,16 @@ class MoveChannelsDialog(QDialog):
     def getSelectedCategory(self):
         return self.newCategoryInput.text().strip() if self.newCategoryInput.text().strip() else self.categoryCombo.currentText()
 
+    def onAcceptClicked(self):
+        new_name = self.newCategoryInput.text().strip()
+        if new_name and new_name in self.categories:
+            QMessageBox.warning(
+                self,
+                "Category Exists",
+                f"הקטגוריה '{new_name}' כבר קיימת. בחר שם אחר או השתמש בקיימת.",
+            )
+            return  # אל תסגור את החלון
+        self.accept()
 
 
 def save_logo_for_channel(channel_name, logo_url):
