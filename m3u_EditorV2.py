@@ -73,6 +73,7 @@ class MoveChannelsDialog(QDialog):
         return self.newCategoryInput.text().strip() if self.newCategoryInput.text().strip() else self.categoryCombo.currentText()
 
 
+
 def save_logo_for_channel(channel_name, logo_url):
     try:
         with threading.Lock():  # ננעל את הגישה במקרה של ריבוי תהליכים
@@ -267,10 +268,19 @@ class ExportGroupsDialog(QDialog):
                 file.write("#EXTM3U\n")
                 for channel in self.categories[category]:
                     # ✅ שימוש בשורת EXTINF המקורית אם קיימת
-                    extinf_line = self.parent.extinf_lookup.get(
-                        channel,
-                        f"#EXTINF:-1,{channel.split(' (')[0]}"
-                    )
+                    extinf_line = self.parent.extinf_lookup.get(channel)
+
+                    # אם אין שורת EXTINF מקורית — ניצור אחת עם group-title
+                    if not extinf_line:
+                        channel_name = channel.split(" (")[0].strip()
+                        extinf_line = f'#EXTINF:-1 group-title="{category}",{channel_name}'
+                    else:
+                        # אם יש EXTINF אבל חסר group-title — נוסיף group-title
+                        if 'group-title="' not in extinf_line:
+                            parts = extinf_line.split(",", 1)
+                            if len(parts) == 2:
+                                props, name = parts
+                                extinf_line = f'{props} group-title="{category}",{name}'
 
                     url = self.parent.getUrl(channel)
                     channel_name = channel.split(" (")[0].strip()
@@ -279,6 +289,7 @@ class ExportGroupsDialog(QDialog):
 
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {str(e)}")
+
 
     def getFullExtInfLine(self, channel, category="Default Category"):
         """
@@ -2749,70 +2760,101 @@ class M3UEditor(QWidget):
             self.channelList.item(i).setSelected(False)
 
     def moveSelectedChannel(self):
-        """
-        Move selected channels to a new or existing category safely and FAST.
-        """
-        selected_items = self.channelList.selectedItems()
-        if not selected_items:
-            QMessageBox.warning(self, "Warning", "No channels selected for moving.")
-            return
+        try:
+            print("[DEBUG] Starting moveSelectedChannel...")
 
-        dialog = MoveChannelsDialog(self, list(self.categories.keys()))
-        if dialog.exec_():
+            selected_items = self.channelList.selectedItems()
+            if not selected_items:
+                print("[DEBUG] No channels selected.")
+                QMessageBox.warning(self, "Warning", "No channels selected for moving.")
+                return
+
+            selected_names = [item.text().split(" (")[0].strip() for item in selected_items]
+            print(f"[DEBUG] Selected channel names: {selected_names}")
+
+            dialog = MoveChannelsDialog(self, list(self.categories.keys()))
+            if not dialog.exec_():
+                print("[DEBUG] MoveChannelsDialog canceled by user.")
+                return
+
             target_category = dialog.getSelectedCategory().strip()
+            print(f"[DEBUG] Target category selected: {target_category}")
+
             if not target_category:
                 QMessageBox.warning(self, "Warning", "No target category specified.")
                 return
 
             if target_category not in self.categories:
                 self.categories[target_category] = []
+                print(f"[DEBUG] Target category '{target_category}' created.")
 
             current_item = self.categoryList.currentItem()
             if not current_item:
+                print("[DEBUG] No current category selected.")
                 QMessageBox.warning(self, "Warning", "No category selected.")
                 return
 
             current_category = current_item.text().split(" (")[0].strip()
+            print(f"[DEBUG] Current category: {current_category}")
+
             if current_category not in self.categories:
                 QMessageBox.warning(self, "Warning", f"Category '{current_category}' does not exist.")
                 return
 
             moved_channels = []
-            selected_names = [item.text().strip() for item in selected_items]
-            original_list = self.categories[current_category]
             remaining_channels = []
 
-            for channel in original_list:
-                match = re.match(r"^(.*?) \((.*?)\)$", channel.strip())
-                if not match:
-                    remaining_channels.append(channel)
-                    continue
+            original_list = self.categories[current_category]
+            print(f"[DEBUG] Original list size: {len(original_list)}")
 
-                name = match.group(1).strip()
-                if name in selected_names:
+            for channel in original_list:
+                if " (" in channel:
+                    channel_name = channel.split(" (")[0].strip()
+                else:
+                    channel_name = channel.strip()
+
+                if channel_name in selected_names:
                     moved_channels.append(channel)
-                    selected_names.remove(name)
                 else:
                     remaining_channels.append(channel)
+
+            print(f"[DEBUG] Channels to move: {len(moved_channels)}")
+            print(f"[DEBUG] Channels remaining: {len(remaining_channels)}")
 
             if moved_channels:
                 self.categories[current_category] = remaining_channels
                 self.categories[target_category].extend(moved_channels)
 
+                print("[DEBUG] Regenerating M3U text...")
                 self.regenerateM3UTextOnly()
+
+                print("[DEBUG] Updating category list...")
                 self.updateCategoryList()
 
+                print("[DEBUG] Setting new category as selected...")
                 for i in range(self.categoryList.count()):
                     if self.categoryList.item(i).text().startswith(target_category):
                         self.categoryList.setCurrentRow(i)
                         self.display_channels(self.categoryList.item(i))
                         break
 
+                self.deselectAllChannels()
+
+                print("[DEBUG] Move successful. Showing success message.")
                 QMessageBox.information(
                     self,
                     "Success",
                     f"{len(moved_channels)} channels moved to '{target_category}'."
                 )
+
+            else:
+                print("[DEBUG] No channels matched for moving.")
+
+            print("[DEBUG] moveSelectedChannel finished successfully.")
+
+        except Exception as e:
+            print(f"[ERROR] moveSelectedChannel crashed: {str(e)}")
+            QMessageBox.critical(self, "Critical Error", f"Error in moveSelectedChannel:\n{str(e)}")
 
     def previewSelectedChannel(self):
         selected_items = self.channelList.selectedItems()
