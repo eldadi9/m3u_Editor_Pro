@@ -28,7 +28,9 @@ LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_d
 new_logos_counter = 0
 existing_logos_counter = 0
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton, QHBoxLayout
+from PyQt5.QtWidgets import (
+    QDialog, QVBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton, QHBoxLayout, QFrame
+)
 
 
 class MoveChannelsDialog(QDialog):
@@ -1152,50 +1154,65 @@ class M3UEditor(QWidget):
     def onLogosFinished(self):
         QMessageBox.information(self, "Logo Scan", "✅ סריקת הלוגואים הושלמה בהצלחה!")
 
-
     def initUI(self):
         self.setWindowTitle('M3U Playlist Editor')
         self.setGeometry(100, 100, 800, 600)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
-        # Setup the horizontal layout for top buttons
-        top_buttons_layout = QHBoxLayout()
-
         # Set a global font
-        font = QFont('Arial', 10)  # Change 'Arial' to your preferred font and '12' to your desired size
+        font = QFont('Arial', 10)
         QApplication.setFont(font)
 
         # Main layout
         main_layout = QVBoxLayout(self)
         self.setLayout(main_layout)
 
-        # Add image at the top
+        # 🔲 לוגו עליון במסגרת שחורה
+        logo_frame = QFrame(self)
+        logo_frame.setStyleSheet("background-color: black;")
+        logo_layout = QVBoxLayout(logo_frame)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+
         logo_label = QLabel(self)
-        logo_label.setAlignment(Qt.AlignCenter)  # Center the logo
         image_path = r'C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\Main Logo.jpg'
 
-        # Check if the image exists and load it
         if os.path.exists(image_path):
             logo_pixmap = QPixmap(image_path)
-            if not logo_pixmap.isNull():  # Check if the pixmap was loaded successfully
-                logo_pixmap = logo_pixmap.scaled(150, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            if not logo_pixmap.isNull():
+                logo_pixmap = logo_pixmap.scaledToHeight(80, Qt.SmoothTransformation)
                 logo_label.setPixmap(logo_pixmap)
+                logo_label.setAlignment(Qt.AlignCenter)
             else:
-                logo_label.setText("Failed to load image.")  # Fallback text
+                logo_label.setText("Failed to load image.")
                 logo_label.setAlignment(Qt.AlignCenter)
         else:
             logo_label.setText("Image not found.")
             logo_label.setAlignment(Qt.AlignCenter)
 
-        main_layout.addWidget(logo_label)
+        logo_layout.addWidget(logo_label)
+        main_layout.addWidget(logo_frame)
 
-        # Setup title
+        # 🔍 שורת חיפוש חכמה
+        self.searchBox = QLineEdit()
+        self.searchBox.setPlaceholderText("🔍 חיפוש קטגוריה או ערוץ...")
+        self.searchBox.textChanged.connect(self.handleSearchTextChanged)
+
+        reset_button = QPushButton("🔄 איפוס")
+        reset_button.setStyleSheet("padding: 3px; font-weight: bold;")
+        reset_button.clicked.connect(lambda: self.searchBox.setText(""))
+
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(self.searchBox)
+        search_layout.addWidget(reset_button)
+        main_layout.addLayout(search_layout)
+
+        # 🧾 כותרת ראשית
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 25px; font-weight: bold; background-color: black; color: white;")
         main_layout.addWidget(title)
 
-        # File info layout
+        # 🗂️ מידע על הקובץ וערוצים
         file_info_layout = QHBoxLayout()
         self.fileNameLabel = QLabel("No file loaded", self)
         self.fileNameLabel.setAlignment(Qt.AlignCenter)
@@ -1204,30 +1221,12 @@ class M3UEditor(QWidget):
 
         self.channelCountLabel = QLabel("Total Channels: 0", self)
         self.channelCountLabel.setAlignment(Qt.AlignRight)
-
-
-        # Change font size of 'Total Channels'
         self.channelCountLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
         file_info_layout.addWidget(self.channelCountLabel)
+
         main_layout.addLayout(file_info_layout)
 
-        # 🔍 תיבת חיפוש חכמה
-        self.searchBox = QLineEdit()
-        self.searchBox.setPlaceholderText("🔍 חיפוש קטגוריה או ערוץ...")
-        self.searchBox.textChanged.connect(self.handleSearchTextChanged)
-
-        # כפתור איפוס 🧹
-        reset_button = QPushButton("🔄 איפוס")
-        reset_button.setStyleSheet("padding: 3px; font-weight: bold;")
-        reset_button.clicked.connect(lambda: self.searchBox.setText(""))
-
-        # סידור אופקי של חיפוש + איפוס
-        search_layout = QHBoxLayout()
-        search_layout.addWidget(self.searchBox)
-        search_layout.addWidget(reset_button)
-        main_layout.insertLayout(1, search_layout)  # מוסיף את שורת החיפוש מתחת לכותרת
-
-        # Add other sections
+        # 🧩 אזורים אחרים
         main_layout.addLayout(self.create_category_section())
         main_layout.addLayout(self.create_channel_section())
         main_layout.addLayout(self.create_m3u_content_section())
@@ -1236,13 +1235,10 @@ class M3UEditor(QWidget):
         self.urlCheckButton = QPushButton('IPTV Checker', self)
         self.urlCheckButton.setStyleSheet("background-color: purple; color: white;")
         self.urlCheckButton.clicked.connect(self.openURLCheckerDialog)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         main_layout.addWidget(self.urlCheckButton)
 
-        # Ensure EXTM3U header
+        # ✅ וידוא EXT header
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
-        # Ensure everything is added to main_layout
-        self.setLayout(main_layout)
 
     def create_channel_section(self):
         layout = QVBoxLayout()
