@@ -125,7 +125,6 @@ def save_logo_for_channel(channel_name, logo_url):
         print(f"[LOGO ERROR] Failed to save logo for {channel_name}: {e}")
 
 
-
 def get_saved_logo(channel_name):
     if not os.path.exists(LOGO_DB_PATH):
         return None
@@ -922,7 +921,6 @@ class SmartScanStatusDialog(QDialog):
         self.table.setItem(row, 3, QTableWidgetItem(url))
 
 
-
     def refreshTable(self):
         self.table.setRowCount(0)
         selected_filter = self.filterCombo.currentText().lower()
@@ -1056,7 +1054,6 @@ class SmartScanStatusDialog(QDialog):
                 self, "Error",
                 "Method selectChannelsByUrls not found."
             )
-
 
 def setup_session() -> requests.Session:
     """
@@ -2022,8 +2019,10 @@ class M3UEditor(QWidget):
             "Sort Hebrew Categories A-Z",
             "Sort by Channel Name Length",
             "Sort by Online Channel Count (Descending)",
-            "Sort by Country/Language in Category"
+            "Sort by Country/Language in Category",
+            "Sort by English Category Name"  # ✅ חדש
         ])
+
         self.categorySortComboBox.currentIndexChanged.connect(self.sortCategories)
         layout.addWidget(self.categorySortComboBox)
 
@@ -2464,6 +2463,12 @@ class M3UEditor(QWidget):
         def is_hebrew(text):
             return any('\u0590' <= c <= '\u05EA' for c in text)
 
+        def get_english_name(cat_name):
+            parts = cat_name.split('|')
+            if len(parts) > 1:
+                return parts[1].strip().lower()
+            return cat_name.strip().lower()
+
         if sort_option == "Sort Categories A-Z":
             sorted_items = sorted(self.categories.items(), key=lambda x: x[0].lower())
 
@@ -2488,12 +2493,10 @@ class M3UEditor(QWidget):
                                   key=lambda x: sum(len(ch.split(' (')[0]) for ch in x[1]) / (len(x[1]) or 1))
 
         elif sort_option == "Sort by Online Channel Count (Descending)":
-            # Placeholder - אין מידע אמיתי בשלב זה, אז נמיין לפי סתם מספר ערוצים
             sorted_items = sorted(self.categories.items(), key=lambda x: len(x[1]), reverse=True)
-            # בעתיד נחליף את זה אם תשלב מערכת בדיקה אונליין
 
         elif sort_option == "Sort by Country/Language in Category":
-            country_order = ['il', 'usa', 'uk', 'fr', 'es', 'de', 'ru', 'ar']  # דוגמא
+            country_order = ['il', 'usa', 'uk', 'fr', 'es', 'de', 'ru', 'ar']  # דוגמה
 
             def get_country_index(name):
                 for i, country in enumerate(country_order):
@@ -2503,10 +2506,12 @@ class M3UEditor(QWidget):
 
             sorted_items = sorted(self.categories.items(), key=lambda x: get_country_index(x[0]))
 
+        elif sort_option == "Sort by English Category Name":
+            sorted_items = sorted(self.categories.items(), key=lambda x: get_english_name(x[0]))
+
         else:
             return
 
-        # עדכון
         self.categories = dict(sorted_items)
         self.refreshCategoryListOnly()
         self.regenerateM3UTextOnly()
