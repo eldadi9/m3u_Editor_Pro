@@ -46,6 +46,7 @@ def create_channel_widget(name, quality):
 
     # תווית שם הערוץ
     name_label = QLabel(name)
+    name_label.setObjectName("channel_label")  # ✅ חשוב לצורך moveSelectedChannel
     name_label.setStyleSheet("color: black; font-weight: normal;")
 
     # תווית איכות בצבע
@@ -816,7 +817,8 @@ class URLCheckerDialog(QDialog):
             status_item = self.channelTable.item(row, 2)  # Status נמצא בעמודה 2
             if status_item.text().lower() == 'offline':
                 channel_name = self.channelTable.item(row, 0).text()
-                offline_channels.append(channel_name)
+                url = self.channelTable.item(row, 4).text().strip()
+                offline_channels.append((channel_name.strip(), url))
                 self.channelTable.selectRow(row)
 
         if not offline_channels:
@@ -828,7 +830,7 @@ class URLCheckerDialog(QDialog):
 
         # Call parent method to select these offline channels in main list
         if hasattr(self.parent(), 'selectChannelsByNames'):
-            self.parent().selectChannelsByNames(offline_channels)
+            self.parent().selectChannelsByNameAndUrl(set(offline_channels))
             QMessageBox.information(
                 self, "Offline Channels Selected",
                 f"{len(offline_channels)} offline channels have been selected both here and in the main list."
@@ -2051,48 +2053,134 @@ class M3UEditor(QWidget):
         if fileName:
             try:
                 with open(fileName, 'r', encoding='utf-8') as file:
-                    additional_content = file.read().strip().splitlines()
+                    new_content = file.read()
 
-                # טען לוגואים לזיכרון לשימוש מהיר
+                # ודא התחלה ב־#EXTM3U
+                if not new_content.startswith("#EXTM3U"):
+                    new_content = "#EXTM3U\n" + new_content
+
+                # הסר שורות ריקות ו־#EXTM3U
+                new_lines = [line for line in new_content.strip().splitlines() if
+                             line.strip() and not line.startswith("#EXTM3U")]
+
+                # טען לוגואים
                 try:
                     with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
                         logo_db = json.load(f)
                 except:
                     logo_db = {}
 
+                # בנה תוכן מעובד עם לוגואים
                 merged_lines = []
                 i = 0
-                while i < len(additional_content):
-                    line = additional_content[i]
+                while i < len(new_lines):
+                    line = new_lines[i]
                     if line.startswith("#EXTINF:"):
                         extinf_line = line
-                        url_line = additional_content[i + 1] if i + 1 < len(additional_content) else ""
+                        url_line = new_lines[i + 1] if i + 1 < len(new_lines) else ""
 
                         name_match = re.search(r",(.+)", extinf_line)
                         channel_name = name_match.group(1).strip() if name_match else ""
 
                         extinf_line = inject_logo(extinf_line, channel_name, logo_db)
+
                         merged_lines.append(extinf_line)
-                        merged_lines.append(url_line)
+                        if url_line:
+                            merged_lines.append(url_line)
                         i += 2
                     else:
                         i += 1
 
-                # מיזוג לשדה הטקסט
-                current_content = self.textEdit.toPlainText()
-                if not current_content.endswith('\n'):
-                    current_content += '\n'
-                merged_text = current_content + '\n'.join(merged_lines)
-                self.textEdit.setPlainText(merged_text)
+                # שלב את התוכן עם הקיים
+                current_content = self.textEdit.toPlainText().strip()
+                current_lines = current_content.splitlines() if current_content else []
+                final_lines = ["#EXTM3U"] + current_lines + merged_lines
+                final_text = "\n".join(final_lines)
+
+                # עדכון תיבת הטקסט
+                self.textEdit.setPlainText(final_text)
+
+                # מיזוג לקטגוריות (ללא מחיקה)
+                self.mergeM3UContentToCategories("\n".join(merged_lines))
+                self.updateCategoryList()
+                self.regenerateM3UTextOnly()
+
+                if self.categoryList.count() > 0:
+                    self.categoryList.setCurrentRow(0)
+                    self.display_channels(self.categoryList.currentItem())
 
                 self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]} (Merged)")
                 QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
 
-                # סריקה מחדש
-                self.parseM3UContentEnhanced(self.textEdit.toPlainText())
-
             except Exception as e:
                 QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
+
+    def mergeM3UContentToCategories(self, content):
+        lines = content.strip().splitlines()
+        current_name = ""
+        current_category = "Uncategorized📺"
+        current_logo = None
+
+        for i in range(len(lines)):
+            line = lines[i].strip()
+
+            if line.startswith("#EXTINF:"):
+                name_match = re.search(r",(.+)", line)
+                current_name = name_match.group(1).strip() if name_match else ""
+
+                group_match = re.search(r'group-title="([^"]+)"', line)
+                current_category = group_match.group(1).strip() if group_match else "Uncategorized📺"
+
+                logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                current_logo = logo_match.group(1).strip() if logo_match else None
+
+            elif line.startswith("http") and current_name:
+                channel_entry = f"{current_name} ({line})"
+                if current_logo:
+                    channel_entry += f' tvg-logo="{current_logo}"'
+
+                # 🟢 תמיד הוסף את הערוץ לקטגוריה – גם אם כפול
+                if current_category not in self.categories:
+                    self.categories[current_category] = []
+
+                self.categories[current_category].append(channel_entry)
+
+                current_name = ""
+                current_logo = None
+
+    def mergeM3UContentToCategories(self, content):
+        lines = content.strip().splitlines()
+        current_name = ""
+        current_category = "Uncategorized📺"
+        current_logo = None
+
+        for i in range(len(lines)):
+            line = lines[i].strip()
+
+            if line.startswith("#EXTINF:"):
+                name_match = re.search(r",(.+)", line)
+                current_name = name_match.group(1).strip() if name_match else ""
+
+                group_match = re.search(r'group-title="([^"]+)"', line)
+                current_category = group_match.group(1).strip() if group_match else "Uncategorized📺"
+
+                logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                current_logo = logo_match.group(1).strip() if logo_match else None
+
+            elif line.startswith("http") and current_name:
+                channel_entry = f"{current_name} ({line})"
+                if current_logo:
+                    channel_entry += f' tvg-logo="{current_logo}"'
+
+                # 🟢 תמיד הוסף את הערוץ לקטגוריה – גם אם כפול
+                if current_category not in self.categories:
+                    self.categories[current_category] = []
+
+                self.categories[current_category].append(channel_entry)
+
+                current_name = ""
+                current_logo = None
+
 
     def ensure_extm3u_header(self):
         """
@@ -2927,7 +3015,15 @@ class M3UEditor(QWidget):
                 QMessageBox.warning(self, "Warning", "No channels selected for moving.")
                 return
 
-            selected_names = [item.text().split(" (")[0].strip() for item in selected_items]
+            # נשלוף את השמות דרך ה־QLabel בתוך ה־QWidget
+            selected_names = []
+            for item in selected_items:
+                widget = self.channelList.itemWidget(item)
+                if widget:
+                    label = widget.findChild(QLabel, "channel_label")  # השם חייב להיות מוגדר
+                    if label:
+                        selected_names.append(label.text().strip())
+
             print(f"[DEBUG] Selected channel names: {selected_names}")
 
             dialog = MoveChannelsDialog(self, list(self.categories.keys()))
@@ -2966,11 +3062,7 @@ class M3UEditor(QWidget):
             print(f"[DEBUG] Original list size: {len(original_list)}")
 
             for channel in original_list:
-                if " (" in channel:
-                    channel_name = channel.split(" (")[0].strip()
-                else:
-                    channel_name = channel.strip()
-
+                channel_name = channel.split(" (")[0].strip()
                 if channel_name in selected_names:
                     moved_channels.append(channel)
                 else:
@@ -2983,13 +3075,9 @@ class M3UEditor(QWidget):
                 self.categories[current_category] = remaining_channels
                 self.categories[target_category].extend(moved_channels)
 
-                print("[DEBUG] Regenerating M3U text...")
                 self.regenerateM3UTextOnly()
-
-                print("[DEBUG] Updating category list...")
                 self.updateCategoryList()
 
-                print("[DEBUG] Setting new category as selected...")
                 for i in range(self.categoryList.count()):
                     if self.categoryList.item(i).text().startswith(target_category):
                         self.categoryList.setCurrentRow(i)
@@ -2998,12 +3086,8 @@ class M3UEditor(QWidget):
 
                 self.deselectAllChannels()
 
-                print("[DEBUG] Move successful. Showing success message.")
-                QMessageBox.information(
-                    self,
-                    "Success",
-                    f"{len(moved_channels)} channels moved to '{target_category}'."
-                )
+                QMessageBox.information(self, "Success",
+                                        f"{len(moved_channels)} channels moved to '{target_category}'.")
 
             else:
                 print("[DEBUG] No channels matched for moving.")
