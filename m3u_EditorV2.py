@@ -166,6 +166,7 @@ def create_channel_widget(channel_name, quality):
     layout.setContentsMargins(5, 0, 5, 0)
 
     name_label = QLabel(channel_name)
+    name_label.setObjectName("channel_label")  # ← חשוב!
     layout.addWidget(name_label)
 
     quality_label = QLabel(quality)
@@ -181,6 +182,7 @@ def create_channel_widget(channel_name, quality):
     layout.addStretch()
     widget.setLayout(layout)
     return widget
+
 
 def quality_color(quality):
     if quality == "4K":
@@ -1881,42 +1883,63 @@ class M3UEditor(QWidget):
         self.loadChannelsForCategory(selected_category)
 
     def handleSearchTextChanged(self, text):
-        text = text.strip().lower()
-        if not text:
-            return
+        try:
+            text = text.strip().lower()
 
-        # חיפוש קטגוריה קודם
-        found_category = False
-        for i in range(self.categoryList.count()):
-            item = self.categoryList.item(i)
-            category_name = item.text().split(" (")[0].lower()
-            if text in category_name:
-                item.setBackground(QColor("yellow"))
-                self.categoryList.setCurrentItem(item)
-                self.display_channels(item)
-                found_category = True
-            else:
-                item.setBackground(QColor("white"))
+            # 🧹 איפוס – אם אין טקסט
+            if not text:
+                for i in range(self.categoryList.count()):
+                    item = self.categoryList.item(i)
+                    item.setBackground(QColor("white"))
+                for i in range(self.channelList.count()):
+                    ch_item = self.channelList.item(i)
+                    ch_item.setBackground(QColor("white"))
+                    ch_item.setSelected(False)
+                return
 
-        # חיפוש ערוץ בתוך כל הקטגוריות
-        for category, channels in self.categories.items():
-            for channel in channels:
-                name = channel.split(" (")[0].lower()
-                if text in name:
-                    for i in range(self.categoryList.count()):
-                        item = self.categoryList.item(i)
-                        if category in item.text():
-                            item.setBackground(QColor("yellow"))
-                            self.categoryList.setCurrentItem(item)
-                            self.display_channels(item)
-                            break
+            # 🔍 חיפוש בקטגוריות
+            category_found = False
+            for i in range(self.categoryList.count()):
+                item = self.categoryList.item(i)
+                category_name = item.text().split(" (")[0].lower()
 
-                    for j in range(self.channelList.count()):
-                        ch_item = self.channelList.item(j)
-                        if text in ch_item.text().lower():
-                            ch_item.setSelected(True)
-                            self.channelList.scrollToItem(ch_item)
-                            return
+                if text in category_name:
+                    item.setBackground(QColor("#fff88a"))  # צהוב רך
+                    self.categoryList.setCurrentItem(item)
+                    self.display_channels(item)
+                    category_found = True
+                else:
+                    item.setBackground(QColor("white"))
+
+            # 🔍 אם לא נמצאה קטגוריה – חפש בערוצים
+            if not category_found:
+                for category, channels in self.categories.items():
+                    for channel in channels:
+                        channel_name = channel.split(" (")[0].lower()
+                        if text in channel_name:
+                            # טען את הקטגוריה התואמת
+                            for i in range(self.categoryList.count()):
+                                item = self.categoryList.item(i)
+                                if category in item.text():
+                                    item.setBackground(QColor("#fff88a"))  # צהוב
+                                    self.categoryList.setCurrentItem(item)
+                                    self.display_channels(item)
+                                    break
+
+                            # סמן את הערוץ התואם
+                            for j in range(self.channelList.count()):
+                                ch_item = self.channelList.item(j)
+                                widget = self.channelList.itemWidget(ch_item)
+                                if widget:
+                                    label = widget.findChild(QLabel, "channel_label")
+                                    if label and text in label.text().lower():
+                                        ch_item.setSelected(True)
+                                        ch_item.setBackground(QColor("#c0ffc0"))  # ירוק
+                                        self.channelList.scrollToItem(ch_item)
+                                        return
+
+        except Exception as e:
+            print(f"[Search Error] {e}")
 
     def buildSearchCompleter(self):
         search_terms = list(self.categories.keys())
