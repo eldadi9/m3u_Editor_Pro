@@ -2962,24 +2962,28 @@ class M3UEditor(QWidget):
 
         urls = []
         for item in selected_items:
-            channel_name = item.text().strip()
+            widget = self.channelList.itemWidget(item)
+            if widget:
+                label = widget.findChild(QLabel, "channel_label")  # ← חשוב מאוד
+                if label:
+                    channel_name = label.text().strip()
 
-            # נסה משם הערוץ
-            url = self.getUrl(channel_name)
+                    # נסה משם הערוץ
+                    url = self.getUrl(channel_name)
 
-            # fallback מתוך הקובץ
-            if not url or not url.startswith("http"):
-                url = self.getUrlFromTextByChannelName(channel_name)
+                    # fallback מתוך הקובץ
+                    if not url or not url.startswith("http"):
+                        url = self.getUrlFromTextByChannelName(channel_name)
 
-            if url and url.startswith("http"):
-                urls.append(url)
+                    if url and url.startswith("http"):
+                        urls.append(url)
 
         if not urls:
             QMessageBox.warning(self, "לא נמצאו קישורים", "לא ניתן לנגן אף ערוץ שנבחר.")
             return
 
         try:
-            subprocess.Popen([vlc_path] + urls)  # פותח את כולם בפלייליסט אחת
+            subprocess.Popen([vlc_path] + urls)
         except Exception as e:
             QMessageBox.critical(self, "שגיאה", f"שגיאה בהרצת VLC:\n{str(e)}")
 
