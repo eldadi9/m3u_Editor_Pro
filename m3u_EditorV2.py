@@ -1128,7 +1128,7 @@ class M3UEditor(QWidget):
 
     def play_channel_with_name(self, entry):
         """
-        מנגן ערוץ עם VLC ומוודא ששם הערוץ יוצג תקין ע"י שימוש בשורת EXTINF המקורית.
+        מנגן ערוץ עם VLC ומוודא ששם הערוץ יוצג תקין ע"י שימוש בשורת EXTINF עם שם ולוגו.
         """
         try:
             if "(" in entry and entry.endswith(")"):
@@ -1141,11 +1141,13 @@ class M3UEditor(QWidget):
             # נסה להביא את שורת ה-EXTINF המקורית
             extinf_line = self.extinf_lookup.get(entry)
 
-            # אם לא קיימת שורה מקורית – נבנה אחת פשוטה
+            # אם לא קיימת שורה מקורית – נבנה אחת חדשה עם לוגו
             if not extinf_line:
-                extinf_line = f'#EXTINF:-1 group-title="Live",{name}'
+                logo = get_saved_logo(name)
+                logo_tag = f' tvg-logo="{logo}"' if logo else ''
+                extinf_line = f'#EXTINF:-1{logo_tag} tvg-name="{name}" group-title="Live",{name}'
 
-            # צור קובץ זמני
+            # צור קובץ זמני עם EXTINF + URL
             with tempfile.NamedTemporaryFile(mode="w", suffix=".m3u", delete=False, encoding="utf-8") as f:
                 f.write("#EXTM3U\n")
                 f.write(extinf_line + "\n")
@@ -2960,30 +2962,36 @@ class M3UEditor(QWidget):
             QMessageBox.critical(self, "VLC לא נמצא", f"VLC לא נמצא בנתיב:\n{vlc_path}")
             return
 
-        urls = []
-        for item in selected_items:
-            widget = self.channelList.itemWidget(item)
-            if widget:
-                label = widget.findChild(QLabel, "channel_label")  # ← חשוב מאוד
-                if label:
-                    channel_name = label.text().strip()
-
-                    # נסה משם הערוץ
-                    url = self.getUrl(channel_name)
-
-                    # fallback מתוך הקובץ
-                    if not url or not url.startswith("http"):
-                        url = self.getUrlFromTextByChannelName(channel_name)
-
-                    if url and url.startswith("http"):
-                        urls.append(url)
-
-        if not urls:
-            QMessageBox.warning(self, "לא נמצאו קישורים", "לא ניתן לנגן אף ערוץ שנבחר.")
-            return
-
         try:
-            subprocess.Popen([vlc_path] + urls)
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".m3u", delete=False, encoding="utf-8") as f:
+                f.write("#EXTM3U\n")
+
+                for item in selected_items:
+                    widget = self.channelList.itemWidget(item)
+                    if widget:
+                        label = widget.findChild(QLabel, "channel_label")
+                        if not label:
+                            continue
+                        channel_name = label.text().strip()
+
+                        url = self.getUrl(channel_name) or self.getUrlFromTextByChannelName(channel_name)
+                        if not url or not url.startswith("http"):
+                            continue
+
+                        extinf_line = self.extinf_lookup.get(f"{channel_name} ({url})")
+
+                        if not extinf_line:
+                            logo = get_saved_logo(channel_name)
+                            logo_tag = f' tvg-logo="{logo}"' if logo else ''
+                            extinf_line = f'#EXTINF:-1{logo_tag} tvg-name="{channel_name}" group-title="Preview",{channel_name}'
+
+                        f.write(extinf_line + "\n")
+                        f.write(url + "\n")
+
+                temp_path = f.name
+
+            subprocess.Popen([vlc_path, temp_path])
+
         except Exception as e:
             QMessageBox.critical(self, "שגיאה", f"שגיאה בהרצת VLC:\n{str(e)}")
 
