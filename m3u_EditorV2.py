@@ -22,6 +22,8 @@ from PyQt5.QtCore import pyqtSignal
 from datetime import datetime, timedelta
 from PyQt5.QtWidgets import QMessageBox
 from tempfile import NamedTemporaryFile
+from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout
+from PyQt5.QtGui import QColor
 from telegram_uploader import send_to_telegram
 from PyQt5.QtGui import QIcon
 LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_db.json")
@@ -146,7 +148,49 @@ def get_saved_logo(channel_name):
         print(f"[ERROR] Error loading logo DB: {e}")
         return None
 
+def detect_stream_quality(name_or_url):
+    text = name_or_url.lower()
+    if "4k" in text or "2160" in text:
+        return "4K"
+    elif "1080" in text or "hd" in text:
+        return "HD"
+    elif "720" in text:
+        return "HD"
+    elif "sd" in text or "480" in text or "360" in text:
+        return "SD"
+    else:
+        return "Unknown"
+def create_channel_widget(channel_name, quality):
+    widget = QWidget()
+    layout = QHBoxLayout()
+    layout.setContentsMargins(5, 0, 5, 0)
 
+    name_label = QLabel(channel_name)
+    layout.addWidget(name_label)
+
+    quality_label = QLabel(quality)
+    quality_label.setStyleSheet(f"""
+        background-color: {quality_color(quality)};
+        color: black;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: bold;
+    """)
+    layout.addWidget(quality_label)
+
+    layout.addStretch()
+    widget.setLayout(layout)
+    return widget
+
+def quality_color(quality):
+    if quality == "4K":
+        return "#66cc66"  # ירוק
+    elif quality == "HD":
+        return "#ffff66"  # צהוב
+    elif quality == "SD":
+        return "#ff9999"  # אדום
+    else:
+        return "#cccccc"
 
 def inject_logo(line, channel_name, logo_db=None):
     """
@@ -1256,8 +1300,10 @@ class M3UEditor(QWidget):
             "Sort by Name Z-A",
             "Sort by Stream Type",
             "Sort by Group Title",
-            "Sort by URL Length"
+            "Sort by URL Length",
+            "Sort by Quality (4K → SD)"
         ])
+
         self.sortingComboBox.currentIndexChanged.connect(self.sortChannels)
         layout.addWidget(self.sortingComboBox)
 
@@ -2261,6 +2307,19 @@ class M3UEditor(QWidget):
                 self.categories[current_category].sort(key=lambda x: x.split("group-title=")[-1].split(",")[0])
             elif sort_option == "Sort by URL Length":
                 self.categories[current_category].sort(key=lambda x: len(x.split(",")[-1]))
+            elif sort_option == "Sort by Quality (4K → SD)":
+                def quality_rank(channel):
+                    quality = detect_stream_quality(channel)
+                    if quality == "4K":
+                        return 0
+                    elif quality == "HD":
+                        return 1
+                    elif quality == "SD":
+                        return 2
+                    else:
+                        return 3
+
+                self.categories[current_category].sort(key=quality_rank)
 
             self.display_channels(self.categoryList.currentItem())
             self.regenerateM3UTextOnly()  # <-- Add this line
@@ -2965,10 +3024,14 @@ class M3UEditor(QWidget):
             channel_name = channel.split(" (")[0]
             if not channel_name:
                 continue
-            item = QListWidgetItem(channel_name)
-            self.channelList.addItem(item)
 
-        self.channelCountLabel.setText(f"Channels in '{real_category}': {len(channels)}")
+            quality = detect_stream_quality(channel)
+            widget = create_channel_widget(channel_name, quality)
+
+            item = QListWidgetItem()
+            item.setSizeHint(widget.sizeHint())
+            self.channelList.addItem(item)
+            self.channelList.setItemWidget(item, widget)
 
     def checkDoubles(self):
         """

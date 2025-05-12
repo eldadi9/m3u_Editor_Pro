@@ -22,23 +22,13 @@ signatures = [
     "◢◤ 𝗘𝗚 ◥◣\n📦 UNPACKING THE INTERNET\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n🔥 BEST LINKS. NO NOISE.\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n🔁 DAILY STREAM. ZERO DELAY.\n╰┈➤ https://t.me/Olam_Haoradot_IL",
-    "◢◤ 𝗘𝗚 ◥◣\n📥 DOWNLOADING A BETTER WORLD\n╰┈➤ https://t.me/Olam_Haoradot_IL"
+    "◢◤ 𝗘𝗚 ◥◣\n📥 DOWNLOADING A BETTER WORLD\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n🚀 Always Moving Forward\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n🌍 Your World of Streaming\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n🎯 Precision. Speed. Content.\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n💎 Where Quality Matters\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n📀 Streams, Apps, Upgrades\n╰┈➤ https://t.me/Olam_Haoradot_IL",
-    "◢◤ 𝗘𝗚 ◥◣\n🧩 Puzzle Completed: Perfect Playlist\n╰┈➤ https://t.me/Olam_Haoradot_IL"
-    "◢◤ EG | Digital Excellence ◥◣\nwww.OlamHaoradot.com",
-    "◢◤ EG | Precision in Every Byte ◥◣\nwww.OlamHaoradot.com",
-    "◢◤ EG | Innovation. Speed. Trust. ◥◣\nwww.OlamHaoradot.com",
-    "◢◤ EG | Crafted for Professionals ◥◣\nwww.OlamHaoradot.com",
-    "◢◤ EG | Beyond Boundaries ◥◣\nwww.OlamHaoradot.com",
-    "◢◤ EG | Curated Digital Solutions ◥◣\nwww.OlamHaoradot.com",
-    "◢◤ EG | Streamlined. Elevated. Unlocked. ◥◣\nwww.OlamHaoradot.com",
-    "◢◤ EG | Redefining Streaming Standards ◥◣\nwww.OlamHaoradot.com",
-    "◢◤ EG | Powering Your Content Journey ◥◣\nwww.OlamHaoradot.com",
-    "◢◤ EG | Intelligence in Every Stream ◥◣\nwww.OlamHaoradot.com"
+    "◢◤ 𝗘𝗚 ◥◣\n🧩 Puzzle Completed: Perfect Playlist\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n🚀 BOOST YOUR PLAYLISTS\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n🔍 FIND. STREAM. ENJOY.\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n🧠 SMART STREAMING SOLUTIONS\n╰┈➤ https://t.me/Olam_Haoradot_IL",
@@ -49,9 +39,16 @@ signatures = [
     "◢◤ 𝗘𝗚 ◥◣\n🎧 PLAY. CONNECT. EXPERIENCE.\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n🧩 PIECE BY PIECE - COMPLETE STREAMS\n╰┈➤ https://t.me/Olam_Haoradot_IL",
     "◢◤ 𝗘𝗚 ◥◣\n🔰 TRUSTED STREAMING HUB\n╰┈➤ https://t.me/Olam_Haoradot_IL",
-
-        
-
+    "◢◤ EG ◥◣\nDigital Excellence\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ EG ◥◣\nPrecision in Every Byte\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ EG ◥◣\nInnovation. Speed. Trust.\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ EG ◥◣\nCrafted for Professionals\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ EG ◥◣\nBeyond Boundaries\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ EG ◥◣\nCurated Digital Solutions\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ EG ◥◣\nStreamlined. Elevated. Unlocked.\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ EG ◥◣\nRedefining Streaming Standards\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ EG ◥◣\nPowering Your Content Journey\n╰┈➤ https://t.me/Olam_Haoradot_IL",
+    "◢◤ EG ◥◣\nIntelligence in Every Stream\n╰┈➤ https://t.me/Olam_Haoradot_IL"
 ]
 
 

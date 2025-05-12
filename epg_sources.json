@@ -1,0 +1,87 @@
+[
+  {
+    "name": "ILOOK TV (Edem TV)",
+    "domains": [
+      "epg.it999.ru"
+    ],
+    "epg_urls": [
+      "http://epg.it999.ru/epg.xml.gz",
+      "http://epg.it999.ru/edem.xml.gz",
+      "http://epg.it999.ru/epg2.xml.gz"
+    ]
+  },
+  {
+    "name": "iptvx.one",
+    "domains": [
+      "iptvx.one"
+    ],
+    "epg_urls": [
+      "https://iptvx.one/EPG_LITE",
+      "https://iptvx.one/EPG",
+      "https://iptvx.one/EPG.gz",
+      "https://iptvx.one/epg/epg.xml.gz",
+      "https://iptvx.one/epg/epg_lite.xml.gz"
+    ]
+  },
+  {
+    "name": "catcast.tv",
+    "domains": [
+      "catcast.tv"
+    ],
+    "epg_urls": [
+      "http://api.catcast.tv/api/timetable/epg.xml?channel_ids=38850,38821,38896,39484,38801,39161",
+      "http://api.catcast.tv/api/timetable/epg.xml?channel_ids=39161,38801,38821,38896,38850"
+    ]
+  },
+  {
+    "name": "iptv-content.webhop.net",
+    "domains": [
+      "iptv-content.webhop.net"
+    ],
+    "epg_urls": [
+      "http://iptv-content.webhop.net/guide.xml",
+      "http://iptv-content.webhop.net/epg.xml.gz",
+      "http://iptv-content.webhop.net/epg.xml.xz",
+      "http://iptv-content.webhop.net/guide-lite.xml",
+      "http://iptv-content.webhop.net/epg-lite.xml.gz",
+      "http://iptv-content.webhop.net/epg-lite.xml.xz"
+    ]
+  },
+  {
+    "name": "teleguide.info",
+    "domains": [
+      "teleguide.info"
+    ],
+    "epg_urls": [
+      "http://www.teleguide.info/download/new3/xmltv.xml.gz"
+    ]
+  },
+  {
+    "name": "fox-tv.fun",
+    "domains": [
+      "epg.fox-tv.fun"
+    ],
+    "epg_urls": [
+      "http://epg.fox-tv.fun/1.xmltv",
+      "https://epg.fox-tv.fun/1.xmltv"
+    ]
+  },
+  {
+    "name": "epg-iptv.ru",
+    "domains": [
+      "epg-iptv.ru"
+    ],
+    "epg_urls": [
+      "http://epg-iptv.ru/premiere-group.xml"
+    ]
+  },
+  {
+    "name": "epg.iptvx.tv",
+    "domains": [
+      "epg.iptvx.tv"
+    ],
+    "epg_urls": [
+      "http://epg.iptvx.tv/xmltv.xml.gz"
+    ]
+  }
+]
