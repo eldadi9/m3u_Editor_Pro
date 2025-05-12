@@ -34,6 +34,41 @@ from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton, QHBoxLayout, QFrame
 )
 
+from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
+
+def create_channel_widget(name, quality):
+    widget = QWidget()
+    layout = QHBoxLayout()
+    layout.setContentsMargins(4, 2, 4, 2)
+    layout.setSpacing(10)
+
+    # תווית שם הערוץ
+    name_label = QLabel(name)
+    name_label.setStyleSheet("color: black; font-weight: normal;")
+
+    # תווית איכות בצבע
+    quality_label = QLabel(quality)
+    quality_label.setAlignment(Qt.AlignCenter)
+    quality_label.setFixedWidth(30)
+
+    if quality == "4K":
+        quality_label.setStyleSheet("background-color: #66cc66; color: black; font-weight: bold; border-radius: 4px;")
+    elif quality == "HD":
+        quality_label.setStyleSheet("background-color: #ffff66; color: black; font-weight: bold; border-radius: 4px;")
+    elif quality == "SD":
+        quality_label.setStyleSheet("background-color: #ff9999; color: black; font-weight: bold; border-radius: 4px;")
+    else:
+        quality_label.setStyleSheet("background-color: lightgray; color: black;")
+
+    layout.addWidget(name_label)
+    layout.addWidget(quality_label)
+    layout.addStretch()
+
+    widget.setLayout(layout)
+    return widget
+
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -2776,20 +2811,34 @@ class M3UEditor(QWidget):
         if current_row <= 0:
             return
 
-        current_item = self.channelList.takeItem(current_row)
-        self.channelList.insertItem(current_row - 1, current_item)
+        # שלוף את שם הערוץ ששמרנו מראש
+        current_item = self.channelList.item(current_row)
+        channel_name = current_item.data(Qt.UserRole)
+
+        # הסר את הפריט הישן
+        self.channelList.takeItem(current_row)
+
+        # שלוף את quality מהתוכן המקורי
+        current_category = self.categoryList.currentItem().text().split(" (")[0].strip()
+        real_category = {k.strip(): k for k in self.categories.keys()}.get(current_category, current_category)
+        channels = self.categories.get(real_category, [])
+        channel_full_line = channels[current_row]
+        quality = detect_stream_quality(channel_full_line)
+
+        # צור ווידג'ט חדש
+        new_widget = create_channel_widget(channel_name, quality)
+        new_item = QListWidgetItem()
+        new_item.setSizeHint(new_widget.sizeHint())
+        new_item.setData(Qt.UserRole, channel_name)
+
+        # הכנס שורה למעלה
+        self.channelList.insertItem(current_row - 1, new_item)
+        self.channelList.setItemWidget(new_item, new_widget)
         self.channelList.setCurrentRow(current_row - 1)
 
-        current_category_item = self.categoryList.currentItem()
-        if not current_category_item:
-            QMessageBox.warning(self, "Warning", "No category selected.")
-            return
-
-        current_category = current_category_item.text().split(" (")[0]
-        channels = self.categories[current_category]
+        # עדכון רשימת הערוצים הלוגית
         channels[current_row], channels[current_row - 1] = channels[current_row - 1], channels[current_row]
-
-        self.categories[current_category] = channels
+        self.categories[real_category] = channels
         self.regenerateM3UTextOnly()
 
     def moveChannelDown(self):
@@ -2797,19 +2846,33 @@ class M3UEditor(QWidget):
         if current_row < 0 or current_row >= self.channelList.count() - 1:
             return
 
-        current_item = self.channelList.takeItem(current_row)
-        self.channelList.insertItem(current_row + 1, current_item)
+        current_item = self.channelList.item(current_row)
+        channel_name = current_item.data(Qt.UserRole)
+
+        # הסר את הפריט מהשורה הנוכחית
+        self.channelList.takeItem(current_row)
+
+        # שלוף את quality מתוך התוכן המקורי
+        current_category = self.categoryList.currentItem().text().split(" (")[0].strip()
+        real_category = {k.strip(): k for k in self.categories.keys()}.get(current_category, current_category)
+        channels = self.categories.get(real_category, [])
+        channel_full_line = channels[current_row]
+        quality = detect_stream_quality(channel_full_line)
+
+        # צור ווידג'ט חדש
+        new_widget = create_channel_widget(channel_name, quality)
+        new_item = QListWidgetItem()
+        new_item.setSizeHint(new_widget.sizeHint())
+        new_item.setData(Qt.UserRole, channel_name)
+
+        # הכנס למקום החדש (שורה אחת למטה)
+        self.channelList.insertItem(current_row + 1, new_item)
+        self.channelList.setItemWidget(new_item, new_widget)
         self.channelList.setCurrentRow(current_row + 1)
 
-        current_category_item = self.categoryList.currentItem()
-        if not current_category_item:
-            return
-
-        current_category = current_category_item.text().split(" (")[0]
-        channels = self.categories[current_category]
+        # עדכון רשימת הערוצים הלוגית
         channels[current_row], channels[current_row + 1] = channels[current_row + 1], channels[current_row]
-
-        self.categories[current_category] = channels
+        self.categories[real_category] = channels
         self.regenerateM3UTextOnly()
 
     def saveToFile(self, file_path):
@@ -3031,8 +3094,7 @@ class M3UEditor(QWidget):
 
     def display_channels(self, item):
         """
-        Display channels for the selected category and update the total count label.
-        Handles category normalization to avoid "not found" errors.
+        מציג את הערוצים עם טקסט שחור רגיל + תגית איכות צבעונית מימין (באמצעות create_channel_widget).
         """
         self.channelList.clear()
 
@@ -3040,31 +3102,33 @@ class M3UEditor(QWidget):
             self.channelCountLabel.setText("Total Channels: 0")
             return
 
-        # נקה את השם שהתקבל מהתצוגה
         category = item.text().split(" (")[0].strip()
-
-        # צור מילון של קטגוריות מנוקות → מקורי
         normalized_categories = {k.strip(): k for k in self.categories.keys()}
 
         if category not in normalized_categories:
             QMessageBox.critical(self, "Error", f"Category '{category}' not found in categories.")
             return
 
-        # קח את השם המקורי מתוך הקטגוריות
         real_category = normalized_categories[category]
-
-        # טען את הערוצים
         channels = self.categories.get(real_category, [])
+
         for channel in channels:
-            channel_name = channel.split(" (")[0]
+            channel_name = channel.split(" (")[0].strip()
             if not channel_name:
                 continue
 
+            # איכות
             quality = detect_stream_quality(channel)
+
+            # יצירת ווידג'ט מעוצב
             widget = create_channel_widget(channel_name, quality)
 
+            # יצירת פריט חדש
             item = QListWidgetItem()
             item.setSizeHint(widget.sizeHint())
+            item.setData(Qt.UserRole, channel_name)  # 🟢 כאן! שמור את שם הערוץ עבור moveUp/Down
+
+            # הוספה לרשימה והצמדת ווידג'ט
             self.channelList.addItem(item)
             self.channelList.setItemWidget(item, widget)
 
