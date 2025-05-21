@@ -32,7 +32,7 @@ CATEGORY_KEYWORDS_EN = {
         'Free Tv Drama HD', 'Free Tv Comedy HD', 'Free Tv Lifestyle HD', 'Free Israeli Movies HD',
         'Free Movies Family HD', 'Free Movies Horror HD', 'Free Movies Romantic HD', 'Free Movies Comedy HD',
         'Free Movies Drama HD', 'Free Series Global HD', 'Free Movies Action HD', 'Free Tv Cooking HD',
-        'Free Tv Doco HD', 'Free Tv Hatuna HD', 'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good'
+        'Free Tv Doco HD', 'Free Tv Hatuna HD', 'Free Tv Karaoke HD', 'Free Tv Kohav Haba HD', 'Free Tv Feel Good','IL: Free Movies 10 Stars HD'
     ],
     'Sports🏀': ['Sport 1', 'Sport 2', 'Sport 3', 'Sport 4', 'Sport 5', 'Sport-IL', 'Sport_il', 'Sport', 'ONE ',
     'ONE HD', 'Eurosport 2', 'Sport 1 HD', 'EXTREME IL', 'Sport 5+ Live HD IL', 'ONE 2 HD IL', 'Sport 3 HD IL',
@@ -113,7 +113,7 @@ CATEGORY_KEYWORDS_EN = {
     'IL: Turkish Drama HD', 'IL: Turkish Drama 2',
     'Bollywood HD [IL]', 'Turkish Dramas 2 HD [IL]', 'Turkish Dramas 2 [IL]',
     'Turkish Dramas 3 HD [IL]', 'Turkish Dramas Plus [IL]', 'Viva Plus [IL]',
-    'Viva Premium HD [IL]', 'Viva Vintage [IL]', 'Viva [IL]'
+    'Viva Premium HD [IL]', 'Viva Vintage [IL]', 'Viva [IL]', 'IL: Free Movies 10 Stars HD  ', 'IL: Free Movies 10 Stars HD', 'IL: Free Movies 10 Stars HD'
 ]
 
 }
