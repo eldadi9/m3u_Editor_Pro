@@ -37,6 +37,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
+from deep_translator import GoogleTranslator
 
 def create_channel_widget(name, quality):
     widget = QWidget()
@@ -1163,6 +1164,38 @@ class M3UEditor(QWidget):
         self.initUI()
         self.logosFinished.connect(self.onLogosFinished)
 
+    import re
+
+    def is_non_english(text):
+        return bool(re.search(r'[^\x00-\x7F]', text))  # מזהה תווים שאינם אנגלית
+
+    def translate_category_names(self):
+        from deep_translator import GoogleTranslator
+        new_categories = {}
+        translator = GoogleTranslator(source='auto', target='en')
+        cache = {}
+
+        for old_name, channels in self.categories.items():
+            if old_name in cache:
+                translated = cache[old_name]
+            else:
+                try:
+                    translated = translator.translate(old_name)
+                    cache[old_name] = translated
+                    print(f"[תרגום] {old_name} → {translated}")
+                except Exception as e:
+                    print(f"[שגיאה] {old_name}: {e}")
+                    translated = old_name
+
+            if translated in new_categories:
+                translated += "_2"
+
+            new_categories[translated] = channels
+
+        self.categories = new_categories
+        self.updateCategoryList()
+        QMessageBox.information(self, "תרגום הושלם", "שמות הקטגוריות תורגמו לאנגלית.")
+
     def play_channel_with_name(self, entry):
         """
         מנגן ערוץ עם VLC ומוודא ששם הערוץ יוצג תקין ע"י שימוש בשורת EXTINF עם שם ולוגו.
@@ -2237,17 +2270,17 @@ class M3UEditor(QWidget):
         self.moveCategoryDownButton = QPushButton('Move Category Down')
         self.selectAllButton = QPushButton('Select All')
         self.deselectAllButton = QPushButton('Deselect All')
-        self.showTotalChannelsButton = QPushButton('Show Total Channels')
+        self.translateCategoriesButton = QPushButton("🌍 Auto Translate")
 
         # צבעים לכפתורים
-        self.selectAllButton.setStyleSheet("background-color: blue; color: white;")
-        self.deselectAllButton.setStyleSheet("background-color: blue; color: white;")
+        self.selectAllButton.setStyleSheet("background-color: navy; color: white;")
+        self.deselectAllButton.setStyleSheet("background-color: navy; color: white;")
         self.updateCategoryButton.setStyleSheet("background-color: red; color: white;")
         self.deleteCategoryButton.setStyleSheet("background-color: red; color: white;")
         self.addCategoryButton.setStyleSheet("background-color: green; color: white;")
         self.moveCategoryUpButton.setStyleSheet("background-color: green; color: white;")
         self.moveCategoryDownButton.setStyleSheet("background-color: green; color: white;")
-        self.showTotalChannelsButton.setStyleSheet("background-color: black; color: white;")
+        self.translateCategoriesButton.setStyleSheet("background-color: navy; color: white;")
 
         # הוספת הכפתורים לשורה
         button_layout.addWidget(self.addCategoryButton)
@@ -2257,7 +2290,7 @@ class M3UEditor(QWidget):
         button_layout.addWidget(self.moveCategoryDownButton)
         button_layout.addWidget(self.selectAllButton)
         button_layout.addWidget(self.deselectAllButton)
-        button_layout.addWidget(self.showTotalChannelsButton)
+        button_layout.addWidget(self.translateCategoriesButton)
 
         layout.addLayout(button_layout)
 
@@ -2274,8 +2307,8 @@ class M3UEditor(QWidget):
         self.moveCategoryDownButton.clicked.connect(self.moveCategoryDown)
         self.selectAllButton.clicked.connect(self.selectAllCategories)
         self.deselectAllButton.clicked.connect(self.deselectAllCategories)
-        self.showTotalChannelsButton.clicked.connect(self.displayTotalChannels)
         self.categoryList.itemClicked.connect(self.display_channels)
+        self.translateCategoriesButton.clicked.connect(self.translate_category_names)
 
         return layout
 
@@ -2443,8 +2476,10 @@ class M3UEditor(QWidget):
 
     def displayTotalChannels(self):
         total_channels = sum(len(channels) for channels in self.categories.values())
-        self.channelCountLabel.setText(f"Total Channels: {total_channels}")
-
+        total_categories = len(self.categories)
+        text = f"📺 Total Channels: {total_channels}   |   🗂 Categories: {total_categories}"
+        self.channelCountLabel.setText(text)
+        self.channelCountLabel.setToolTip(f"{total_channels} ערוצים בסך הכל ב-{total_categories} קטגוריות")
 
     def sortChannels(self):
         sort_option = self.sortingComboBox.currentText()
@@ -2532,6 +2567,9 @@ class M3UEditor(QWidget):
         for category, channels in self.categories.items():
             display_text = f"{category} ({len(channels)})"
             self.categoryList.addItem(display_text)
+
+            # עדכון הספירה הכללית של ערוצים + קטגוריות
+            self.displayTotalChannels()
 
     def loadChannelsForCategory(self, category_name):
         try:
@@ -2635,6 +2673,7 @@ class M3UEditor(QWidget):
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An error occurred while deleting categories: {str(e)}")
+            self.displayTotalChannels()
 
     def moveCategoryUp(self):
         current_row = self.categoryList.currentRow()
@@ -2832,6 +2871,7 @@ class M3UEditor(QWidget):
             self.display_channels(self.categoryList.currentItem())
 
         QMessageBox.information(self, "Success", f"Deleted {deleted} channel(s).")
+        self.displayTotalChannels()
 
     def updateM3UContent(self):
         try:
@@ -3729,8 +3769,13 @@ class M3UEditor(QWidget):
                     daemon=True
                 ).start()
 
+                # ✅ סה״כ ערוצים + קטגוריות
                 total_channels = sum(len(channels) for channels in self.categories.values())
-                self.channelCountLabel.setText(f"Total Channels: {total_channels}")
+                total_categories = len(self.categories)
+                summary = f"📺 Total Channels: {total_channels}   |   🗂 Categories: {total_categories}"
+
+                self.channelCountLabel.setText(summary)
+                self.channelCountLabel.setToolTip(f"{total_channels} ערוצים בסך הכל ב-{total_categories} קטגוריות")
                 self.fileNameLabel.setText(f"Loaded File: {os.path.basename(fileName)}")
 
             except Exception as e:

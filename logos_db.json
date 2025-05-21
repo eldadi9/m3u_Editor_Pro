@@ -21286,7 +21286,8 @@
   "Disney Channel IL": [
     "http://stb.fox-tv.fun/images/logo_chanel/DISNEYENG200.png",
     "http://epg.one/img/4307.png",
-    "http://stb.ru-tv.site/images/logo_chanel/Disney Channel IL.png"
+    "http://stb.ru-tv.site/images/logo_chanel/Disney Channel IL.png",
+    "http://epg.one/img2/4307.png"
   ],
   "Disney Junior IL": [
     "http://stb.fox-tv.fun/images/logo_chanel/DISNEYJUNIOR200.png"
@@ -21294,7 +21295,8 @@
   "Baby TV IL": [
     "http://stb.fox-tv.fun/images/logo_chanel/BABYTVIL200.png",
     "http://epg.one/img/2701.png",
-    "http://stb.ru-tv.site/images/logo_chanel/BABYTVIL200.png"
+    "http://stb.ru-tv.site/images/logo_chanel/BABYTVIL200.png",
+    "http://epg.one/img2/2701.png"
   ],
   "Junior IL": [
     "http://stb.fox-tv.fun/images/logo_chanel/JUNIORIL200.png",
@@ -21326,7 +21328,8 @@
   ],
   "National Geographic IL": [
     "http://stb.fox-tv.fun/images/logo_chanel/NATGEOHD200.png",
-    "http://epg.one/img/2677.png"
+    "http://epg.one/img/2677.png",
+    "http://epg.one/img2/2677.png"
   ],
   "NatGeo Wild HD": [
     "http://stb.fox-tv.fun/images/logo_chanel/NATGEOWILD200.png"
@@ -41516,16 +41519,20 @@
     "http://epg.one/img/8073.png"
   ],
   "Keshet 12 FHD IL": [
-    "http://epg.one/img/2967.png"
+    "http://epg.one/img/2967.png",
+    "http://epg.one/img2/2967.png"
   ],
   "Junior HD IL": [
-    "http://epg.one/img/2697.png"
+    "http://epg.one/img/2697.png",
+    "http://epg.one/img2/2697.png"
   ],
   "5Sport Stars IL": [
-    "http://epg.one/img/3994.png"
+    "http://epg.one/img/3994.png",
+    "http://epg.one/img2/3994.png"
   ],
   "Turkish Dramas 3 FHD IL": [
-    "http://epg.one/img/4031.png"
+    "http://epg.one/img/4031.png",
+    "http://epg.one/img2/4031.png"
   ],
   "Sadhna Plus News IN": [
     "http://epg.one/img/3421.png"
