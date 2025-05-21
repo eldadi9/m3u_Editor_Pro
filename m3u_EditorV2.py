@@ -1170,13 +1170,39 @@ class M3UEditor(QWidget):
         return bool(re.search(r'[^\x00-\x7F]', text))  # מזהה תווים שאינם אנגלית
 
     def translate_category_names(self):
+        from PyQt5.QtWidgets import QInputDialog, QMessageBox
         from deep_translator import GoogleTranslator
         import re
 
         def is_non_english(text):
+            import re
             return bool(re.search(r'[^\x00-\x7F]', text))
 
-        translator = GoogleTranslator(source='auto', target='en')
+        def clean_translated_name(text):
+            # הסר תווי שליטה ובעיות תצוגה
+            return re.sub(r'[\r\n\t\x00-\x1F]', '', text).strip()
+
+        # בקשת שפה מהמשתמש
+        language, ok = QInputDialog.getItem(
+            self,
+            "בחר שפה לתרגום",
+            "תרגם את שמות הקטגוריות ל:",
+            ["English", "Hebrew"],
+            0,
+            False
+        )
+
+        if not ok:
+            return
+
+        lang_code = "en" if language == "English" else "iw"
+
+        try:
+            translator = GoogleTranslator(source='auto', target=lang_code)
+        except Exception as e:
+            QMessageBox.critical(self, "שגיאה", f"שגיאה בטעינת מתרגם: {str(e)}")
+            return
+
         cache = {}
         updated_categories = {}
         category_mapping = {}
@@ -1189,37 +1215,44 @@ class M3UEditor(QWidget):
             else:
                 try:
                     translated = translator.translate(old_name)
+                    translated = clean_translated_name(translated)
                     cache[old_name] = translated
-                    print(f"[תרגום] {old_name} → {translated}")
                 except Exception as e:
-                    print(f"[שגיאת תרגום] {old_name}: {e}")
                     translated = old_name
 
+            # טיפול בכפילויות
             if translated in updated_categories:
                 translated += "_2"
 
             updated_categories[translated] = channels
             category_mapping[old_name] = translated
 
-        # עדכון קטגוריות
+        # עדכון הקטגוריות בתצוגה
         self.categories = updated_categories
         self.updateCategoryList()
 
-        # ✅ עדכון תוכן הקובץ
-        lines = self.textEdit.toPlainText().splitlines()
-        new_lines = []
-        for line in lines:
-            if line.startswith("#EXTINF") and 'group-title="' in line:
-                for old, new in category_mapping.items():
-                    if f'group-title="{old}"' in line:
-                        line = line.replace(f'group-title="{old}"', f'group-title="{new}"')
-                        break
-            new_lines.append(line)
+        # ✅ עדכון גם בקובץ עצמו (EXTINF)
+        try:
+            lines = self.textEdit.toPlainText().splitlines()
+            new_lines = []
+            for line in lines:
+                if line.startswith("#EXTINF") and 'group-title="' in line:
+                    for old, new in category_mapping.items():
+                        if f'group-title="{old}"' in line:
+                            line = line.replace(f'group-title="{old}"', f'group-title="{new}"')
+                            break
+                new_lines.append(line)
 
-        self.textEdit.setPlainText("\n".join(new_lines))
-        self.regenerateM3UTextOnly()
+            self.textEdit.setPlainText("\n".join(new_lines))
+        except Exception as e:
+            QMessageBox.critical(self, "שגיאה בטקסט", f"שגיאה בעת עדכון רשימת הערוצים: {str(e)}")
 
-        QMessageBox.information(self, "תרגום הושלם", "שמות הקטגוריות תורגמו גם בתוך הרשימה.")
+        try:
+            self.regenerateM3UTextOnly()
+        except:
+            pass
+
+        QMessageBox.information(self, "תרגום הושלם", f"שמות הקטגוריות תורגמו ל־{language}.")
 
     def play_channel_with_name(self, entry):
         """
