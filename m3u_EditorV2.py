@@ -1171,12 +1171,20 @@ class M3UEditor(QWidget):
 
     def translate_category_names(self):
         from deep_translator import GoogleTranslator
-        new_categories = {}
+        import re
+
+        def is_non_english(text):
+            return bool(re.search(r'[^\x00-\x7F]', text))
+
         translator = GoogleTranslator(source='auto', target='en')
         cache = {}
+        updated_categories = {}
+        category_mapping = {}
 
         for old_name, channels in self.categories.items():
-            if old_name in cache:
+            if not is_non_english(old_name):
+                translated = old_name
+            elif old_name in cache:
                 translated = cache[old_name]
             else:
                 try:
@@ -1184,17 +1192,34 @@ class M3UEditor(QWidget):
                     cache[old_name] = translated
                     print(f"[תרגום] {old_name} → {translated}")
                 except Exception as e:
-                    print(f"[שגיאה] {old_name}: {e}")
+                    print(f"[שגיאת תרגום] {old_name}: {e}")
                     translated = old_name
 
-            if translated in new_categories:
+            if translated in updated_categories:
                 translated += "_2"
 
-            new_categories[translated] = channels
+            updated_categories[translated] = channels
+            category_mapping[old_name] = translated
 
-        self.categories = new_categories
+        # עדכון קטגוריות
+        self.categories = updated_categories
         self.updateCategoryList()
-        QMessageBox.information(self, "תרגום הושלם", "שמות הקטגוריות תורגמו לאנגלית.")
+
+        # ✅ עדכון תוכן הקובץ
+        lines = self.textEdit.toPlainText().splitlines()
+        new_lines = []
+        for line in lines:
+            if line.startswith("#EXTINF") and 'group-title="' in line:
+                for old, new in category_mapping.items():
+                    if f'group-title="{old}"' in line:
+                        line = line.replace(f'group-title="{old}"', f'group-title="{new}"')
+                        break
+            new_lines.append(line)
+
+        self.textEdit.setPlainText("\n".join(new_lines))
+        self.regenerateM3UTextOnly()
+
+        QMessageBox.information(self, "תרגום הושלם", "שמות הקטגוריות תורגמו גם בתוך הרשימה.")
 
     def play_channel_with_name(self, entry):
         """
