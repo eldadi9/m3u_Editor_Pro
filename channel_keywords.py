@@ -13,6 +13,8 @@ CATEGORY_KEYWORDS_EN = {
         'Now 14 HD [IL]', 'Mikan 33 [IL]', 'Kabbalah channel [IL]', 'KAN23 [IL]', 'Kan Educational HD [IL]',
         'Channel 24', 'Channel 98 IL', 'CHANNEL 12 HD IL', 'CHANNEL 13 HD', 'ערוץ 14', 'ערוץ 24', 'Kan 11 HD IL', 'Kan Educational IL', 'Keshet 12 FHD IL'
         , 'Keshet 12 HD IL' , 'Reshet 13 HD IL', 'IL: i24_News', 'IL: Hidabroot', 'IL: Hala TV', 'IL: Israel HD', 'IL: Kneest', 'IL: Kabbalah TV', 'IL: Makan HD'
+        , 'IL: Kalkala 10 HD'
+
     ],
     'Hot🔥': [
         'HOT', 'HOT CINEMA', 'HOT Cinema 1 HD IL', 'HOT CINEMA 1', 'HOT CINEMA 3', 'HOT CINEMA 4', 'HOT3 HD',
@@ -114,6 +116,7 @@ CATEGORY_KEYWORDS_EN = {
     'Bollywood HD [IL]', 'Turkish Dramas 2 HD [IL]', 'Turkish Dramas 2 [IL]',
     'Turkish Dramas 3 HD [IL]', 'Turkish Dramas Plus [IL]', 'Viva Plus [IL]',
     'Viva Premium HD [IL]', 'Viva Vintage [IL]', 'Viva [IL]', 'IL: Free Movies 10 Stars HD  ', 'IL: Free Movies 10 Stars HD', 'IL: Free Movies 10 Stars HD'
+     , 'IL: Spanish Drama Channel 1 HD', 'IL: Spanish Drama Channel 2 HD', 'IL: Turkish Drama Plus', 'IL: Turkish Drama 3'
 ]
 
 }

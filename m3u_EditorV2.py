@@ -1170,68 +1170,111 @@ class M3UEditor(QWidget):
         return bool(re.search(r'[^\x00-\x7F]', text))  # מזהה תווים שאינם אנגלית
 
     def translate_category_names(self):
+        import re
+        import json
         from PyQt5.QtWidgets import QInputDialog, QMessageBox
         from deep_translator import GoogleTranslator
-        import re
 
-        def is_non_english(text):
-            import re
-            return bool(re.search(r'[^\x00-\x7F]', text))
+        TRANSLATION_CACHE_PATH = os.path.join(os.path.dirname(__file__), "category_translations.json")
 
-        def clean_translated_name(text):
-            # הסר תווי שליטה ובעיות תצוגה
+        def clean(text):
             return re.sub(r'[\r\n\t\x00-\x1F]', '', text).strip()
 
-        # בקשת שפה מהמשתמש
-        language, ok = QInputDialog.getItem(
+        def is_hebrew(text):
+            return any('\u0590' <= c <= '\u05EA' for c in text)
+
+        def is_english(text):
+            return all(ord(c) < 128 for c in text if c.isalpha())
+
+        # בקשת סגנון תרגום
+        mode, ok = QInputDialog.getItem(
             self,
-            "בחר שפה לתרגום",
-            "תרגם את שמות הקטגוריות ל:",
-            ["English", "Hebrew"],
-            0,
+            "בחר סגנון תרגום",
+            "בחר תצוגה:",
+            ["English Only", "Hebrew Only", "English | Hebrew"],
+            2,
             False
         )
-
         if not ok:
             return
 
-        lang_code = "en" if language == "English" else "iw"
+        # טען קאש
+        if os.path.exists(TRANSLATION_CACHE_PATH):
+            try:
+                with open(TRANSLATION_CACHE_PATH, "r", encoding="utf-8") as f:
+                    translation_cache = json.load(f)
+            except:
+                translation_cache = {}
+        else:
+            translation_cache = {}
 
         try:
-            translator = GoogleTranslator(source='auto', target=lang_code)
+            translator_en = GoogleTranslator(source='auto', target='en')
+            translator_he = GoogleTranslator(source='auto', target='iw')
         except Exception as e:
-            QMessageBox.critical(self, "שגיאה", f"שגיאה בטעינת מתרגם: {str(e)}")
+            QMessageBox.critical(self, "שגיאה", f"שגיאה בטעינת מתרגמים:\n{e}")
             return
 
-        cache = {}
         updated_categories = {}
         category_mapping = {}
 
         for old_name, channels in self.categories.items():
-            if not is_non_english(old_name):
-                translated = old_name
-            elif old_name in cache:
-                translated = cache[old_name]
+            # הפרדת סיומת מספרית כמו "(123)"
+            match = re.match(r'^(.*?)(\s*\(\d+\))$', old_name.strip())
+            if match:
+                base_name, count_suffix = match.group(1).strip(), match.group(2)
             else:
+                base_name, count_suffix = old_name.strip(), ""
+
+            # פרוס את השם לחלקים (במקרה של "|")
+            parts = [p.strip() for p in base_name.split('|')]
+            eng = next((clean(p) for p in parts if is_english(p)), None)
+            heb = next((clean(p) for p in parts if is_hebrew(p)), None)
+
+            # שליפה מהקאש אם קיים
+            if old_name in translation_cache and mode in translation_cache[old_name]:
+                final_base = translation_cache[old_name][mode]
+            else:
+                # תרגום לפי מצב
                 try:
-                    translated = translator.translate(old_name)
-                    translated = clean_translated_name(translated)
-                    cache[old_name] = translated
-                except Exception as e:
-                    translated = old_name
+                    if mode == "English Only":
+                        if not eng:
+                            eng = clean(translator_en.translate(parts[0]))
+                        final_base = eng
+                    elif mode == "Hebrew Only":
+                        if not heb:
+                            heb = clean(translator_he.translate(parts[0]))
+                        final_base = heb
+                    else:
+                        if not eng:
+                            eng = clean(translator_en.translate(parts[0]))
+                        if not heb:
+                            heb = clean(translator_he.translate(parts[0]))
+                        final_base = f"{eng} | {heb}"
+                except:
+                    final_base = base_name  # fallback
 
-            # טיפול בכפילויות
-            if translated in updated_categories:
-                translated += "_2"
+                # שמור לקאש בפורמט לפי מצב
+                if old_name not in translation_cache:
+                    translation_cache[old_name] = {}
+                translation_cache[old_name][mode] = final_base
 
-            updated_categories[translated] = channels
-            category_mapping[old_name] = translated
+            final_name = f"{final_base}{count_suffix}"
+            updated_categories[final_name] = channels
+            category_mapping[old_name] = final_name
 
-        # עדכון הקטגוריות בתצוגה
+        # שמור את הקובץ
+        try:
+            with open(TRANSLATION_CACHE_PATH, "w", encoding="utf-8") as f:
+                json.dump(translation_cache, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"[Cache Save Error] {e}")
+
+        # עדכון קטגוריות
         self.categories = updated_categories
         self.updateCategoryList()
 
-        # ✅ עדכון גם בקובץ עצמו (EXTINF)
+        # עדכון EXTINF
         try:
             lines = self.textEdit.toPlainText().splitlines()
             new_lines = []
@@ -1242,17 +1285,16 @@ class M3UEditor(QWidget):
                             line = line.replace(f'group-title="{old}"', f'group-title="{new}"')
                             break
                 new_lines.append(line)
-
             self.textEdit.setPlainText("\n".join(new_lines))
         except Exception as e:
-            QMessageBox.critical(self, "שגיאה בטקסט", f"שגיאה בעת עדכון רשימת הערוצים: {str(e)}")
+            print(f"[EXTINF Update Error] {e}")
 
         try:
             self.regenerateM3UTextOnly()
         except:
             pass
 
-        QMessageBox.information(self, "תרגום הושלם", f"שמות הקטגוריות תורגמו ל־{language}.")
+        QMessageBox.information(self, "בוצע", f"שמות הקטגוריות תורגמו לפי: {mode}")
 
     def play_channel_with_name(self, entry):
         """
