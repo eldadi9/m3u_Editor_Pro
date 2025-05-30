@@ -286,7 +286,8 @@
     "Hebrew Only": "Xxx"
   },
   "Israel": {
-    "Hebrew Only": "יִשְׂרָאֵל"
+    "Hebrew Only": "יִשְׂרָאֵל",
+    "English | Hebrew": "Israel | יִשְׂרָאֵל"
   },
   "TvZaTak": {
     "Hebrew Only": "TVZATAK",
@@ -448,75 +449,540 @@
     "English | Hebrew": "12. REST/Other | 12. מנוחה/אחרת"
   },
   "новости": {
-    "English | Hebrew": "news | חֲדָשׁוֹת"
+    "English | Hebrew": "news | חֲדָשׁוֹת",
+    "English Only": "news"
   },
   "кино": {
-    "English | Hebrew": "movies | סרטים"
+    "English | Hebrew": "movies | סרטים",
+    "English Only": "movies"
   },
   "музыка": {
-    "English | Hebrew": "music | מוּסִיקָה"
+    "English | Hebrew": "music | מוּסִיקָה",
+    "English Only": "music"
   },
   "познавательные": {
-    "English | Hebrew": "Cognitive | קוגניטיבי"
+    "English | Hebrew": "Cognitive | קוגניטיבי",
+    "English Only": "Cognitive"
   },
   "детские": {
-    "English | Hebrew": "Children's | ילדים"
+    "English | Hebrew": "Children's | ילדים",
+    "English Only": "Children's"
   },
   "развлекательные": {
-    "English | Hebrew": "Entertaining | מְשַׁעַשֵׁעַ"
+    "English | Hebrew": "Entertaining | מְשַׁעַשֵׁעַ",
+    "English Only": "Entertaining"
   },
   "другие": {
-    "English | Hebrew": "other | אַחֵר"
+    "English | Hebrew": "other | אַחֵר",
+    "English Only": "other"
   },
   "спорт": {
-    "English | Hebrew": "sport | ספּוֹרט"
+    "English | Hebrew": "sport | ספּוֹרט",
+    "English Only": "sport"
   },
   "HD": {
-    "English | Hebrew": "HD | HD"
+    "English | Hebrew": "HD | HD",
+    "English Only": "HD"
   },
   "взрослые": {
-    "English | Hebrew": "Adults | מבוגרים"
+    "English | Hebrew": "Adults | מבוגרים",
+    "English Only": "Adults"
   },
   "Հայկական": {
-    "English | Hebrew": "Armenian | אַרְמֶנִי"
+    "English | Hebrew": "Armenian | אַרְמֶנִי",
+    "English Only": "Armenian"
   },
   "українські": {
-    "English | Hebrew": "Ukrainian | אוקראיני"
+    "English | Hebrew": "Ukrainian | אוקראיני",
+    "English Only": "Ukrainian"
   },
   "USA": {
-    "English | Hebrew": "USA | אַרצוֹת הַבְּרִית"
+    "English | Hebrew": "USA | אַרצוֹת הַבְּרִית",
+    "English Only": "USA"
   },
   "беларускія": {
-    "English | Hebrew": "Belarusian | בלארוס"
+    "English | Hebrew": "Belarusian | בלארוס",
+    "English Only": "Belarusian"
   },
   "azərbaycan": {
-    "English | Hebrew": "Azerbaijan | אזרבייג'ן"
+    "English | Hebrew": "Azerbaijan | אזרבייג'ן",
+    "English Only": "Azerbaijan"
   },
   "ქართული": {
-    "English | Hebrew": "Georgian | גרוזיני"
+    "English | Hebrew": "Georgian | גרוזיני",
+    "English Only": "Georgian"
   },
   "қазақстан": {
-    "English | Hebrew": "Kazakhstan | קזחסטן"
+    "English | Hebrew": "Kazakhstan | קזחסטן",
+    "English Only": "Kazakhstan"
   },
   "точик": {
-    "English | Hebrew": "Tajik | טג'יק"
+    "English | Hebrew": "Tajik | טג'יק",
+    "English Only": "Tajik"
   },
   "o'zbek": {
-    "English | Hebrew": "o'zbek | Uzbek"
+    "English | Hebrew": "o'zbek | Uzbek",
+    "English Only": "o'zbek"
   },
   "moldovenească": {
-    "English | Hebrew": "MOLDOVA | מולדובה"
+    "English | Hebrew": "MOLDOVA | מולדובה",
+    "English Only": "MOLDOVA"
   },
   "türk": {
-    "English | Hebrew": "Turkish | טוּרקִית"
+    "English | Hebrew": "Turkish | טוּרקִית",
+    "English Only": "Turkish"
   },
   "ישראלי": {
-    "English | Hebrew": "Israeli | ישראלי"
+    "English | Hebrew": "Israeli | ישראלי",
+    "English Only": "Israeli"
   },
   "HD Orig": {
-    "English | Hebrew": "HD Orig | HD Orig"
+    "English | Hebrew": "HD Orig | HD Orig",
+    "English Only": "HD Orig"
   },
   "4K": {
-    "English | Hebrew": "4K | 4K"
+    "English | Hebrew": "4K | 4K",
+    "English Only": "4K"
+  },
+  "unsorted": {
+    "English Only": "unsorted"
+  },
+  "ТОП": {
+    "English Only": "Band"
+  },
+  "Боевик": {
+    "English Only": "Action"
+  },
+  "Фантастика": {
+    "English Only": "Fiction"
+  },
+  "Триллер": {
+    "English Only": "Thriller"
+  },
+  "Драма": {
+    "English Only": "Drama"
+  },
+  "Мелодрама": {
+    "English Only": "Melodrama"
+  },
+  "Ужасы": {
+    "English Only": "Horrors"
+  },
+  "Фэнтези": {
+    "English Only": "Fantasy"
+  },
+  "Комедия": {
+    "English Only": "Comedy"
+  },
+  "История": {
+    "English Only": "Story"
+  },
+  "Приключения": {
+    "English Only": "Adventures"
+  },
+  "РуКино": {
+    "English Only": "Rukino"
+  },
+  "Marvel": {
+    "English Only": "Marvel"
+  },
+  "Мультфильмы": {
+    "English Only": "Cartoons"
+  },
+  "Театр на экране": {
+    "English Only": "Theater on the screen"
+  },
+  "Информационные": {
+    "English Only": "Information"
+  },
+  "Украина": {
+    "English Only": "Ukraine"
+  },
+  "XXX": {
+    "English Only": "XXX"
+  },
+  "Казахстан": {
+    "English Only": "Kazakhstan"
+  },
+  "Армения": {
+    "English Only": "Armenia"
+  },
+  "Беларусь": {
+    "English Only": "Belarus"
+  },
+  "Таджикистан": {
+    "English Only": "Tajikistan"
+  },
+  "Узбекистан": {
+    "English Only": "Uzbekistan"
+  },
+  "Грузия": {
+    "English Only": "Georgia"
+  },
+  "Азербайджан": {
+    "English Only": "Azerbaijan"
+  },
+  "Германия": {
+    "English Only": "Germany"
+  },
+  "Румыния": {
+    "English Only": "Romania"
+  },
+  "Израиль": {
+    "English Only": "Israel"
+  },
+  "Балтика": {
+    "English Only": "Baltic"
+  },
+  "Америка": {
+    "English Only": "America"
+  },
+  "Турция": {
+    "English Only": "Turkey"
+  },
+  "Польша": {
+    "English Only": "Poland"
+  },
+  "Молдова": {
+    "English Only": "Moldova"
+  },
+  "Греция": {
+    "English Only": "Greece"
+  },
+  "Болгария": {
+    "English Only": "Bulgaria"
+  },
+  "News📺": {
+    "English | Hebrew": "News📺 | חדשות 📺",
+    "English Only": "News📺"
+  },
+  "Hot🔥": {
+    "English | Hebrew": "Hot🔥 | חם🔥",
+    "English Only": "Hot🔥"
+  },
+  "Yes👑": {
+    "English | Hebrew": "Yes👑 | כן",
+    "English Only": "Yes👑"
+  },
+  "Partner🌈": {
+    "English | Hebrew": "Partner🌈 | שותף🌈",
+    "English Only": "Partner🌈"
+  },
+  "Cellcom🐶": {
+    "English | Hebrew": "Cellcom🐶 | Cellcom🐶",
+    "English Only": "Cellcom🐶"
+  },
+  "Free Tv🌞": {
+    "English | Hebrew": "Free Tv🌞 | טלוויזיה בחינם",
+    "English Only": "Free Tv🌞"
+  },
+  "Sports🏀": {
+    "English | Hebrew": "Sports🏀 | ספורט 🏀",
+    "English Only": "Sports🏀"
+  },
+  "Kids🍦": {
+    "English | Hebrew": "Kids🍦 | ילדים 🍦",
+    "English Only": "Kids🍦"
+  },
+  "Entertainment🧸": {
+    "English | Hebrew": "Entertainment🧸 | Entertainment🧸",
+    "English Only": "Entertainment🧸"
+  },
+  "Music🎵": {
+    "English | Hebrew": "Music🎵 | מוזיקה🎵",
+    "English Only": "Music🎵"
+  },
+  "Nature🌴": {
+    "English | Hebrew": "Nature🌴 | טבע 🌴",
+    "English Only": "Nature🌴"
+  },
+  "World Series🌍": {
+    "English | Hebrew": "World Series🌍 | סדרת העולם 🌍",
+    "English Only": "World Series🌍"
+  },
+  "Other": {
+    "English | Hebrew": "Other | אַחֵר"
+  },
+  "Israel Radio📻": {
+    "English | Hebrew": "Israel Radio📻 | רדיו ישראל",
+    "English Only": "Israel Radio📻"
+  },
+  "World Radio🌍": {
+    "English | Hebrew": "World Radio🌍 | רדיו עולמי",
+    "English Only": "World Radio🌍"
+  },
+  "Кинозалы": {
+    "English Only": "Cinema halls"
+  },
+  "Религиозные": {
+    "English Only": "Religious"
+  },
+  "Киргизия | Кыргызстан": {
+    "English Only": "Kyrgyzstan"
+  },
+  "Эстония | Eesti": {
+    "English Only": "Eesti"
+  },
+  "Италия | Italia": {
+    "English Only": "Italia"
+  },
+  "IsraelIL": {
+    "English Only": "IsraelIL"
+  },
+  "Россия": {
+    "English Only": "Russia"
+  },
+  "Кино и Сериалы": {
+    "English Only": "Cinema and TV shows"
+  },
+  "Фильм": {
+    "English Only": "Movie"
+  },
+  "Кinozal": {
+    "English Only": "Gasoline"
+  },
+  "Литва/Латвія/Естоія": {
+    "English Only": "Lithuania/Latvia/Estoia"
+  },
+  "Польща": {
+    "English Only": "Poland"
+  },
+  "Музика": {
+    "English Only": "Muzika"
+  },
+  "Poland": {
+    "English Only": "Poland",
+    "English | Hebrew": "Poland | פּוֹלִין"
+  },
+  "Музыкальные": {
+    "English Only": "Musical"
+  },
+  "Kinozal MM": {
+    "English Only": "Kinozal MM",
+    "English | Hebrew": "Kinozal MM | Kinozal MM"
+  },
+  "Kinozal Cineman": {
+    "English Only": "Kinozal Cineman",
+    "English | Hebrew": "Kinozal Cineman | קינזאל סינמן"
+  },
+  "Kinozal Fresh": {
+    "English Only": "Kinozal Fresh",
+    "English | Hebrew": "Kinozal Fresh | Kinozal Fresh"
+  },
+  "Кинозалы Dosug TV": {
+    "English Only": "Movie Dosug TV"
+  },
+  "Kinozal Premera": {
+    "English Only": "Kinozal Premera",
+    "English | Hebrew": "Kinozal Premera | קינזל בקוטר"
+  },
+  "Kinozal KBC": {
+    "English Only": "Kinozal KBC",
+    "English | Hebrew": "Kinozal KBC | Kinozal KBC"
+  },
+  "Kinozal UZ": {
+    "English Only": "Kinozal UZ",
+    "English | Hebrew": "Kinozal UZ | קולנוע ל"
+  },
+  "Kinozal YOSSO": {
+    "English Only": "Kinozal YOSSO",
+    "English | Hebrew": "Kinozal YOSSO | Kinozal Yosso"
+  },
+  "Kinozal MINIMAX": {
+    "English Only": "Kinozal MINIMAX",
+    "English | Hebrew": "Kinozal MINIMAX | Kinozal Minimax"
+  },
+  "Kinozal Kinoshka": {
+    "English Only": "Kinozal Kinoshka",
+    "English | Hebrew": "Kinozal Kinoshka | Kinozal Kinoshka"
+  },
+  "Kinozal Magic": {
+    "English Only": "Kinozal Magic",
+    "English | Hebrew": "Kinozal Magic | קינזל קסם"
+  },
+  "Развлечения": {
+    "English Only": "Entertainment"
+  },
+  "Lithuania": {
+    "English Only": "Lithuania",
+    "English | Hebrew": "Lithuania | ליטא"
+  },
+  "Ukraine": {
+    "English Only": "Ukraine",
+    "English | Hebrew": "Ukraine | אוקראינה"
+  },
+  "General": {
+    "English | Hebrew": "General | כְּלָלִי"
+  },
+  "News": {
+    "English | Hebrew": "News | חֲדָשׁוֹת"
+  },
+  "Movies": {
+    "English | Hebrew": "Movies | סרטים"
+  },
+  "Sport": {
+    "English | Hebrew": "Sport | ספּוֹרט"
+  },
+  "Music": {
+    "English | Hebrew": "Music | מוּסִיקָה"
+  },
+  "Children's": {
+    "English | Hebrew": "Children's | ילדים"
+  },
+  "Cognitive": {
+    "English | Hebrew": "Cognitive | קוגניטיבי"
+  },
+  "Entertaining": {
+    "English | Hebrew": "Entertaining | מְשַׁעַשֵׁעַ"
+  },
+  "Regional": {
+    "English | Hebrew": "Regional | אֵזוֹרִי"
+  },
+  "Telemanships": {
+    "English | Hebrew": "Telemanships | טלמניות"
+  },
+  "Adults": {
+    "English | Hebrew": "Adults | מבוגרים"
+  },
+  "Europe": {
+    "English | Hebrew": "Europe | אֵירוֹפָּה"
+  },
+  "Australia": {
+    "English | Hebrew": "Australia | אוֹסטְרַלִיָה"
+  },
+  "Arabic": {
+    "English | Hebrew": "Arabic | עֲרָבִית"
+  },
+  "Armenia": {
+    "English | Hebrew": "Armenia | אַרְמֶנִיָה"
+  },
+  "Azerbaijan": {
+    "English | Hebrew": "Azerbaijan | אזרבייג'ן"
+  },
+  "Belarus": {
+    "English | Hebrew": "Belarus | בלארוס"
+  },
+  "Bulgaria": {
+    "English | Hebrew": "Bulgaria | בולגריה"
+  },
+  "United Kingdom": {
+    "English | Hebrew": "United Kingdom | בְּרִיטַנִיָה"
+  },
+  "Germany": {
+    "English | Hebrew": "Germany | גֶרמָנִיָה"
+  },
+  "Brasil": {
+    "English | Hebrew": "Brasil | בְּרָזִיל"
+  },
+  "Georgia": {
+    "English | Hebrew": "Georgia | ג'ורג'יה"
+  },
+  "Denmark": {
+    "English | Hebrew": "Denmark | דנמרק"
+  },
+  "Egypt": {
+    "English | Hebrew": "Egypt | מִצְרַיִם"
+  },
+  "India": {
+    "English | Hebrew": "India | הוֹדוּ"
+  },
+  "Spain": {
+    "English | Hebrew": "Spain | סְפָרַד"
+  },
+  "Italy": {
+    "English | Hebrew": "Italy | אִיטַלִיָה"
+  },
+  "Kazakhstan": {
+    "English | Hebrew": "Kazakhstan | קזחסטן"
+  },
+  "Canada": {
+    "English | Hebrew": "Canada | קנדה"
+  },
+  "Latvia": {
+    "English | Hebrew": "Latvia | לטביה"
+  },
+  "Moldova": {
+    "English | Hebrew": "Moldova | מולדובה"
+  },
+  "Netherlands": {
+    "English | Hebrew": "Netherlands | הוֹלַנד"
+  },
+  "Norway": {
+    "English | Hebrew": "Norway | נורווגיה"
+  },
+  "UAE": {
+    "English | Hebrew": "UAE | איחוד האמירויות הערביות"
+  },
+  "Portugal": {
+    "English | Hebrew": "Portugal | פּוֹרטוּגָל"
+  },
+  "Romania": {
+    "English | Hebrew": "Romania | רומניה"
+  },
+  "Slovakia": {
+    "English | Hebrew": "Slovakia | סלובקיה"
+  },
+  "Tajikistan": {
+    "English | Hebrew": "Tajikistan | טג'יקיסטן"
+  },
+  "Turkey": {
+    "English | Hebrew": "Turkey | טוּרְקִיָה"
+  },
+  "O'zbek": {
+    "English | Hebrew": "O'zbek | Uzbek"
+  },
+  "Finland": {
+    "English | Hebrew": "Finland | פינלנד"
+  },
+  "France": {
+    "English | Hebrew": "France | צָרְפַת"
+  },
+  "Croatia": {
+    "English | Hebrew": "Croatia | קרואטיה"
+  },
+  "Czech Republic": {
+    "English | Hebrew": "Czech Republic | צ'כיה"
+  },
+  "Sweden": {
+    "English | Hebrew": "Sweden | שוודיה"
+  },
+  "Estonia": {
+    "English | Hebrew": "Estonia | אסטוניה"
+  },
+  "Korea": {
+    "English | Hebrew": "Korea | קוריאה"
+  },
+  "Russia": {
+    "English | Hebrew": "Russia | רוּסִיָה"
+  },
+  "Cinema and TV shows": {
+    "English | Hebrew": "Cinema and TV shows | קולנוע ותוכניות טלוויזיה"
+  },
+  "Movie": {
+    "English | Hebrew": "Movie | סֶרֶט"
+  },
+  "Gasoline": {
+    "English | Hebrew": "Gasoline | בֶּנזִין"
+  },
+  "Lithuania/Latvia/Estoia": {
+    "English | Hebrew": "Lithuania/Latvia/Estoia | ליטא/לטביה/אסטויה"
+  },
+  "Muzika": {
+    "English | Hebrew": "Muzika | מוּסִיקָה"
+  },
+  "Musical": {
+    "English | Hebrew": "Musical | מוּסִיקָלִי"
+  },
+  "Movie Dosug TV": {
+    "English | Hebrew": "Movie Dosug TV | סרט טלוויזיה של דוסוג"
+  },
+  "Entertainment": {
+    "English | Hebrew": "Entertainment | בידור"
+  },
+  "Cinema halls": {
+    "English | Hebrew": "Cinema halls | אולמות קולנוע"
+  },
+  " ישראלי": {
+    "English Only": "Israeli"
   }
 }
