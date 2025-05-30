@@ -2286,43 +2286,10 @@ class M3UEditor(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
 
-    def mergeM3UContentToCategories(self, content):
-        lines = content.strip().splitlines()
-        current_name = ""
-        current_category = "Uncategorized📺"
-        current_logo = None
-
-        for i in range(len(lines)):
-            line = lines[i].strip()
-
-            if line.startswith("#EXTINF:"):
-                name_match = re.search(r",(.+)", line)
-                current_name = name_match.group(1).strip() if name_match else ""
-
-                group_match = re.search(r'group-title="([^"]+)"', line)
-                current_category = group_match.group(1).strip() if group_match else "Uncategorized📺"
-
-                logo_match = re.search(r'tvg-logo="([^"]+)"', line)
-                current_logo = logo_match.group(1).strip() if logo_match else None
-
-            elif line.startswith("http") and current_name:
-                channel_entry = f"{current_name} ({line})"
-                if current_logo:
-                    channel_entry += f' tvg-logo="{current_logo}"'
-
-                # 🟢 תמיד הוסף את הערוץ לקטגוריה – גם אם כפול
-                if current_category not in self.categories:
-                    self.categories[current_category] = []
-
-                self.categories[current_category].append(channel_entry)
-
-                current_name = ""
-                current_logo = None
-
     def mergeM3UContentToCategories(self, content, allow_duplicates=True):
         """
-        ממזג תוכן M3U לתוך self.categories.
-        אם allow_duplicates=True – מוסיף גם ערוצים שכבר קיימים באותה קטגוריה.
+        Parse and merge M3U content lines into self.categories and self.extinf_lookup.
+        Handles group-title, tvg-logo, and allows duplicates if specified.
         """
         lines = content.strip().splitlines()
         current_name = ""
@@ -2343,25 +2310,24 @@ class M3UEditor(QWidget):
                 current_logo = logo_match.group(1).strip() if logo_match else None
 
             elif line.startswith("http") and current_name:
-                # צור רשומת ערוץ
+                # צור ערוץ עם שם ולוגו (אם קיים)
                 channel_entry = f"{current_name} ({line})"
                 if current_logo:
                     channel_entry += f' tvg-logo="{current_logo}"'
 
-                # הכן את הקטגוריה אם לא קיימת
                 if current_category not in self.categories:
                     self.categories[current_category] = []
 
-                # בדוק כפילות רק אם לא מאפשרים כפולים
                 if allow_duplicates or channel_entry not in self.categories[current_category]:
                     self.categories[current_category].append(channel_entry)
 
-                # שמירת EXTINF למעקב (אם קיים)
+                # שמור את שורת EXTINF למעקב
                 if not hasattr(self, 'extinf_lookup'):
                     self.extinf_lookup = {}
                 if channel_entry not in self.extinf_lookup:
                     self.extinf_lookup[channel_entry] = lines[i - 1]  # שורת EXTINF המקורית
 
+                # אפס משתנים
                 current_name = ""
                 current_logo = None
 
@@ -4058,14 +4024,13 @@ class M3UEditor(QWidget):
 
     def parseM3UContentEnhanced(self, content):
         """
-        Parse M3U content, handling group-title, #EXTGRP, and tvg-logo robustly.
-        לא סורק לוגואים – רק בונה קטגוריות ותוכן.
+        Parse M3U content, handle #EXTGRP → group-title injection, then call mergeM3UContentToCategories.
         """
         self.categories.clear()
-        self.extinf_lookup = {}  # ← ← ← ✅ מוסיפים יצירה של המילון הזה
+        self.extinf_lookup = {}
         updated_lines = []
         current_group = None
-        lines = content.splitlines()
+        lines = content.strip().splitlines()
 
         for line in lines:
             if line.startswith("#EXTGRP:"):
@@ -4075,27 +4040,17 @@ class M3UEditor(QWidget):
             if line.startswith("#EXTINF:"):
                 if "group-title=" not in line and current_group:
                     line = re.sub(r'(#EXTINF:[^\n]*?),', f'\\1 group-title="{current_group}",', line)
-                current_group = None  # Always reset group
+                current_group = None  # Reset after use
 
             updated_lines.append(line)
 
         updated_content = "\n".join(updated_lines)
-
-        # פרס קטגוריות וערוצים
-        category_pattern = re.compile(r'#EXTINF.*group-title="([^"]+)".*,(.*)\n(.*)')
-        for match in category_pattern.findall(updated_content):
-            group_title, channel_name, channel_url = match
-            if group_title not in self.categories:
-                self.categories[group_title] = []
-            self.categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
-
         self.textEdit.setPlainText(updated_content)
-        self.categoryList.clear()
-        for category, channels in self.categories.items():
-            item = QListWidgetItem(f"{category} ({len(channels)})")
-            self.categoryList.addItem(item)
 
-        self.searchBox.setText("")
+        # משתמש בפונקציה האחידה כדי לעבד את כל הקטגוריות והערוצים
+        self.mergeM3UContentToCategories(updated_content, allow_duplicates=True)
+
+        self.updateCategoryList()
         self.buildSearchCompleter()
 
     def chooseLanguageAndFilterIsraelChannels(self):
