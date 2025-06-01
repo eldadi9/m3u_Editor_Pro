@@ -274,7 +274,8 @@
     "Hebrew Only": "שונות"
   },
   "UHD": {
-    "Hebrew Only": "אהד"
+    "Hebrew Only": "אהד",
+    "English Only": "UHD"
   },
   "Русские": {
     "Hebrew Only": "רוסים"
@@ -1038,5 +1039,104 @@
   },
   "IL": {
     "English Only": "IL"
+  },
+  "Clarity4k UHD": {
+    "English Only": "Clarity4k UHD"
+  },
+  "Clarity4k UHD HDR": {
+    "English Only": "Clarity4k UHD HDR"
+  },
+  "Olsib TV": {
+    "English Only": "Olsib TV"
+  },
+  "Play-x": {
+    "English Only": "Play-x"
+  },
+  "Relax": {
+    "English Only": "Relax"
+  },
+  "Венгрия": {
+    "English Only": "Hungary"
+  },
+  "Италия": {
+    "English Only": "Italy"
+  },
+  "Кинозал UA": {
+    "English Only": "Cinema UA"
+  },
+  "Кинозалы CMS": {
+    "English Only": "Cms cinema"
+  },
+  "Кинозалы MOBI CMS": {
+    "English Only": "Mobi CMS movies"
+  },
+  "Киноконцерны СССР CMS": {
+    "English Only": "Filmmas of the USSR CMS"
+  },
+  "Киноновелы CMS": {
+    "English Only": "Khovnovyei CMS"
+  },
+  "Латвия": {
+    "English Only": "Latvia"
+  },
+  "Литва": {
+    "English Only": "Lithuania"
+  },
+  "Музыка CMS": {
+    "English Only": "Music CMS"
+  },
+  "Мультфильмы CMS": {
+    "English Only": "CMS cartoons"
+  },
+  "Новинки": {
+    "English Only": "New items"
+  },
+  "Новости": {
+    "English Only": "News"
+  },
+  "Новые пополнения (тест)": {
+    "English Only": "New replenishment (test)"
+  },
+  "Новый Год CMS": {
+    "English Only": "New Year CMS"
+  },
+  "Радио": {
+    "English Only": "Radio"
+  },
+  "Развлечения CMS": {
+    "English Only": "CMS entertainment"
+  },
+  "Регионы РФ": {
+    "English Only": "Regions of the Russian Federation"
+  },
+  "Сделано в СССР CMS": {
+    "English Only": "Made in the USSR CMS"
+  },
+  "Сериалы CMS": {
+    "English Only": "CMS series"
+  },
+  "Фильмовые": {
+    "English Only": "Film"
+  },
+  "Фильмография RU": {
+    "English Only": "Filmography ru"
+  },
+  "Фильмография World": {
+    "English Only": "Filmography World"
+  },
+  "Чебур ТВ": {
+    "English Only": "Chebur TV"
+  },
+  "Чебур ТВПлюс": {
+    "English Only": "Chebour TVPlus"
+  },
+  "Чехия": {
+    "English Only": "Czech Republic"
+  },
+  "Эротика CMS": {
+    "English Only": "Erotic CMS"
+  },
+  "Эстония": {
+    "English Only": "Estonia"
   }
 }
