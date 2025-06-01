@@ -39,38 +39,6 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from deep_translator import GoogleTranslator
 
-def create_channel_widget(name, quality):
-    widget = QWidget()
-    layout = QHBoxLayout()
-    layout.setContentsMargins(4, 2, 4, 2)
-    layout.setSpacing(10)
-
-    # תווית שם הערוץ
-    name_label = QLabel(name)
-    name_label.setObjectName("channel_label")  # ✅ חשוב לצורך moveSelectedChannel
-    name_label.setStyleSheet("color: black; font-weight: normal;")
-
-    # תווית איכות בצבע
-    quality_label = QLabel(quality)
-    quality_label.setAlignment(Qt.AlignCenter)
-    quality_label.setFixedWidth(30)
-
-    if quality == "4K":
-        quality_label.setStyleSheet("background-color: #66cc66; color: black; font-weight: bold; border-radius: 4px;")
-    elif quality == "HD":
-        quality_label.setStyleSheet("background-color: #ffff66; color: black; font-weight: bold; border-radius: 4px;")
-    elif quality == "SD":
-        quality_label.setStyleSheet("background-color: #ff9999; color: black; font-weight: bold; border-radius: 4px;")
-    else:
-        quality_label.setStyleSheet("background-color: lightgray; color: black;")
-
-    layout.addWidget(name_label)
-    layout.addWidget(quality_label)
-    layout.addStretch()
-
-    widget.setLayout(layout)
-    return widget
-
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -197,16 +165,31 @@ def detect_stream_quality(name_or_url):
         return "SD"
     else:
         return "Unknown"
-def create_channel_widget(channel_name, quality):
+def create_channel_widget(name, quality):
+    def quality_color(q):
+        if q == "4K":
+            return "#66cc66"  # ירוק
+        elif q == "HD":
+            return "#ffff66"  # צהוב
+        elif q == "SD":
+            return "#ff9999"  # אדום
+        elif q == "Unknown":
+            return "#cccccc"  # אפור בהיר ל־Unknown
+        else:
+            return "#e0e0e0"  # גיבוי – אפור ניטרלי
+
     widget = QWidget()
     layout = QHBoxLayout()
-    layout.setContentsMargins(5, 0, 5, 0)
+    layout.setContentsMargins(4, 2, 4, 2)
+    layout.setSpacing(10)
 
-    name_label = QLabel(channel_name)
-    name_label.setObjectName("channel_label")  # ← חשוב!
+    name_label = QLabel(name)
+    name_label.setObjectName("channel_label")
+    name_label.setStyleSheet("color: black; font-weight: normal;")
     layout.addWidget(name_label)
 
     quality_label = QLabel(quality)
+    quality_label.setAlignment(Qt.AlignCenter)
     quality_label.setStyleSheet(f"""
         background-color: {quality_color(quality)};
         color: black;
@@ -220,16 +203,6 @@ def create_channel_widget(channel_name, quality):
     widget.setLayout(layout)
     return widget
 
-
-def quality_color(quality):
-    if quality == "4K":
-        return "#66cc66"  # ירוק
-    elif quality == "HD":
-        return "#ffff66"  # צהוב
-    elif quality == "SD":
-        return "#ff9999"  # אדום
-    else:
-        return "#cccccc"
 
 def inject_logo(line, channel_name, logo_db=None):
     """
@@ -301,16 +274,13 @@ def save_israeli_logos_background(self, parsed_channels):
 
 def is_israeli_channel(category, name):
     keywords = [
-        'ישראל', 'israel', 'il', 'is', 'israel vip', 'israel hd',
+        'ישראל', 'israel', 'israel vip', 'israel hd',
         'ערוץ', 'עברי', 'hot', 'yes', 'kan', 'keshet', 'reshet',
         'i24', 'channel 9', 'iptv israel', 'Израиль', 'Израиль | ישראלי'
     ]
     text = f"{category} {name}".lower()
+    # בודק רק מילות מפתח שלא קצרות מדי
     return any(word in text for word in keywords)
-
-
-    def getSelectedCategory(self):
-        return self.newCategoryInput.text() if self.newCategoryInput.text() else self.categoryCombo.currentText()
 
 class ExportGroupsDialog(QDialog):
     def __init__(self, categories, parent=None):
@@ -435,15 +405,6 @@ class ExportGroupsDialog(QDialog):
         except Exception as e:
             print(f"[getFullExtInfLine] Error: {e}")
             return f'#EXTINF:-1 group-title="{category}",Unknown'
-
-    def parseChannelInfo(self, channel):
-        # Regex to extract name, url and optional tvg-logo
-        match = re.search(r'^(.+) \((http.+)\)$', channel)
-        if match:
-            name = match.group(1)
-            url = match.group(2)
-            return name, url
-        return "", ""
 
 
 class M3UUrlConverterDialog(QDialog):
@@ -2233,10 +2194,9 @@ class M3UEditor(QWidget):
                     if line not in self.epg_headers and line not in new_epg_lines:
                         new_epg_lines.append(line)
 
-            # שמור על כל שורות ה־EPG שהיו עד כה, והוסף חדשות
             self.epg_headers = list(dict.fromkeys(self.epg_headers + new_epg_lines))
 
-            # סנן רק את תוכן הערוצים – תשאיר את כל שורות ה־EPG ב־epg_headers בלבד
+            # מסנן את שורות הערוצים בלבד
             new_lines = [line for line in lines if
                          line.strip() and not (line.startswith("#EXTM3U") or 'x-tvg-url=' in line)]
 
@@ -2253,24 +2213,34 @@ class M3UEditor(QWidget):
                 if line.startswith("#EXTINF:"):
                     extinf_line = line
                     url_line = new_lines[i + 1] if i + 1 < len(new_lines) else ""
+
+                    if not url_line.startswith("http"):
+                        print(f"[שגיאה] שורת EXTINF ללא לינק תקף אחריה:\n{extinf_line}")
+                        i += 1
+                        continue
+
                     name_match = re.search(r",(.+)", extinf_line)
                     channel_name = name_match.group(1).strip() if name_match else ""
+
+                    if not channel_name:
+                        print(f"[שגיאה] שם ערוץ ריק:\n{extinf_line}")
+
                     extinf_line = inject_logo(extinf_line, channel_name, logo_db)
+
                     merged_lines.append(extinf_line)
-                    if url_line:
-                        merged_lines.append(url_line)
+                    merged_lines.append(url_line)
                     i += 2
                 else:
+                    print(f"[דלג] שורה לא מתאימה:\n{line}")
                     i += 1
 
-            # ✨ אל תסנן מתוך current_content את ה־EPG — הן כבר שמורות ב־self.epg_headers
             current_content = self.textEdit.toPlainText().strip()
-            current_lines = [line for line in current_content.splitlines() if
-                             not line.startswith("#EXTINF:") and not re.match(r'^https?://', line)]
+            current_lines = current_content.splitlines()
 
-            # חבר את הכל מחדש
             final_lines = self.epg_headers + current_lines + merged_lines
             self.textEdit.setPlainText("\n".join(final_lines))
+
+            print(f"[הצלחה] נוספו {len(merged_lines) // 2} ערוצים חדשים מהקובץ שנבחר.")
 
             self.mergeM3UContentToCategories("\n".join(merged_lines), allow_duplicates=True)
             self.updateCategoryList()
@@ -2284,6 +2254,7 @@ class M3UEditor(QWidget):
             QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
 
         except Exception as e:
+            print("[שגיאה כללית במהלך המיזוג]:", e)
             QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
 
     def mergeM3UContentToCategories(self, content, allow_duplicates=True):
