@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from PyQt5.QtWidgets import QProgressBar
 import xml.etree.ElementTree as ET
 import subprocess
+import time
 import tempfile
 from PyQt5.QtCore import pyqtSignal
 from datetime import datetime, timedelta
@@ -38,6 +39,63 @@ from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from deep_translator import GoogleTranslator
+from PyQt5.QtCore import QThread, pyqtSignal
+
+class CategoryTranslateThread(QThread):
+    progress = pyqtSignal(int, str)
+    finished = pyqtSignal(dict, dict, str)  # updated_categories, mapping, mode
+
+    def __init__(self, categories, mode):
+        super().__init__()
+        self.categories = categories
+        self.mode = mode
+
+    def run(self):
+        import re
+        from deep_translator import GoogleTranslator
+
+        def clean(text):
+            return re.sub(r'[\r\n\t\x00-\x1F]', '', text).strip()
+
+        def is_hebrew(text):
+            return any('\u0590' <= c <= '\u05EA' for c in text)
+
+        def is_english(text):
+            return all(ord(c) < 128 for c in text if c.isalpha())
+
+        updated_categories = {}
+        category_mapping = {}
+
+        translator_en = GoogleTranslator(source='auto', target='en')
+        translator_he = GoogleTranslator(source='auto', target='iw')
+
+        total = len(self.categories)
+        for i, (old_name, channels) in enumerate(self.categories.items()):
+            parts = [p.strip() for p in old_name.split('|')]
+            eng = next((clean(p) for p in parts if is_english(p)), None)
+            heb = next((clean(p) for p in parts if is_hebrew(p)), None)
+
+            try:
+                if self.mode == "English Only":
+                    final_base = eng or clean(translator_en.translate(parts[0]))
+                elif self.mode == "Hebrew Only":
+                    final_base = heb or clean(translator_he.translate(parts[0]))
+                else:
+                    if not eng:
+                        eng = clean(translator_en.translate(parts[0]))
+                    if not heb:
+                        heb = clean(translator_he.translate(parts[0]))
+                    final_base = f"{eng} | {heb}"
+            except:
+                final_base = old_name  # fallback
+
+            updated_categories[final_base] = channels
+            category_mapping[old_name] = final_base
+            self.progress.emit(i + 1, old_name)
+
+        self.finished.emit(updated_categories, category_mapping, self.mode)
+
+
 
 class MoveChannelsDialog(QDialog):
     def __init__(self, parent=None, categories=None):
@@ -575,6 +633,8 @@ class SmartScanThread(QThread):
             if self.stop_requested:
                 break
 
+                time.sleep(0.05)  # האטה כדי לא להציף את הרשת
+
             status = "Online"
             reason = ""
 
@@ -640,6 +700,7 @@ class URLCheckThread(QThread):
         for name, url in self.channels:
             if self.stop_requested:
                 break
+                time.sleep(0.05)
 
             status = "Offline"
             reason = "Unknown"
@@ -1130,23 +1191,8 @@ class M3UEditor(QWidget):
         return bool(re.search(r'[^\x00-\x7F]', text))  # מזהה תווים שאינם אנגלית
 
     def translate_category_names(self):
-        import re
-        import json
-        from PyQt5.QtWidgets import QInputDialog, QMessageBox
-        from deep_translator import GoogleTranslator
+        from PyQt5.QtWidgets import QInputDialog, QMessageBox, QProgressDialog
 
-        TRANSLATION_CACHE_PATH = os.path.join(os.path.dirname(__file__), "category_translations.json")
-
-        def clean(text):
-            return re.sub(r'[\r\n\t\x00-\x1F]', '', text).strip()
-
-        def is_hebrew(text):
-            return any('\u0590' <= c <= '\u05EA' for c in text)
-
-        def is_english(text):
-            return all(ord(c) < 128 for c in text if c.isalpha())
-
-        # בקשת סגנון תרגום
         mode, ok = QInputDialog.getItem(
             self,
             "בחר סגנון תרגום",
@@ -1158,102 +1204,38 @@ class M3UEditor(QWidget):
         if not ok:
             return
 
-        # טען קאש
-        if os.path.exists(TRANSLATION_CACHE_PATH):
-            try:
-                with open(TRANSLATION_CACHE_PATH, "r", encoding="utf-8") as f:
-                    translation_cache = json.load(f)
-            except:
-                translation_cache = {}
-        else:
-            translation_cache = {}
+        # התחלת סרגל התקדמות
+        self.progressDialog = QProgressDialog("מתרגם קטגוריות...", "ביטול", 0, len(self.categories), self)
+        self.progressDialog.setWindowTitle("מתרגם...")
+        self.progressDialog.setWindowModality(Qt.WindowModal)
+        self.progressDialog.setAutoClose(True)
+        self.progressDialog.show()
 
-        try:
-            translator_en = GoogleTranslator(source='auto', target='en')
-            translator_he = GoogleTranslator(source='auto', target='iw')
-        except Exception as e:
-            QMessageBox.critical(self, "שגיאה", f"שגיאה בטעינת מתרגמים:\n{e}")
-            return
+        self.translation_thread = CategoryTranslateThread(self.categories.copy(), mode)
+        self.translation_thread.progress.connect(lambda i, name: self.progressDialog.setValue(i))
+        self.translation_thread.finished.connect(self.on_translation_finished)
+        self.translation_thread.start()
 
-        updated_categories = {}
-        category_mapping = {}
-
-        for old_name, channels in self.categories.items():
-            # הפרדת סיומת מספרית כמו "(123)"
-            match = re.match(r'^(.*?)(\s*\(\d+\))$', old_name.strip())
-            if match:
-                base_name, count_suffix = match.group(1).strip(), match.group(2)
-            else:
-                base_name, count_suffix = old_name.strip(), ""
-
-            # פרוס את השם לחלקים (במקרה של "|")
-            parts = [p.strip() for p in base_name.split('|')]
-            eng = next((clean(p) for p in parts if is_english(p)), None)
-            heb = next((clean(p) for p in parts if is_hebrew(p)), None)
-
-            # שליפה מהקאש אם קיים
-            if old_name in translation_cache and mode in translation_cache[old_name]:
-                final_base = translation_cache[old_name][mode]
-            else:
-                # תרגום לפי מצב
-                try:
-                    if mode == "English Only":
-                        if not eng:
-                            eng = clean(translator_en.translate(parts[0]))
-                        final_base = eng
-                    elif mode == "Hebrew Only":
-                        if not heb:
-                            heb = clean(translator_he.translate(parts[0]))
-                        final_base = heb
-                    else:
-                        if not eng:
-                            eng = clean(translator_en.translate(parts[0]))
-                        if not heb:
-                            heb = clean(translator_he.translate(parts[0]))
-                        final_base = f"{eng} | {heb}"
-                except:
-                    final_base = base_name  # fallback
-
-                # שמור לקאש בפורמט לפי מצב
-                if old_name not in translation_cache:
-                    translation_cache[old_name] = {}
-                translation_cache[old_name][mode] = final_base
-
-            final_name = f"{final_base}{count_suffix}"
-            updated_categories[final_name] = channels
-            category_mapping[old_name] = final_name
-
-        # שמור את הקובץ
-        try:
-            with open(TRANSLATION_CACHE_PATH, "w", encoding="utf-8") as f:
-                json.dump(translation_cache, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"[Cache Save Error] {e}")
-
-        # עדכון קטגוריות
+    def on_translation_finished(self, updated_categories, mapping, mode):
         self.categories = updated_categories
         self.updateCategoryList()
 
-        # עדכון EXTINF
+        # עדכון EXTINF בקובץ הטקסט
         try:
             lines = self.textEdit.toPlainText().splitlines()
             new_lines = []
             for line in lines:
                 if line.startswith("#EXTINF") and 'group-title="' in line:
-                    for old, new in category_mapping.items():
+                    for old, new in mapping.items():
                         if f'group-title="{old}"' in line:
                             line = line.replace(f'group-title="{old}"', f'group-title="{new}"')
                             break
                 new_lines.append(line)
-            self.textEdit.setPlainText("\n".join(new_lines))
+            self.safely_update_text_edit("\n".join(new_lines))
         except Exception as e:
             print(f"[EXTINF Update Error] {e}")
 
-        try:
-            self.regenerateM3UTextOnly()
-        except:
-            pass
-
+        self.regenerateM3UTextOnly()
         QMessageBox.information(self, "בוצע", f"שמות הקטגוריות תורגמו לפי: {mode}")
 
     def play_channel_with_name(self, entry):
@@ -1470,7 +1452,6 @@ class M3UEditor(QWidget):
         layout.addLayout(button_layout)
 
 
-
         # חיבורים
         self.addChannelButton.clicked.connect(self.addChannel)
         self.deleteChannelButton.clicked.connect(self.deleteSelectedChannels)
@@ -1480,9 +1461,7 @@ class M3UEditor(QWidget):
         self.clearChannelsSelectionButton.clicked.connect(self.deselectAllChannels)
         self.moveSelectedChannelButton.clicked.connect(self.moveSelectedChannel)
         self.editSelectedChannelButton.clicked.connect(self.editSelectedChannel)
-
         self.channelList = QListWidget()
-
 
         # רשימת ערוצים
         self.channelList = QListWidget(self)
@@ -1775,20 +1754,32 @@ class M3UEditor(QWidget):
         if not append:
             self.categories.clear()
 
-        self.load_logos_once()  # בדיקת קובץ json אם כבר נטען
+        # איסוף שורת EPG אם קיימת
+        if not hasattr(self, "epg_headers") or not append:
+            self.epg_headers = []
 
-        self.parseM3UContentEnhanced(content)  # ← מציג מיד את הקטגוריות
+        for line in content.strip().splitlines():
+            if line.startswith("#EXTM3U") and ("url-tvg=" in line or "x-tvg-url=" in line):
+                self.epg_headers.append(line)
 
+        # הסרה מהתוכן שורות EXTמ3U עם tvg
+        content = "\n".join([line for line in content.strip().splitlines()
+                             if not (line.startswith("#EXTM3U") and "tvg" in line)])
+
+        # שורת EXTמ3U מאוחדת בראש
+        unified_header = self.buildUnifiedEPGHeader()
+        content = unified_header + "\n" + content
+
+        self.load_logos_once()
+        self.parseM3UContentEnhanced(content)
         self.updateCategoryList()
         self.buildSearchCompleter()
         self.logosFinished.connect(self.onLogosFinished)
 
-        # טען את הערוצים הראשונים
         if self.categoryList.count() > 0:
             self.categoryList.setCurrentRow(0)
             self.display_channels(self.categoryList.currentItem())
 
-        # סריקת לוגואים ברקע בלבד
         threading.Thread(
             target=self.extract_and_save_logos_for_all_channels,
             args=(content,),
@@ -1797,41 +1788,57 @@ class M3UEditor(QWidget):
 
     def extract_and_save_logos_for_all_channels(self, content):
         """
-        Scans all channels in the M3U content and saves unique logos only if not already present.
+        סריקה חכמה – שומרת לוגואים רק אם הם לא קיימים, שומרת פעם אחת בסוף.
         """
         try:
-            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
-                logo_db = json.load(f)
-        except:
             logo_db = {}
+            if os.path.exists(LOGO_DB_PATH):
+                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                    logo_db = json.load(f)
 
-        seen = set()
-        lines = content.strip().splitlines()
+            seen = set()
+            updated = False  # נדע אם בכלל נוספו לוגואים
 
-        for i in range(len(lines)):
-            if lines[i].startswith("#EXTINF:"):
-                name_match = re.search(r",(.+)", lines[i])
-                channel_name = name_match.group(1).strip() if name_match else ""
+            lines = content.strip().splitlines()
+            for i in range(len(lines)):
+                if lines[i].startswith("#EXTINF:"):
+                    name_match = re.search(r",(.+)", lines[i])
+                    channel_name = name_match.group(1).strip() if name_match else ""
 
-                logo_match = re.search(r'tvg-logo="([^"]+)"', lines[i])
-                logo_url = logo_match.group(1).strip() if logo_match else ""
+                    logo_match = re.search(r'tvg-logo="([^"]+)"', lines[i])
+                    logo_url = logo_match.group(1).strip() if logo_match else ""
 
-                if channel_name and logo_url:
+                    if not channel_name or not logo_url:
+                        continue
+
+                    # ודא שאין כפילויות
+                    if (channel_name, logo_url) in seen:
+                        continue
+                    seen.add((channel_name, logo_url))
+
                     existing = logo_db.get(channel_name, [])
                     if isinstance(existing, str):
                         existing = [existing]
 
-                    if logo_url not in existing and (channel_name, logo_url) not in seen:
+                    if logo_url not in existing:
                         if channel_name not in logo_db:
                             logo_db[channel_name] = []
                         if isinstance(logo_db[channel_name], str):
                             logo_db[channel_name] = [logo_db[channel_name]]
                         logo_db[channel_name].append(logo_url)
-                        seen.add((channel_name, logo_url))
+                        updated = True
                         print(f"[LOGO] ✅ {channel_name} | {logo_url}")
 
-        with open(LOGO_DB_PATH, "w", encoding="utf-8") as f:
-            json.dump(logo_db, f, indent=2, ensure_ascii=False)
+            if updated:
+                with open(LOGO_DB_PATH, "w", encoding="utf-8") as f:
+                    json.dump(logo_db, f, indent=2, ensure_ascii=False)
+                print("[LOGO] ✔ כל הלוגואים החדשים נשמרו.")
+
+            else:
+                print("[LOGO] ⏩ אין לוגואים חדשים לשמירה.")
+
+        except Exception as e:
+            print(f"[LOGO ERROR] Failed to extract logos: {e}")
 
     def open_logo_manager(self):
         dialog = QDialog(self)
@@ -2139,6 +2146,31 @@ class M3UEditor(QWidget):
 
         dialog.exec_()
 
+    def ensure_epg_url_header(content):
+        """
+        מקבל את תוכן הקובץ כטקסט, מזהה את כל שורות ה־EPG ומחזיר אותן מסודרות בתחילת הקובץ,
+        תוך שמירה על שורת ה־#EXTM3U בראש.
+        """
+        lines = content.strip().splitlines()
+
+        # ודא שיש EXT_HEADER
+        if not lines or not lines[0].startswith("#EXTM3U"):
+            lines.insert(0, "#EXTM3U")
+
+        # חילוץ שורות EPG
+        epg_lines = [line for line in lines if line.startswith("#EXTM3U x-tvg-url=")]
+        # הסרת שורות EPG ממיקומן המקורי
+        cleaned_lines = [line for line in lines if
+                         not line.startswith("#EXTM3U x-tvg-url=") and not line.startswith("#EXTM3U")]
+
+        # בניית תוכן חדש
+        result_lines = ["#EXTM3U"] + epg_lines + cleaned_lines
+        return "\n".join(result_lines)
+
+    # שימוש בפונקציה זו:
+    # fixed_content = ensure_epg_url_header(original_content)
+    # self.textEdit.setPlainText(fixed_content)
+
     def mergeM3Us(self):
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(
@@ -2155,9 +2187,21 @@ class M3UEditor(QWidget):
             if not new_content.startswith("#EXTM3U"):
                 new_content = "#EXTM3U\n" + new_content
 
+            # Extract EPG URLs from the EXT line
+            for line in new_content.strip().splitlines():
+                if line.startswith("#EXTM3U"):
+                    matches = re.findall(r'(url-tvg|x-tvg-url)="([^"]+)"', line)
+                    if not hasattr(self, "epg_headers"):
+                        self.epg_headers = []
+                    if matches:
+                        urls = [match[1] for match in matches]
+                        joined = ",".join(urls)
+                        self.epg_headers.append(f'#EXTM3U url-tvg="{joined}"')
+
             # Clean and split new file
             new_lines = [line for line in new_content.strip().splitlines() if
-                         line.strip() and not line.startswith("#EXTM3U")]
+                         line.strip() and not (line.startswith("#EXTM3U") and (
+                                     "tvg" in line or "url=" in line or "tvg=" in line))]
 
             try:
                 with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
@@ -2185,10 +2229,18 @@ class M3UEditor(QWidget):
             # Add to text editor
             current_content = self.textEdit.toPlainText().strip()
             current_lines = current_content.splitlines() if current_content else []
-            final_lines = ["#EXTM3U"] + current_lines + merged_lines
-            self.textEdit.setPlainText("\n".join(final_lines))
 
-            # Merge to internal structure by preserving existing and appending even in duplicate category
+            # Remove old EPG headers
+            current_lines = [line for line in current_lines if
+                             not (line.startswith("#EXTM3U") and ("tvg" in line or "url=" in line or "tvg=" in line))]
+
+            # Build unified header
+            unified_header = self.buildUnifiedEPGHeader()
+            header = self.buildUnifiedEPGHeader()
+            final_lines = [header] + current_lines + merged_lines
+
+            self.safely_update_text_edit("\n".join(final_lines))
+
             self.mergeM3UContentToCategories("\n".join(merged_lines), allow_duplicates=True)
             self.updateCategoryList()
             self.regenerateM3UTextOnly()
@@ -2202,6 +2254,44 @@ class M3UEditor(QWidget):
 
         except Exception as e:
             QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
+
+    def loadM3UFromText(self, content, append=False):
+        if not append:
+            self.categories.clear()
+
+        if not hasattr(self, "epg_headers") or not append:
+            self.epg_headers = []
+
+        for line in content.strip().splitlines():
+            if line.startswith("#EXTM3U"):
+                matches = re.findall(r'(url-tvg|x-tvg-url)="([^"]+)"', line)
+                if matches:
+                    urls = [match[1] for match in matches]
+                    joined = ",".join(urls)
+                    self.epg_headers.append(f'#EXTM3U url-tvg="{joined}"')
+
+        content = "\n".join([line for line in content.strip().splitlines()
+                             if
+                             not (line.startswith("#EXTM3U") and ("tvg" in line or "url=" in line or "tvg=" in line))])
+
+        unified_header = self.buildUnifiedEPGHeader()
+        content = unified_header + "\n" + content
+
+        self.load_logos_once()
+        self.parseM3UContentEnhanced(content)
+        self.updateCategoryList()
+        self.buildSearchCompleter()
+        self.logosFinished.connect(self.onLogosFinished)
+
+        if self.categoryList.count() > 0:
+            self.categoryList.setCurrentRow(0)
+            self.display_channels(self.categoryList.currentItem())
+
+        threading.Thread(
+            target=self.extract_and_save_logos_for_all_channels,
+            args=(content,),
+            daemon=True
+        ).start()
 
     def mergeM3UContentToCategories(self, content):
         lines = content.strip().splitlines()
@@ -2289,7 +2379,7 @@ class M3UEditor(QWidget):
         content = self.textEdit.toPlainText()
         if not content.startswith("#EXTM3U"):
             self.textEdit.blockSignals(True)
-            self.textEdit.setPlainText("#EXTM3U\n" + content)
+            self.safely_update_text_edit("#EXTM3U\n" + content)
             self.textEdit.blockSignals(False)
 
     from PyQt5.QtWidgets import QAbstractItemView
@@ -2681,7 +2771,7 @@ class M3UEditor(QWidget):
                 updated_lines.append(line)
 
             # Update the UI
-            self.textEdit.setPlainText("\n".join(updated_lines))
+            self.safely_update_text_edit("\n".join(updated_lines))
             self.updateCategoryList()
             QMessageBox.information(self, "Success",
                                     f"Category '{old_category_name}' has been renamed to '{new_category_name}'.")
@@ -2721,7 +2811,8 @@ class M3UEditor(QWidget):
                 updated_lines.append(line)
 
             # Update the QTextEdit with the modified content
-            self.textEdit.setPlainText("\n".join(updated_lines))
+            self.safely_update_text_edit("\n".join(updated_lines))
+
 
             # Refresh the category list in the UI
             self.updateCategoryList()
@@ -2829,10 +2920,56 @@ class M3UEditor(QWidget):
         self.refreshCategoryListOnly()
         self.regenerateM3UTextOnly()
 
-    def regenerateM3UTextOnly(self, fast_mode=True):
-        updated_lines = ["#EXTM3U"]
-        logo_db = {}
+    def buildUnifiedEPGHeader(self):
+        """
+        בונה שורת EXTמ3U מאוחדת הכוללת את כל קישורי ה־EPG שנמצאו בשורות epg_headers
+        תומך בפרמטרים כמו: generation-date, catchup, url-tvg/x-tvg-url
+        """
+        if not hasattr(self, "epg_headers") or not self.epg_headers:
+            return "#EXTM3U"
 
+        epg_urls = set()
+        catchup_attrs = []
+        other_attrs = []
+
+        for line in self.epg_headers:
+            if line.startswith("#EXTM3U"):
+                # מצא כל זוג מפתח="ערך"
+                matches = re.findall(r'(\w+)\s*=\s*"([^"]+)"', line)
+                for key, value in matches:
+                    key_lower = key.lower()
+                    if key_lower in ("x-tvg-url", "url-tvg"):
+                        epg_urls.add(value.strip())
+                    elif key_lower == "catchup":
+                        catchup_attrs.append(f'{key}="{value.strip()}"')
+                    else:
+                        other_attrs.append(f'{key}="{value.strip()}"')
+
+        # בניית שורת EPG אחידה
+        joined_urls = ",".join(sorted(epg_urls))
+        epg_line = '#EXTM3U'
+
+        if joined_urls:
+            epg_line += f' url-tvg="{joined_urls}"'
+
+        if catchup_attrs:
+            epg_line += " " + " ".join(catchup_attrs)
+
+        if other_attrs:
+            epg_line += " " + " ".join(other_attrs)
+
+        return epg_line
+
+    def regenerateM3UTextOnly(self, fast_mode=True):
+        updated_lines = []
+
+        # הוספת שורת EPG בראש
+        if hasattr(self, "epg_headers") and self.epg_headers:
+            updated_lines.append(self.buildUnifiedEPGHeader())
+        else:
+            updated_lines.append("#EXTM3U")
+
+        logo_db = {}
         if fast_mode and os.path.exists(LOGO_DB_PATH):
             try:
                 with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
@@ -2860,7 +2997,8 @@ class M3UEditor(QWidget):
 
                 updated_lines.append(f"{extinf}\n{url}")
 
-        self.textEdit.setPlainText("\n".join(updated_lines))
+        self.safely_update_text_edit("\n".join(updated_lines))
+
 
     def refreshCategoryListOnly(self, selected_index=None):
         self.categoryList.clear()
@@ -2984,7 +3122,7 @@ class M3UEditor(QWidget):
         # בדוק אם יש שינוי אמיתי בתוכן לפני setPlainText (מאוד איטי)
         new_content = "\n".join(updated_lines)
         if self.textEdit.toPlainText().strip() != new_content.strip():
-            self.textEdit.setPlainText(new_content)
+            self.safely_update_text_edit(new_content)
 
         print("[LOG] 🔄 עדכון M3U בוצע", "כולל סריקת לוגואים" if not skip_logos else "ללא סריקת לוגואים")
 
@@ -3284,7 +3422,7 @@ class M3UEditor(QWidget):
                         line = line.replace(old_channel_name, new_channel_name)
                     updated_lines.append(line)
 
-                self.textEdit.setPlainText("\n".join(updated_lines))
+                self.safely_update_text_edit("\n".join(updated_lines))
                 self.display_channels(self.categoryList.currentItem())
                 QMessageBox.information(self, "Success",
                                         f"Channel '{old_channel_name}' has been renamed to '{new_channel_name}'.")
@@ -3682,6 +3820,13 @@ class M3UEditor(QWidget):
         dialog.setLayout(layout)  # ← חובה
         dialog.exec_()  # ← חובה
 
+    def safely_update_text_edit(self, new_text):
+        current_text = self.textEdit.toPlainText()
+        if current_text.strip() != new_text.strip():
+            self.textEdit.blockSignals(True)
+            self.textEdit.setPlainText(new_text)
+            self.textEdit.blockSignals(False)
+
     def selectChannelsByUrls(self, urls_set):
         self.channelList.clearSelection()
         SmartScanStatusDialog
@@ -3817,7 +3962,7 @@ class M3UEditor(QWidget):
                 with open(fileName, 'r', encoding='utf-8') as file:
                     content = file.read()
 
-                self.textEdit.setPlainText(content)
+                self.safely_update_text_edit(content)
 
                 # מציג את התוכן ומעדכן קטגוריות
                 self.parseM3UContentEnhanced(content)
@@ -4014,7 +4159,7 @@ class M3UEditor(QWidget):
                 self.categories[group_title] = []
             self.categories[group_title].append(f"{channel_name.strip()} ({channel_url.strip()})")
 
-        self.textEdit.setPlainText(updated_content)
+        self.safely_update_text_edit(updated_content)
         self.categoryList.clear()
         for category, channels in self.categories.items():
             item = QListWidgetItem(f"{category} ({len(channels)})")

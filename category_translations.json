@@ -260,7 +260,8 @@
     "Hebrew Only": "דרום קוריאה"
   },
   "Украинские": {
-    "Hebrew Only": "אוקראיני"
+    "Hebrew Only": "אוקראיני",
+    "English Only": "Ukrainian"
   },
   "Telegram": {
     "Hebrew Only": "מִברָק",
@@ -271,7 +272,8 @@
     "Hebrew Only": "נגן קולנוע"
   },
   "Разное": {
-    "Hebrew Only": "שונות"
+    "Hebrew Only": "שונות",
+    "English Only": "Miscellaneous"
   },
   "UHD": {
     "Hebrew Only": "אהד",
@@ -703,7 +705,8 @@
     "English Only": "World Series🌍"
   },
   "Other": {
-    "English | Hebrew": "Other | אַחֵר"
+    "English | Hebrew": "Other | אַחֵר",
+    "English Only": "Other"
   },
   "Israel Radio📻": {
     "English | Hebrew": "Israel Radio📻 | רדיו ישראל",
@@ -1138,5 +1141,104 @@
   },
   "Эстония": {
     "English Only": "Estonia"
+  },
+  "Россияя": {
+    "English Only": "RUSSIA"
+  },
+  "Кинозалы UA": {
+    "English Only": "Cinema UA"
+  },
+  "BY": {
+    "English Only": "BY"
+  },
+  "LT": {
+    "English Only": "LT"
+  },
+  "LV": {
+    "English Only": "LV"
+  },
+  "EE": {
+    "English Only": "EE"
+  },
+  "DE": {
+    "English Only": "DE"
+  },
+  "PL": {
+    "English Only": "PL"
+  },
+  "GE": {
+    "English Only": "GE"
+  },
+  "CA": {
+    "English Only": "CA"
+  },
+  "BG": {
+    "English Only": "BG"
+  },
+  "MD": {
+    "English Only": "MD"
+  },
+  "RO": {
+    "English Only": "RO"
+  },
+  "GR": {
+    "English Only": "GR"
+  },
+  "HU": {
+    "English Only": "HU"
+  },
+  "CZ": {
+    "English Only": "CZ"
+  },
+  "HR": {
+    "English Only": "HR"
+  },
+  "BE & NL": {
+    "English Only": "BE & NL"
+  },
+  "KZ": {
+    "English Only": "KZ"
+  },
+  "TR": {
+    "English Only": "TR"
+  },
+  "AZ": {
+    "English Only": "AZ"
+  },
+  "AM": {
+    "English Only": "AM"
+  },
+  "Для взрослых": {
+    "English Only": "For adults"
+  },
+  "Федеральные": {
+    "English Only": "Federal"
+  },
+  "Плюсовые": {
+    "English Only": "Plus"
+  },
+  "Спортивные": {
+    "English Only": "Sports"
+  },
+  "Другие (тест)": {
+    "English Only": "Others (test)"
+  },
+  "Мужские": {
+    "English Only": "Male"
+  },
+  "Кулинарные": {
+    "English Only": "Culinary"
+  },
+  "Экстра": {
+    "English Only": "Extra"
+  },
+  "Саудовская Аравия": {
+    "English Only": "Saudi Arabia"
+  },
+  "🔺 INFO 🔺": {
+    "English Only": "🔺 INFO 🔺"
+  },
+  "ALL": {
+    "English Only": "ALL"
   }
 }
