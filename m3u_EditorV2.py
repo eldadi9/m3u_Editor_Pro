@@ -1754,32 +1754,45 @@ class M3UEditor(QWidget):
         if not append:
             self.categories.clear()
 
-        # איסוף שורת EPG אם קיימת
+        # ----- 1️⃣ ניהול EPG headers -----
         if not hasattr(self, "epg_headers") or not append:
             self.epg_headers = []
 
+        # שלב 1: אסוף את כל ה־EPG headers
+        detected_epg_headers = []
         for line in content.strip().splitlines():
             if line.startswith("#EXTM3U") and ("url-tvg=" in line or "x-tvg-url=" in line):
-                self.epg_headers.append(line)
+                detected_epg_headers.append(line.strip())
 
-        # הסרה מהתוכן שורות EXTמ3U עם tvg
-        content = "\n".join([line for line in content.strip().splitlines()
-                             if not (line.startswith("#EXTM3U") and "tvg" in line)])
+        # שלב 2: הוספת headers ייחודיים
+        for header in detected_epg_headers:
+            if header not in self.epg_headers:
+                self.epg_headers.append(header)
 
-        # שורת EXTמ3U מאוחדת בראש
+        # שלב 3: ניקוי כל שורות EXTМ3U (גם רגיל וגם עם tvg)
+        content = "\n".join([
+            line for line in content.strip().splitlines()
+            if not line.startswith("#EXTM3U")
+        ])
+
+        # ----- 2️⃣ בניית שורת EXTМ3U אחידה -----
         unified_header = self.buildUnifiedEPGHeader()
         content = unified_header + "\n" + content
 
+        # ----- 3️⃣ טעינת לוגואים -----
         self.load_logos_once()
+
+        # ----- 4️⃣ פרס קובץ M3U -----
         self.parseM3UContentEnhanced(content)
         self.updateCategoryList()
         self.buildSearchCompleter()
-        self.logosFinished.connect(self.onLogosFinished)
 
+        # ----- 5️⃣ בחירת קטגוריה ראשונה -----
         if self.categoryList.count() > 0:
             self.categoryList.setCurrentRow(0)
             self.display_channels(self.categoryList.currentItem())
 
+        # ----- 6️⃣ סריקת לוגואים ברקע -----
         threading.Thread(
             target=self.extract_and_save_logos_for_all_channels,
             args=(content,),
@@ -2184,9 +2197,6 @@ class M3UEditor(QWidget):
             with open(fileName, 'r', encoding='utf-8') as file:
                 new_content = file.read()
 
-            if not new_content.startswith("#EXTM3U"):
-                new_content = "#EXTM3U\n" + new_content
-
             # Extract EPG URLs from the EXT line
             for line in new_content.strip().splitlines():
                 if line.startswith("#EXTM3U"):
@@ -2198,10 +2208,9 @@ class M3UEditor(QWidget):
                         joined = ",".join(urls)
                         self.epg_headers.append(f'#EXTM3U url-tvg="{joined}"')
 
-            # Clean and split new file
+            # ✅ Clean and split new file
             new_lines = [line for line in new_content.strip().splitlines() if
-                         line.strip() and not (line.startswith("#EXTM3U") and (
-                                     "tvg" in line or "url=" in line or "tvg=" in line))]
+                         line.strip() and not line.startswith("#EXTM3U")]
 
             try:
                 with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
@@ -2210,6 +2219,7 @@ class M3UEditor(QWidget):
                 logo_db = {}
 
             merged_lines = []
+            merged_channel_count = 0  # ✅ מונה חדש לערוצים
             i = 0
             while i < len(new_lines):
                 line = new_lines[i]
@@ -2222,6 +2232,7 @@ class M3UEditor(QWidget):
                     merged_lines.append(extinf_line)
                     if url_line:
                         merged_lines.append(url_line)
+                    merged_channel_count += 1  # ✅ עדכון מונה
                     i += 2
                 else:
                     i += 1
@@ -2232,10 +2243,9 @@ class M3UEditor(QWidget):
 
             # Remove old EPG headers
             current_lines = [line for line in current_lines if
-                             not (line.startswith("#EXTM3U") and ("tvg" in line or "url=" in line or "tvg=" in line))]
+                             not line.startswith("#EXTM3U")]
 
             # Build unified header
-            unified_header = self.buildUnifiedEPGHeader()
             header = self.buildUnifiedEPGHeader()
             final_lines = [header] + current_lines + merged_lines
 
@@ -2250,7 +2260,13 @@ class M3UEditor(QWidget):
                 self.display_channels(self.categoryList.currentItem())
 
             self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]} (Merged)")
-            QMessageBox.information(self, "Merge Complete", "The M3U files have been merged successfully.")
+
+            # ✅ נוסיף הודעה עם מספר ערוצים:
+            QMessageBox.information(
+                self,
+                "Merge Complete",
+                f"The M3U files have been merged successfully.\nChannels added: {merged_channel_count}"
+            )
 
         except Exception as e:
             QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
@@ -2270,9 +2286,9 @@ class M3UEditor(QWidget):
                     joined = ",".join(urls)
                     self.epg_headers.append(f'#EXTM3U url-tvg="{joined}"')
 
+        # הסרה מוחלטת של כל שורות EXTМ3U
         content = "\n".join([line for line in content.strip().splitlines()
-                             if
-                             not (line.startswith("#EXTM3U") and ("tvg" in line or "url=" in line or "tvg=" in line))])
+                             if not line.startswith("#EXTM3U")])
 
         unified_header = self.buildUnifiedEPGHeader()
         content = unified_header + "\n" + content
