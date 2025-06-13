@@ -1669,7 +1669,6 @@ class M3UEditor(QWidget):
         layout.addWidget(close_button)
         close_button.clicked.connect(dialog.close)
 
-
         def start_batch_download():
             lines = url_input.toPlainText().strip().splitlines()
             urls = [line.strip() for line in lines if line.strip() and not line.startswith("#")]
@@ -1693,7 +1692,8 @@ class M3UEditor(QWidget):
                         continue
                     url_data.append((url, content))
                     merged_content += "\n".join(
-                        line for line in content.splitlines() if line.strip() and not line.startswith("#EXTM3U")) + "\n"
+                        line for line in content.splitlines() if line.strip() and not line.startswith("#EXTM3U")
+                    ) + "\n"
                     valid_count += 1
                 except Exception as e:
                     print(f"Failed to download: {url} — {e}")
@@ -1741,8 +1741,15 @@ class M3UEditor(QWidget):
                         match = re.search(r'username=([a-zA-Z0-9]+)', url)
                         file_name = f"{match.group(1)}.m3u" if match else f"playlist_{i + 1}.m3u"
                         file_path = os.path.join(save_dir, file_name)
+
+                        # ✅ כאן התיקון: נוסיף ניקוי שורות ריקות גם בשמירה נפרדת:
+                        cleaned_content = "\n".join(
+                            line for line in content.splitlines() if line.strip()
+                        )
+
                         with open(file_path, 'w', encoding='utf-8') as f:
-                            f.write(content)
+                            f.write(cleaned_content)
+
                     QMessageBox.information(dialog, "Saved", "All M3U files saved individually.")
 
             dialog.close()
@@ -2252,6 +2259,10 @@ class M3UEditor(QWidget):
             self.safely_update_text_edit("\n".join(final_lines))
 
             self.mergeM3UContentToCategories("\n".join(merged_lines), allow_duplicates=True)
+
+            # ✅ הוספת השורה כאן:
+            self.cleanEmptyCategories()
+
             self.updateCategoryList()
             self.regenerateM3UTextOnly()
 
@@ -2737,6 +2748,12 @@ class M3UEditor(QWidget):
             # עדכון הספירה הכללית של ערוצים + קטגוריות
             self.displayTotalChannels()
 
+    def cleanEmptyCategories(self):
+        """
+        מנקה קטגוריות ריקות מתוך self.categories
+        """
+        self.categories = {cat: ch_list for cat, ch_list in self.categories.items() if ch_list}
+
     def loadChannelsForCategory(self, category_name):
         try:
             category_name = category_name.strip()
@@ -3071,13 +3088,15 @@ class M3UEditor(QWidget):
         channels_in_category = self.categories[category_name]
         original_len = len(channels_in_category)
 
-        # מחיקה לפי אינדקסים מסומנים בלבד
         self.categories[category_name] = [
             ch for i, ch in enumerate(channels_in_category)
             if i not in selected_indexes
         ]
 
         deleted = original_len - len(self.categories[category_name])
+
+        # ← הוספה כאן — בדיוק אחרי שינוי ה־categories:
+        self.cleanEmptyCategories()
 
         self.updateCategoryList()
         self.regenerateM3UTextOnly()
@@ -3335,6 +3354,9 @@ class M3UEditor(QWidget):
             if moved_channels:
                 self.categories[current_category] = remaining_channels
                 self.categories[target_category].extend(moved_channels)
+
+                # ✅ הוספת השורה כאן:
+                self.cleanEmptyCategories()
 
                 self.regenerateM3UTextOnly()
                 self.updateCategoryList()
