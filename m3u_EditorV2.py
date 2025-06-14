@@ -41,6 +41,9 @@ from PyQt5.QtGui import QColor
 from deep_translator import GoogleTranslator
 from PyQt5.QtCore import QThread, pyqtSignal
 
+from country_flags import format_category_with_flag
+FLAGS_DIR = r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\flags"
+
 class CategoryTranslateThread(QThread):
     progress = pyqtSignal(int, str)
     finished = pyqtSignal(dict, dict, str)  # updated_categories, mapping, mode
@@ -53,6 +56,7 @@ class CategoryTranslateThread(QThread):
     def run(self):
         import re
         from deep_translator import GoogleTranslator
+        from country_flags import format_category_with_flag
 
         def clean(text):
             return re.sub(r'[\r\n\t\x00-\x1F]', '', text).strip()
@@ -78,23 +82,35 @@ class CategoryTranslateThread(QThread):
             try:
                 if self.mode == "English Only":
                     final_base = eng or clean(translator_en.translate(parts[0]))
+                    display_text = final_base  # ללא דגלים
+
+                elif self.mode == "English & Flags":
+                    final_base = eng or clean(translator_en.translate(parts[0]))
+                    final_base_clean = re.sub(r'^[\U0001F1E6-\U0001F1FF]{2}\s+', '', final_base)
+                    display_text, _ = format_category_with_flag(final_base_clean)
+
                 elif self.mode == "Hebrew Only":
                     final_base = heb or clean(translator_he.translate(parts[0]))
-                else:
+                    display_text = final_base  # ללא דגלים
+
+                else:  # English | Hebrew (with flag in English part)
                     if not eng:
                         eng = clean(translator_en.translate(parts[0]))
                     if not heb:
                         heb = clean(translator_he.translate(parts[0]))
-                    final_base = f"{eng} | {heb}"
-            except:
-                final_base = old_name  # fallback
+                    eng_clean = re.sub(r'^[\U0001F1E6-\U0001F1FF]{2}\s+', '', eng)
+                    flag_part, _ = format_category_with_flag(eng_clean)
+                    display_text = f"{flag_part} | {heb}"
 
-            updated_categories[final_base] = channels
-            category_mapping[old_name] = final_base
+            except Exception as e:
+                print(f"[Category Translate Error] {e}")
+                display_text = old_name  # fallback
+
+            updated_categories[display_text] = channels
+            category_mapping[old_name] = display_text
             self.progress.emit(i + 1, old_name)
 
         self.finished.emit(updated_categories, category_mapping, self.mode)
-
 
 
 class MoveChannelsDialog(QDialog):
@@ -1197,8 +1213,8 @@ class M3UEditor(QWidget):
             self,
             "בחר סגנון תרגום",
             "בחר תצוגה:",
-            ["English Only", "Hebrew Only", "English | Hebrew"],
-            2,
+            ["English Only", "English & Flags", "Hebrew Only", "English | Hebrew"],  # הוספתי את English & Flags
+            3,  # ברירת מחדל English | Hebrew
             False
         )
         if not ok:
@@ -1217,18 +1233,21 @@ class M3UEditor(QWidget):
         self.translation_thread.start()
 
     def on_translation_finished(self, updated_categories, mapping, mode):
+        import re
         self.categories = updated_categories
         self.updateCategoryList()
 
-        # עדכון EXTINF בקובץ הטקסט
         try:
             lines = self.textEdit.toPlainText().splitlines()
             new_lines = []
             for line in lines:
                 if line.startswith("#EXTINF") and 'group-title="' in line:
                     for old, new in mapping.items():
-                        if f'group-title="{old}"' in line:
+                        # ניקוי דגלים ישנים מהשם הישן
+                        old_clean = re.sub(r'^[\U0001F1E6-\U0001F1FF]{2}\s+', '', old)
+                        if f'group-title="{old}"' in line or f'group-title="{old_clean}"' in line:
                             line = line.replace(f'group-title="{old}"', f'group-title="{new}"')
+                            line = line.replace(f'group-title="{old_clean}"', f'group-title="{new}"')
                             break
                 new_lines.append(line)
             self.safely_update_text_edit("\n".join(new_lines))
@@ -2736,17 +2755,32 @@ class M3UEditor(QWidget):
             self.categories[category] = []
             self.updateCategoryList()  # Update the category list
 
-    def updateCategoryList(self):
-        """
-        Updates the category list dynamically to reflect the current channel counts.
-        """
-        self.categoryList.clear()
-        for category, channels in self.categories.items():
-            display_text = f"{category} ({len(channels)})"
-            self.categoryList.addItem(display_text)
+    from country_flags import format_category_with_flag  # לוודא שזה למעלה בקובץ שלך!
 
-            # עדכון הספירה הכללית של ערוצים + קטגוריות
-            self.displayTotalChannels()
+    def updateCategoryList(self):
+        import os
+        from PyQt5.QtGui import QIcon
+
+        FLAGS_DIR = "flags"
+
+        self.categoryList.clear()
+
+        for category, channels in self.categories.items():
+            display_text, country_code = format_category_with_flag(category)
+            display_text = f"{display_text} ({len(channels)})"
+
+            item = QListWidgetItem()
+            item.setText(display_text)
+
+            # אם יש קוד מדינה — נטען PNG אם קיים
+            if country_code:
+                flag_path = os.path.join(FLAGS_DIR, f"{country_code.lower()}.png")
+                if os.path.exists(flag_path):
+                    item.setIcon(QIcon(flag_path))
+
+            self.categoryList.addItem(item)
+
+        self.displayTotalChannels()
 
     def cleanEmptyCategories(self):
         """
