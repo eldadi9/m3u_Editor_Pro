@@ -79,4 +79,3 @@ def format_category_with_flag(category_name):
             display_text = f"{emoji_flag} {name}"  # לא מוסיף את קוד המדינה
             return display_text, code
     return category_name, None
-

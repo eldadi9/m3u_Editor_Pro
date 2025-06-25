@@ -1,82 +1,137 @@
-1lot.tv=http://1lot.tv/epg/epg.xml
-api.catcast.tv=http://api.catcast.tv/api/timetable/epg.xml?channel_ids=38850,38821,38896,39484,38801,39161
-bcumedia.pro=https://bcumedia.pro/epg.xml.gz
-cineman.su=https://cineman.su/epg/epg_cineman.xml.gz
-epg-iptv.ru=http://epg-iptv.ru/premiere-group.xml
-epg.do.am=http://epg.do.am/tv.gz
-epg.fox-tv.fun=http://epg.fox-tv.fun/1.xmltv
-epg.iptvx.tv=http://epg.iptvx.tv/xmltv.xml.gz
-epg.it999.ru=http://epg.it999.ru/epg.xml.gz
-epg.lightiptv.cc=http://epg.lightiptv.cc/epg.xml.gz
-epg.roshen.live=http://epg.roshen.live/tvguide.xml
-epg.streaming-elbrus.su=http://epg.streaming-elbrus.su/xmltv/epg.xml.gz
-f1-mania.ru=http://f1-mania.ru/janitor/EPG.xml.gz
-filmax-tv.ru=https://filmax-tv.ru/epg.xml.gz
-gabbarit.page.link=https://gabbarit.page.link/epg14
-ip-tv.dev=https://ip-tv.dev/epg/epg.xml.gz
-iptv-content.rv77.pw=http://iptv-content.rv77.pw/epg.xml.gz
-iptv-content.webhop.net=http://iptv-content.webhop.net/guide.xml
-iptvx.one=https://iptvx.one/EPG_LITE
-list.playtv.pro=https://list.playtv.pro/f/epg_vod.xml.gz
-list.satfor.pro=https://list.satfor.pro/f/epg.xml.gz
-ottg.tv=http://ottg.tv/epg.xml.gz
-programtv.ru=http://programtv.ru/xmltv.xml.gz
-spacetv.in=http://spacetv.in/api/epg.xml.gz
-topiptv.info=http://topiptv.info/download/topiptv.xml.gz
-www.teleguide.info=http://www.teleguide.info/download/new3/xmltv.xml.gz
-ilooktv=http://epg.one/epg.xml.gz
-epg.it999.ru=http://epg.it999.ru/epg.xml.gz
-epg.it999.ru=http://epg.it999.ru/edem.xml.gz
-epg.it999.ru=http://epg.it999.ru/epg2.xml.gz
-iptvx.one=https://iptvx.one/EPG_LITE
-iptvx.one=https://iptvx.one/EPG
-iptvx.one=https://iptvx.one/EPG.gz
-iptvx.one=https://iptvx.one/epg/epg.xml.gz
-iptvx.one=https://iptvx.one/epg/epg_lite.xml.gz
-www.teleguide.info=http://www.teleguide.info/download/new3/xmltv.xml.gz
-gabbarit.page.link=https://gabbarit.page.link/epg14
-gabbarit.page.link=https://gabbarit.page.link/epg
-1lot.tv=http://1lot.tv/epg/epg.xml
-iptv-content.rv77.pw=http://iptv-content.rv77.pw/epg.xml.gz
-api.catcast.tv=http://api.catcast.tv/api/timetable/epg.xml?channel_ids=38850,38821,38896,39484,38801,39161
-api.catcast.tv=http://api.catcast.tv/api/timetable/epg.xml?channel_ids=39161,38801,38821,38896,38850
-epg.streaming-elbrus.su=http://epg.streaming-elbrus.su/xmltv/epg.xml.gz
-f1-mania.ru=http://f1-mania.ru/janitor/EPG.xml.gz
-list.playtv.pro=https://list.playtv.pro/f/epg_vod.xml.gz
-ip-tv.dev=https://ip-tv.dev/epg/epg.xml.gz
-ottg.tv=http://ottg.tv/epg.xml.gz
-programtv.ru=http://programtv.ru/xmltv.xml.gz
-epg.do.am=http://epg.do.am/tv.gz
-topiptv.info=http://topiptv.info/download/topiptv.xml.gz
-tv.k210.org=http://tv.k210.org/xmltv.xml.gz
-list.satfor.pro=https://list.satfor.pro/f/epg.xml.gz
-filmax-tv.ru=https://filmax-tv.ru/epg.xml.gz
-spacetv.in=http://spacetv.in/api/epg.xml.gz
-bit.ly=http://bit.ly/voc-tv
-epg.fox-tv.fun=http://epg.fox-tv.fun/1.xmltv
-epg.fox-tv.fun=https://epg.fox-tv.fun/1.xmltv
-epg.lightiptv.cc=http://epg.lightiptv.cc/epg.xml.gz
-epg.roshen.live=http://epg.roshen.live/tvguide.xml
-bcumedia.pro=https://bcumedia.pro/epg.xml.gz
-epg.team=http://epg.team/tvteam.xml.gz
-epg.team=http://epg.team/tvteam.xml.7.2
-epg-iptv.ru=http://epg-iptv.ru/premiere-group.xml
-cineman.su=https://cineman.su/epg/epg_cineman.xml.gz
-stb.shara-tv.org=http://stb.shara-tv.org/epg/epgtv.xml.gz
-georgemikl.ucoz.ru=http://georgemikl.ucoz.ru/epg/xmltv.xml.gz
-dortmundez.ucoz.net=http://dortmundez.ucoz.net/epg/epg.xml.gz
-st.kineskop.tv=http://st.kineskop.tv/epg.xml.gz
-iptv-content.webhop.net=http://iptv-content.webhop.net/guide.xml
-epg.greatiptv.cc=https://epg.greatiptv.cc/iptv.xml.gz
-epg.iptvx.tv=http://epg.iptvx.tv/xmltv.xml.gz
-epg.openboxfan.com=http://epg.openboxfan.com/xmltv.xml.gz
-ottepg.ru=https://ottepg.ru/ottepg.xml.gz
-myott.top=http://myott.top/api/epg/xml.gz
-mw.prosto.tv=http://mw.prosto.tv/jtv_utc2.zip
-api.ttv.world=http://api.ttv.world/ttv.xmltv.xml.gz
-antifriz.tv=http://antifriz.tv/xmltv/xml/gz
-iptv-content.webhop.net=http://iptv-content.webhop.net/epg.xml.gz
-iptv-content.webhop.net=http://iptv-content.webhop.net/epg.xml.xz
-iptv-content.webhop.net=http://iptv-content.webhop.net/guide-lite.xml
-iptv-content.webhop.net=http://iptv-content.webhop.net/epg-lite.xml.gz
-iptv-content.webhop.net=http://iptv-content.webhop.net/epg-lite.xml.xz
+🔹 1lot.tv
+http://1lot.tv/epg/epg.xml
+
+🔹 Antifriz.TV
+http://antifriz.tv/xmltv/xml/gz
+
+🔹 api.catcast.tv
+http://api.catcast.tv/api/timetable/epg.xml?channel_ids=38850,38821,38896,39484,38801,39161
+http://api.catcast.tv/api/timetable/epg.xml?channel_ids=39161,38801,38821,38896,38850
+
+🔹 BCUMEDIA
+https://bcumedia.pro/epg.xml.gz
+
+🔹 bit.ly
+http://bit.ly/voc-tv
+
+🔹 CineMan
+https://cineman.su/epg/epg_cineman.xml.gz
+
+🔹 Dortmundez
+http://dortmundez.ucoz.net/epg/epg.xml.gz
+
+🔹 EPG-iptv.ru
+http://epg-iptv.ru/premiere-group.xml
+
+🔹 Epgdo (epg.do.am)
+http://epg.do.am/tv.gz
+
+🔹 Elbrus
+http://epg.streaming-elbrus.su/xmltv/epg.xml.gz
+
+🔹 F1 Mania
+http://f1-mania.ru/janitor/EPG.xml.gz
+
+🔹 Filmax
+https://filmax-tv.ru/epg.xml.gz
+
+🔹 FOX-TV
+http://epg.fox-tv.fun/1.xmltv
+https://epg.fox-tv.fun/1.xmltv
+
+🔹 Gabbarit
+https://gabbarit.page.link/epg14
+https://gabbarit.page.link/epg
+
+🔹 Georgemikl
+http://georgemikl.ucoz.ru/epg/xmltv.xml.gz
+
+🔹 Glanz (ottg.tv)
+http://ottg.tv/epg.xml.gz
+
+🔹 Great IPTV
+https://epg.greatiptv.cc/iptv.xml.gz
+
+🔹 ILOOK TV / Edem TV
+http://epg.it999.ru/epg.xml.gz
+http://epg.it999.ru/edem.xml.gz
+http://epg.it999.ru/epg2.xml.gz
+
+🔹 IPTVX
+https://iptvx.one/EPG_LITE
+https://iptvx.one/EPG
+https://iptvx.one/EPG.gz
+https://iptvx.one/epg/epg.xml.gz
+https://iptvx.one/epg/epg_lite.xml.gz
+
+🔹 IPTVXTV
+http://epg.iptvx.tv/xmltv.xml.gz
+
+🔹 IP-TV.dev
+https://ip-tv.dev/epg/epg.xml.gz
+
+🔹 K210
+http://tv.k210.org/xmltv.xml.gz
+
+🔹 Kineskop TV
+http://st.kineskop.tv/epg.xml.gz
+
+🔹 Light IPTV
+http://epg.lightiptv.cc/epg.xml.gz
+
+🔹 Megane
+http://georgemikl.ucoz.ru/epg/xmltv.xml.gz
+
+🔹 myott.top (OTTCLUB)
+http://myott.top/api/epg/xml.gz
+
+🔹 MW.Prosto TV
+http://mw.prosto.tv/jtv_utc2.zip
+
+🔹 NTTV (api.ttv.world)
+http://api.ttv.world/ttv.xmltv.xml.gz
+
+🔹 Openboxfan
+http://epg.openboxfan.com/xmltv.xml.gz
+
+🔹 Ottepg
+https://ottepg.ru/ottepg.xml.gz
+
+🔹 PlayTV
+https://list.playtv.pro/f/epg_vod.xml.gz
+
+🔹 ProgramTV
+http://programtv.ru/xmltv.xml.gz
+
+🔹 Рошен (Roshen)
+http://epg.roshen.live/tvguide.xml
+
+🔹 RV77
+http://iptv-content.rv77.pw/epg.xml.gz
+
+🔹 Sharavoz TV
+http://iptv-content.webhop.net/guide.xml
+http://iptv-content.webhop.net/epg.xml.gz
+http://iptv-content.webhop.net/epg.xml.xz
+http://iptv-content.webhop.net/guide-lite.xml
+http://iptv-content.webhop.net/epg-lite.xml.gz
+http://iptv-content.webhop.net/epg-lite.xml.xz
+
+🔹 Shara (stb.shara-tv.org)
+http://stb.shara-tv.org/epg/epgtv.xml.gz
+
+🔹 Shara CLUB (list.satfor.pro)
+https://list.satfor.pro/f/epg.xml.gz
+
+🔹 SpaceTV
+http://spacetv.in/api/epg.xml.gz
+
+🔹 Teleguide
+http://www.teleguide.info/download/new3/xmltv.xml.gz
+
+🔹 TopIPTV
+http://topiptv.info/download/topiptv.xml.gz
+
+🔹 TV Team
+http://epg.team/tvteam.xml.gz
+http://epg.team/tvteam.xml.7.2

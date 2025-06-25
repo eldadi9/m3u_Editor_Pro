@@ -1,9 +1,12 @@
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QFileDialog,
-    QTextEdit, QInputDialog, QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem, QHeaderView,
-    QHBoxLayout, QLabel, QMessageBox, QLineEdit, QAbstractItemView, QAction)
+    QApplication, QWidget, QVBoxLayout, QFileDialog, QTextEdit, QInputDialog,
+    QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem, QHeaderView,
+    QHBoxLayout, QLabel, QMessageBox, QLineEdit, QAbstractItemView, QAction,
+    QCompleter, QProgressBar, QDialog, QComboBox, QPushButton, QFrame
+)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QPixmap, QFont, QColor  # Add this line
+from PyQt5.QtGui import QPixmap, QFont, QColor, QIcon
+
 import sys
 import os
 import re
@@ -11,38 +14,38 @@ import traceback
 import pyperclip
 import json
 import threading
-from PyQt5.QtWidgets import QCompleter
-import requests  # You need to import requests to handle downloading
+import requests
 from urllib.parse import urlparse
-from PyQt5.QtWidgets import QProgressBar
 import xml.etree.ElementTree as ET
 import subprocess
 import time
+import shutil  # ודא שמופיע בתחילת הקובץ שלך
 import tempfile
-from PyQt5.QtCore import pyqtSignal
-from datetime import datetime, timedelta
-from PyQt5.QtWidgets import QMessageBox
 from tempfile import NamedTemporaryFile
-from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout
-from PyQt5.QtGui import QColor
+from PyQt5.QtWidgets import QMenu, QAction
+from datetime import datetime, timedelta
+
 from telegram_uploader import send_to_telegram
-from PyQt5.QtGui import QIcon
+from deep_translator import GoogleTranslator
+
+# משתנים גלובליים
 LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_db.json")
 new_logos_counter = 0
 existing_logos_counter = 0
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton, QHBoxLayout, QFrame
-)
+def playCatchupStream(self, url):
+    try:
+        if not url.startswith("http"):
+            QMessageBox.warning(self, "Invalid URL", "כתובת הזרמה לא תקינה.")
+            return
+        vlc_path = r"C:\Program Files\VideoLAN\VLC\vlc.exe"
+        if not os.path.exists(vlc_path):
+            QMessageBox.critical(self, "VLC לא נמצא", "עדכן את הנתיב ל־VLC במערכת.")
+            return
+        subprocess.Popen([vlc_path, url])
+    except Exception as e:
+        QMessageBox.critical(self, "שגיאה", str(e))
 
-from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor
-from deep_translator import GoogleTranslator
-from PyQt5.QtCore import QThread, pyqtSignal
-
-from country_flags import format_category_with_flag
-FLAGS_DIR = r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\flags"
 
 class CategoryTranslateThread(QThread):
     progress = pyqtSignal(int, str)
@@ -56,7 +59,6 @@ class CategoryTranslateThread(QThread):
     def run(self):
         import re
         from deep_translator import GoogleTranslator
-        from country_flags import format_category_with_flag
 
         def clean(text):
             return re.sub(r'[\r\n\t\x00-\x1F]', '', text).strip()
@@ -82,35 +84,23 @@ class CategoryTranslateThread(QThread):
             try:
                 if self.mode == "English Only":
                     final_base = eng or clean(translator_en.translate(parts[0]))
-                    display_text = final_base  # ללא דגלים
-
-                elif self.mode == "English & Flags":
-                    final_base = eng or clean(translator_en.translate(parts[0]))
-                    final_base_clean = re.sub(r'^[\U0001F1E6-\U0001F1FF]{2}\s+', '', final_base)
-                    display_text, _ = format_category_with_flag(final_base_clean)
-
                 elif self.mode == "Hebrew Only":
                     final_base = heb or clean(translator_he.translate(parts[0]))
-                    display_text = final_base  # ללא דגלים
-
-                else:  # English | Hebrew (with flag in English part)
+                else:
                     if not eng:
                         eng = clean(translator_en.translate(parts[0]))
                     if not heb:
                         heb = clean(translator_he.translate(parts[0]))
-                    eng_clean = re.sub(r'^[\U0001F1E6-\U0001F1FF]{2}\s+', '', eng)
-                    flag_part, _ = format_category_with_flag(eng_clean)
-                    display_text = f"{flag_part} | {heb}"
+                    final_base = f"{eng} | {heb}"
+            except:
+                final_base = old_name  # fallback
 
-            except Exception as e:
-                print(f"[Category Translate Error] {e}")
-                display_text = old_name  # fallback
-
-            updated_categories[display_text] = channels
-            category_mapping[old_name] = display_text
+            updated_categories[final_base] = channels
+            category_mapping[old_name] = final_base
             self.progress.emit(i + 1, old_name)
 
         self.finished.emit(updated_categories, category_mapping, self.mode)
+
 
 
 class MoveChannelsDialog(QDialog):
@@ -205,27 +195,6 @@ def save_logo_for_channel(channel_name, logo_url):
         print(f"[LOGO ERROR] Failed to save logo for {channel_name}: {e}")
 
 
-def get_saved_logo(channel_name):
-    if not os.path.exists(LOGO_DB_PATH):
-        return None
-
-    try:
-        with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        logo = data.get(channel_name)
-
-        # תמיכה בלוגו ישן (מחרוזת) או חדש (רשימה)
-        if isinstance(logo, list):
-            return logo[0] if logo else None
-        elif isinstance(logo, str):
-            return logo
-        else:
-            return None
-
-    except Exception as e:
-        print(f"[ERROR] Error loading logo DB: {e}")
-        return None
-
 def detect_stream_quality(name_or_url):
     text = name_or_url.lower()
     if "4k" in text or "2160" in text:
@@ -276,55 +245,14 @@ def create_channel_widget(name, quality):
     widget.setLayout(layout)
     return widget
 
-def inject_logo(line, channel_name, logo_db=None):
-    """
-    Injects saved logo into a #EXTINF line if missing.
-    logo_db - optional dictionary to speed up repeated calls
-    """
-    if 'tvg-logo="' in line:
-        return line
 
-    if logo_db is None:
-        logo = get_saved_logo(channel_name)
-    else:
-        logo = logo_db.get(channel_name)
-        if isinstance(logo, list):
-            logo = logo[0] if logo else None
-        elif not isinstance(logo, str):
-            logo = None
-
+    # הזרקת לוגו תקני
     if logo and isinstance(logo, str) and logo.startswith("http"):
         return line.replace("#EXTINF:-1", f'#EXTINF:-1 tvg-logo="{logo}"')
+
+    # לא מצאנו לוגו – מחזירים את השורה המקורית
     return line
 
-    with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
-        logo_db = json.load(f)
-
-    for line in m3u_lines:
-        new_line = inject_logo(line, channel_name, logo_db)
-
-def exportM3UWithLogos(self, output_path):
-    """
-    כותב קובץ M3U תקני עם שמות ערוצים תקינים (EXTINF) ולוגואים אם קיימים.
-    """
-    try:
-        with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
-            logo_db = json.load(f)
-    except:
-        logo_db = {}
-
-    with open(output_path, "w", encoding="utf-8") as out:
-        out.write("#EXTM3U\n")
-        for category, channels in self.categories.items():
-            for channel in channels:
-                extinf_line = self.extinf_lookup.get(channel, f'#EXTINF:-1,{channel.split(" (")[0].strip()}')
-                url_line = channel.split(" (")[-1].strip(")")
-
-                name = channel.split(" (")[0].strip()
-                extinf_with_logo = inject_logo(extinf_line, name, logo_db)
-
-                out.write(extinf_with_logo + "\n")
-                out.write(url_line + "\n")
 
 
 def save_israeli_logos_background(self, parsed_channels):
@@ -428,40 +356,6 @@ class ExportGroupsDialog(QDialog):
             QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {str(e)}")
 
 
-    def getFullExtInfLine(self, channel, category="Default Category"):
-        """
-        Constructs a full EXTINF line from the channel string.
-        Ensures it includes group-title and channel name.
-        """
-        try:
-            # חלק ראשון: חילוץ מידע מהשורה של EXTINF
-            properties_part = channel.split(" (")[0].strip()
-
-            # חילוץ שם הערוץ (אחרי הפסיק)
-            if "," in properties_part:
-                channel_name = properties_part.split(",")[-1].strip()
-                if not channel_name:
-                    channel_name = "Unknown"
-            else:
-                channel_name = "Unknown"
-
-            # אם אין group-title נוסיף אותו
-            if 'group-title="' not in properties_part:
-                properties_part = f'#EXTINF:-1 group-title="{category}",{channel_name}'
-            else:
-                # ודא שהשורה מתחילה ב־#EXTINF
-                if not properties_part.startswith("#EXTINF"):
-                    properties_part = "#EXTINF:-1 " + properties_part
-
-                # ודא שיש פסיק ושם ערוץ
-                if "," not in properties_part:
-                    properties_part += f",{channel_name}"
-
-            return properties_part
-
-        except Exception as e:
-            print(f"[getFullExtInfLine] Error: {e}")
-            return f'#EXTINF:-1 group-title="{category}",Unknown'
 
 
 class M3UUrlConverterDialog(QDialog):
@@ -585,7 +479,8 @@ class M3UUrlConverterDialog(QDialog):
                 "Accept": "*/*"
             }
 
-            response = requests.get(self.m3uURL, headers=headers, timeout=10)
+            session = setup_session()  # ← שורה חדשה לשיפור
+            response = session.get(self.m3uURL, headers=headers, timeout=10)  # ← שימוש בשיפור
             response.raise_for_status()  # מרים שגיאה אם הקובץ לא ירד תקין
 
             # בדיקת תוכן
@@ -1145,50 +1040,17 @@ class SmartScanStatusDialog(QDialog):
                 "Method selectChannelsByUrls not found."
             )
 
-    def selectProblematic(self):
-        urls_to_mark = set()
-        duplicate_tracker = {}
 
-        for row in range(self.table.rowCount()):
-            channel_name = self.table.item(row, 0).text()
-            status = self.table.item(row, 1).text().lower()
-            url = self.table.item(row, 3).text()
+def setup_session():
+    import requests
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
 
-            if "offline" in status:
-                urls_to_mark.add(url)
-            else:
-                # במקרה של כפולים נסמן רק את השני והלאה
-                if channel_name not in duplicate_tracker:
-                    duplicate_tracker[channel_name] = url
-                else:
-                    urls_to_mark.add(url)
-
-        # סימון סופי לפי URL ייחודי, לא לפי שם בלבד
-        if hasattr(self.parent(), "selectChannelsByUrls"):
-            self.parent().selectChannelsByUrls(urls_to_mark)
-            QMessageBox.information(
-                self, "Marked",
-                f"{len(urls_to_mark)} problematic channels marked in your channel list."
-            )
-        else:
-            QMessageBox.warning(
-                self, "Error",
-                "Method selectChannelsByUrls not found."
-            )
-
-def setup_session() -> requests.Session:
-    """
-    Configures a requests Session with retry logic.
-    """
     session = requests.Session()
-    retries = Retry(
-        total=5,
-        backoff_factor=1,
-        status_forcelist=[502, 503, 504, 500],
-        allowed_methods=["HEAD", "GET", "POST"]
-    )
-    session.mount('http://', HTTPAdapter(max_retries=retries))
-    session.mount('https://', HTTPAdapter(max_retries=retries))
+    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
+    adapter = HTTPAdapter(max_retries=retries)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
     return session
 
 
@@ -1197,14 +1059,101 @@ class M3UEditor(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.categories = {}  # ← הוסף שורה זו ממש בתחילת הפונקציה!
+        self.categories = {}
+        self.logo_cache = {}  # ← שורה חדשה שפותחת את המטמון של הלוגואים
         self.initUI()
+        self.load_logos_once()  # ← טעינה מיידית של קובץ logos_db.json (אם קיים)
         self.logosFinished.connect(self.onLogosFinished)
 
-    import re
+    def merge_or_fix_epg(self):
+        """
+        מזהה ספקים לפי כתובות URL בקובץ ה־M3U ומוסיף או מחליף את שורת ה־EPG בראש.
+        משתמש ב־EPG_providers_full.json.
+        """
+        try:
+            from urllib.parse import urlparse
 
-    def is_non_english(text):
-        return bool(re.search(r'[^\x00-\x7F]', text))  # מזהה תווים שאינם אנגלית
+            epg_json_path = os.path.join(os.path.dirname(__file__), "EPG_providers_full.json")
+            with open(epg_json_path, "r", encoding="utf-8") as f:
+                epg_data = json.load(f)
+
+            # טקסט הקובץ
+            text = self.textEdit.toPlainText()
+            lines = text.splitlines()
+
+            # שליפת כל ה־URLs בקובץ
+            urls = [line.strip() for line in lines if line.strip().startswith("http")]
+            found_domains = set()
+            for url in urls:
+                parsed = urlparse(url)
+                domain = parsed.netloc.lower()
+                if domain.startswith("www."):
+                    domain = domain[4:]
+                found_domains.add(domain)
+
+            # חיפוש ספקים תואמים
+            matched_providers = []
+            matched_urls = []
+            for provider, epg_urls in epg_data.items():
+                for epg_url in epg_urls:
+                    parsed = urlparse(epg_url)
+                    domain = parsed.netloc.lower()
+                    if domain.startswith("www."):
+                        domain = domain[4:]
+                    if any(domain in found for found in found_domains):
+                        matched_providers.append(provider)
+                        matched_urls.extend(epg_urls)
+                        break  # ספק אחד כבר זוהה → עובר הלאה
+
+            # אין תוצאה
+            if not matched_urls:
+                QMessageBox.warning(self, "לא נמצאו ספקים", "לא זוהו ספקים תואמים מתוך רשימת EPG.")
+                return
+
+            # הכנה של שורת ה־EPG התקנית
+            joined_urls = ",".join(sorted(set(matched_urls)))
+            epg_line = f'#EXTM3U x-tvg-url="{joined_urls}"'
+
+            # סינון השורה הראשונה הקיימת – אם היא EXTמ3U כלשהי
+            new_lines = lines
+            if new_lines and new_lines[0].startswith("#EXTM3U"):
+                new_lines = new_lines[1:]  # הסר שורה ראשונה
+
+            # הוספת שורת EPG בראש
+            new_lines.insert(0, epg_line)
+
+            # עדכון לתוך הטקסט
+            self.safely_update_text_edit("\n".join(new_lines))
+
+            # הצגת הספקים שנמצאו
+            found_str = "\n".join(matched_providers)
+            QMessageBox.information(self, "בוצע", f"שורת EPG עודכנה בהצלחה.\n\nספקים שזוהו:\n{found_str}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "שגיאה", f"שגיאה במהלך תיקון או מיזוג EPG:\n{str(e)}")
+
+    def open_channel_context_menu(self, position):
+        try:
+            item = self.channelList.itemAt(position)
+            if not item:
+                print("[ContextMenu] No channel selected - skipping menu")
+                return
+
+            channel_name = item.text().strip()
+            if not channel_name:
+                print("[ContextMenu] Empty channel name - aborting")
+                return
+
+            menu = QMenu(self)
+            play_action = QAction("▶ נגן ב־VLC", self)
+            play_action.triggered.connect(lambda: self.play_channel_with_name(channel_name))
+            menu.addAction(play_action)
+
+            menu.exec_(self.channelList.viewport().mapToGlobal(position))
+
+        except Exception as e:
+            print(f"[ContextMenu Error] {e}")
+            QMessageBox.critical(self, "שגיאה", f"שגיאה בתפריט קליק ימני:\n{e}")
 
     def translate_category_names(self):
         from PyQt5.QtWidgets import QInputDialog, QMessageBox, QProgressDialog
@@ -1213,8 +1162,8 @@ class M3UEditor(QWidget):
             self,
             "בחר סגנון תרגום",
             "בחר תצוגה:",
-            ["English Only", "English & Flags", "Hebrew Only", "English | Hebrew"],  # הוספתי את English & Flags
-            3,  # ברירת מחדל English | Hebrew
+            ["English Only", "Hebrew Only", "English | Hebrew"],
+            2,
             False
         )
         if not ok:
@@ -1233,21 +1182,18 @@ class M3UEditor(QWidget):
         self.translation_thread.start()
 
     def on_translation_finished(self, updated_categories, mapping, mode):
-        import re
         self.categories = updated_categories
         self.updateCategoryList()
 
+        # עדכון EXTINF בקובץ הטקסט
         try:
             lines = self.textEdit.toPlainText().splitlines()
             new_lines = []
             for line in lines:
                 if line.startswith("#EXTINF") and 'group-title="' in line:
                     for old, new in mapping.items():
-                        # ניקוי דגלים ישנים מהשם הישן
-                        old_clean = re.sub(r'^[\U0001F1E6-\U0001F1FF]{2}\s+', '', old)
-                        if f'group-title="{old}"' in line or f'group-title="{old_clean}"' in line:
+                        if f'group-title="{old}"' in line:
                             line = line.replace(f'group-title="{old}"', f'group-title="{new}"')
-                            line = line.replace(f'group-title="{old_clean}"', f'group-title="{new}"')
                             break
                 new_lines.append(line)
             self.safely_update_text_edit("\n".join(new_lines))
@@ -1262,6 +1208,8 @@ class M3UEditor(QWidget):
         מנגן ערוץ עם VLC ומוודא ששם הערוץ יוצג תקין ע"י שימוש בשורת EXTINF עם שם ולוגו.
         """
         try:
+            print(f"[Play] מפעיל ערוץ לפי טקסט: {entry}")
+
             if "(" in entry and entry.endswith(")"):
                 name = entry.split(" (")[0].strip()
                 url = entry.split(" (")[-1].strip(")")
@@ -1269,25 +1217,29 @@ class M3UEditor(QWidget):
                 name = "Unknown"
                 url = entry.strip()
 
-            # נסה להביא את שורת ה-EXTINF המקורית
             extinf_line = self.extinf_lookup.get(entry)
 
-            # אם לא קיימת שורה מקורית – נבנה אחת חדשה עם לוגו
             if not extinf_line:
-                logo = get_saved_logo(name)
+                logo = self.get_saved_logo(name)
                 logo_tag = f' tvg-logo="{logo}"' if logo else ''
                 extinf_line = f'#EXTINF:-1{logo_tag} tvg-name="{name}" group-title="Live",{name}'
 
-            # צור קובץ זמני עם EXTINF + URL
             with tempfile.NamedTemporaryFile(mode="w", suffix=".m3u", delete=False, encoding="utf-8") as f:
                 f.write("#EXTM3U\n")
                 f.write(extinf_line + "\n")
                 f.write(url + "\n")
                 temp_path = f.name
 
-            subprocess.Popen(["vlc", temp_path])
+            # בדיקה אם VLC קיים
+            if not os.path.exists(r"C:\Program Files\VideoLAN\VLC\vlc.exe"):
+                QMessageBox.critical(self, "VLC Error",
+                                     "VLC לא נמצא בנתיב הקבוע.\nעדכן נתיב או ודא שהותקן.")
+                return
+
+            subprocess.Popen([r"C:\Program Files\VideoLAN\VLC\vlc.exe", temp_path])
 
         except Exception as e:
+            print(f"[ERROR] VLC Play Error: {e}")
             QMessageBox.critical(self, "שגיאה", f"שגיאה בהרצת VLC:\n{e}")
 
     def append_channel_name_to_url(self, url, channel_name):
@@ -1480,11 +1432,13 @@ class M3UEditor(QWidget):
         self.clearChannelsSelectionButton.clicked.connect(self.deselectAllChannels)
         self.moveSelectedChannelButton.clicked.connect(self.moveSelectedChannel)
         self.editSelectedChannelButton.clicked.connect(self.editSelectedChannel)
-        self.channelList = QListWidget()
 
         # רשימת ערוצים
         self.channelList = QListWidget(self)
         self.channelList.setSelectionMode(QListWidget.MultiSelection)
+        # הוספת תפריט קליק ימני
+        self.channelList.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.channelList.customContextMenuRequested.connect(self.open_channel_context_menu)
         layout.addWidget(self.channelList)
 
         return layout
@@ -1496,44 +1450,66 @@ class M3UEditor(QWidget):
                 self.logo_cache = json.load(f)
 
     def get_saved_logo(self, channel_name):
-        return self.logo_cache.get(channel_name)
+        logo = self.logo_cache.get(channel_name)
+        if isinstance(logo, list):
+            return logo[0] if logo else None
+        elif isinstance(logo, str):
+            return logo
+        return None
+
+    def inject_logo(self, line, channel_name, logo_db=None):
+        """
+        Injects saved logo into a #EXTINF line if missing.
+        logo_db - optional dictionary to speed up repeated calls
+        """
+        if 'tvg-logo="' in line:
+            return line  # יש כבר לוגו, לא עושים כלום
+
+        # שלוף לוגו מה־DB (אם לא הועבר מבחוץ)
+        if logo_db is None:
+            logo = self.get_saved_logo(channel_name)
+        else:
+            logo = logo_db.get(channel_name)
+            if isinstance(logo, list):
+                logo = logo[0] if logo else None
+            elif not isinstance(logo, str):
+                logo = None
+
+        # הזרקת לוגו תקני
+        if logo and isinstance(logo, str) and logo.startswith("http"):
+            return line.replace("#EXTINF:-1", f'#EXTINF:-1 tvg-logo="{logo}"')
+
+        # לא מצאנו לוגו – מחזירים את השורה המקורית
+        return line
+
+    def exportM3UWithLogos(self, output_path):
+        """
+        כותב קובץ M3U תקני עם שמות ערוצים תקינים (EXTINF) ולוגואים אם קיימים.
+        """
+        try:
+            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                logo_db = json.load(f)
+        except:
+            logo_db = {}
+
+        with open(output_path, "w", encoding="utf-8") as out:
+            out.write("#EXTM3U\n")
+            for category, channels in self.categories.items():
+                for channel in channels:
+                    extinf_line = self.extinf_lookup.get(channel, f'#EXTINF:-1,{channel.split(" (")[0].strip()}')
+                    url_line = channel.split(" (")[-1].strip(")")
+
+                    name = channel.split(" (")[0].strip()
+                    extinf_with_logo = self.inject_logo(extinf_line, name, logo_db)
+
+                    out.write(extinf_with_logo + "\n")
+                    out.write(url_line + "\n")
 
     def openM3UConverterDialog(self):
         dialog = M3UUrlConverterDialog(self)
         dialog.exec_()
 
-    def downloadDirectM3U(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Direct M3U Downloader")
-        dialog.setGeometry(300, 300, 600, 300)
-
-        # ✅ כאן להוסיף את השורה שלך על dialog
-        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-
-        dialog.setStyleSheet("""
-            QDialog { background-color: white; border: 5px solid red; }
-            QPushButton { font-weight: bold; height: 40px; }
-            QLineEdit { font-size: 14px; padding: 6px; }
-        """)
-
-        layout = QVBoxLayout(dialog)
-
-        label = QLabel("Paste your M3U URL:")
-        layout.addWidget(label)
-
-        url_input = QLineEdit()
-        url_input.setPlaceholderText("http://example.com/get.php?username=...&password=...")
-        layout.addWidget(url_input)
-
-        download_button = QPushButton("Download M3U")
-        download_button.setStyleSheet("background-color: red; color: white;")
-        layout.addWidget(download_button)
-
-        close_button = QPushButton("Close")
-        close_button.setStyleSheet("background-color: black; color: white;")
-        layout.addWidget(close_button)
-
-        close_button.clicked.connect(dialog.close)
+    
 
         def handle_download():
             url = url_input.text().strip()
@@ -1546,7 +1522,8 @@ class M3UEditor(QWidget):
                 return
 
             try:
-                response = requests.get(url)
+                session = setup_session()  # ← חדש
+                response = session.get(url, timeout=5)
                 response.raise_for_status()
                 content = response.text.strip()
 
@@ -1704,7 +1681,8 @@ class M3UEditor(QWidget):
                 if not re.match(r'^https?://', url):
                     continue
                 try:
-                    response = requests.get(url)
+                    session = setup_session()  # ← חדש
+                    response = session.get(url, timeout=5)
                     response.raise_for_status()
                     content = response.text.strip()
                     if not content.startswith("#EXTM3U"):
@@ -2254,7 +2232,7 @@ class M3UEditor(QWidget):
                     url_line = new_lines[i + 1] if i + 1 < len(new_lines) else ""
                     name_match = re.search(r",(.+)", extinf_line)
                     channel_name = name_match.group(1).strip() if name_match else ""
-                    extinf_line = inject_logo(extinf_line, channel_name, logo_db)
+                    extinf_line = self.inject_logo(extinf_line, channel_name, logo_db)  # ← תיקון!
                     merged_lines.append(extinf_line)
                     if url_line:
                         merged_lines.append(url_line)
@@ -2518,11 +2496,6 @@ class M3UEditor(QWidget):
         # Create a horizontal layout for the buttons
         buttons_layout = QHBoxLayout()
 
-        self.directM3UDownloadButton = QPushButton('🌐 M3U Direct', self)
-        self.directM3UDownloadButton.setStyleSheet("background-color: black; color: white;")
-        self.directM3UDownloadButton.clicked.connect(self.downloadDirectM3U)
-        buttons_layout.addWidget(self.directM3UDownloadButton)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         self.batchM3UDownloadButton = QPushButton('🔀 Smart M3U Loader', self)
         self.batchM3UDownloadButton.setStyleSheet("background-color: black; color: white;")
@@ -2564,7 +2537,11 @@ class M3UEditor(QWidget):
         self.manageLogosButton.clicked.connect(self.open_logo_manager)
         buttons_layout.addWidget(self.manageLogosButton)
 
-
+        self.mergeEPGButton = QPushButton('📺 Fix EPG', self)
+        self.mergeEPGButton.setStyleSheet("background-color: black; color: white;")
+        self.mergeEPGButton.clicked.connect(self.merge_or_fix_epg)
+        buttons_layout.addWidget(self.mergeEPGButton)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
         # Add the horizontal layout to the vertical layout
         layout.addLayout(buttons_layout)
@@ -2755,32 +2732,17 @@ class M3UEditor(QWidget):
             self.categories[category] = []
             self.updateCategoryList()  # Update the category list
 
-    from country_flags import format_category_with_flag  # לוודא שזה למעלה בקובץ שלך!
-
     def updateCategoryList(self):
-        import os
-        from PyQt5.QtGui import QIcon
-
-        FLAGS_DIR = "flags"
-
+        """
+        Updates the category list dynamically to reflect the current channel counts.
+        """
         self.categoryList.clear()
-
         for category, channels in self.categories.items():
-            display_text, country_code = format_category_with_flag(category)
-            display_text = f"{display_text} ({len(channels)})"
+            display_text = f"{category} ({len(channels)})"
+            self.categoryList.addItem(display_text)
 
-            item = QListWidgetItem()
-            item.setText(display_text)
-
-            # אם יש קוד מדינה — נטען PNG אם קיים
-            if country_code:
-                flag_path = os.path.join(FLAGS_DIR, f"{country_code.lower()}.png")
-                if os.path.exists(flag_path):
-                    item.setIcon(QIcon(flag_path))
-
-            self.categoryList.addItem(item)
-
-        self.displayTotalChannels()
+            # עדכון הספירה הכללית של ערוצים + קטגוריות
+            self.displayTotalChannels()
 
     def cleanEmptyCategories(self):
         """
@@ -2988,44 +2950,18 @@ class M3UEditor(QWidget):
         self.regenerateM3UTextOnly()
 
     def buildUnifiedEPGHeader(self):
-        """
-        בונה שורת EXTמ3U מאוחדת הכוללת את כל קישורי ה־EPG שנמצאו בשורות epg_headers
-        תומך בפרמטרים כמו: generation-date, catchup, url-tvg/x-tvg-url
-        """
-        if not hasattr(self, "epg_headers") or not self.epg_headers:
-            return "#EXTM3U"
-
-        epg_urls = set()
-        catchup_attrs = []
-        other_attrs = []
-
-        for line in self.epg_headers:
-            if line.startswith("#EXTM3U"):
-                # מצא כל זוג מפתח="ערך"
-                matches = re.findall(r'(\w+)\s*=\s*"([^"]+)"', line)
-                for key, value in matches:
-                    key_lower = key.lower()
-                    if key_lower in ("x-tvg-url", "url-tvg"):
-                        epg_urls.add(value.strip())
-                    elif key_lower == "catchup":
-                        catchup_attrs.append(f'{key}="{value.strip()}"')
-                    else:
-                        other_attrs.append(f'{key}="{value.strip()}"')
-
-        # בניית שורת EPG אחידה
-        joined_urls = ",".join(sorted(epg_urls))
-        epg_line = '#EXTM3U'
-
-        if joined_urls:
-            epg_line += f' url-tvg="{joined_urls}"'
-
-        if catchup_attrs:
-            epg_line += " " + " ".join(catchup_attrs)
-
-        if other_attrs:
-            epg_line += " " + " ".join(other_attrs)
-
-        return epg_line
+        if hasattr(self, "epg_headers") and self.epg_headers:
+            urls = []
+            for header in self.epg_headers:
+                matches = re.findall(r'(?:url-tvg|x-tvg-url|tvg-url)="([^"]+)"', header)
+                for match in matches:
+                    for url in match.split(","):
+                        cleaned = url.strip()
+                        if cleaned and cleaned not in urls:
+                            urls.append(cleaned)
+            if urls:
+                return f'#EXTM3U tvg-url="{",".join(urls)}"'
+        return "#EXTM3U"
 
     def regenerateM3UTextOnly(self, fast_mode=True):
         updated_lines = []
@@ -3445,7 +3381,7 @@ class M3UEditor(QWidget):
                         extinf_line = self.extinf_lookup.get(f"{channel_name} ({url})")
 
                         if not extinf_line:
-                            logo = get_saved_logo(channel_name)
+                            logo = self.get_saved_logo(channel_name)
                             logo_tag = f' tvg-logo="{logo}"' if logo else ''
                             extinf_line = f'#EXTINF:-1{logo_tag} tvg-name="{channel_name}" group-title="Preview",{channel_name}'
 
@@ -4026,37 +3962,34 @@ class M3UEditor(QWidget):
             self,
             "Open M3U File",
             "",
-            "M3U Files (*.m3u *.m3u8);;All Files (*)",
-            options=options
+            "M3U Files (*.m3u *.m3u8);;All Files (*)", options=options
         )
         if fileName:
             try:
                 with open(fileName, 'r', encoding='utf-8') as file:
                     content = file.read()
 
-                self.safely_update_text_edit(content)
+                # טען M3U דרך המתודה הראשית
+                self.loadM3UFromText(content, append=False)
 
-                # מציג את התוכן ומעדכן קטגוריות
-                self.parseM3UContentEnhanced(content)
-
-                # סריקת לוגואים של כל הערוצים, לא רק ישראל
-                threading.Thread(
-                    target=self.extract_and_save_logos_for_all_channels,
-                    args=(content,),
-                    daemon=True
-                ).start()
-
-                # ✅ סה״כ ערוצים + קטגוריות
+                # ✅ עדכון תצוגה
                 total_channels = sum(len(channels) for channels in self.categories.values())
                 total_categories = len(self.categories)
                 summary = f"📺 Total Channels: {total_channels}   |   🗂 Categories: {total_categories}"
-
                 self.channelCountLabel.setText(summary)
                 self.channelCountLabel.setToolTip(f"{total_channels} ערוצים בסך הכל ב-{total_categories} קטגוריות")
                 self.fileNameLabel.setText(f"Loaded File: {os.path.basename(fileName)}")
 
+                # 🧠 טעינת קובץ EPG אוטומטית אם קיים
+                epg_base = os.path.splitext(fileName)[0]
+                for ext in [".xml", ".xml.gz"]:
+                    epg_candidate = epg_base + ext
+                    if os.path.exists(epg_candidate):
+                        self.loadEPG(epg_candidate)
+                        break  # נטען רק את הראשון שנמצא
+
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to load file: {str(e)}")
+                QMessageBox.critical(self, "Error", f"Failed to load file:\n{str(e)}")
 
     def loadEPG(self, epg_path):
         try:
@@ -4066,45 +3999,137 @@ class M3UEditor(QWidget):
             if not hasattr(self, 'epg_data'):
                 self.epg_data = {}
 
+            count = 0
             for programme in root.findall('programme'):
-                channel_id = programme.attrib.get('channel')
-                title = programme.findtext('title')
-                desc = programme.findtext('desc')
-                start = programme.attrib.get('start')
-                stop = programme.attrib.get('stop')
+                channel_id = programme.attrib.get('channel', '').strip()
+                title = (programme.findtext('title') or '').strip()
+                desc = (programme.findtext('desc') or '').strip()
+                start = programme.attrib.get('start', '').strip()
+                stop = programme.attrib.get('stop', '').strip()
 
                 if channel_id:
-                    self.epg_data.setdefault(channel_id, []).append({
-                        'title': title,
-                        'desc': desc,
+                    entry = {
+                        'title': title or 'No Title',
+                        'desc': desc or '',
                         'start': start,
                         'stop': stop
-                    })
+                    }
+                    self.epg_data.setdefault(channel_id, []).append(entry)
+                    count += 1
+
+            # 🧠 מיון לפי זמן התחלה
+            for programmes in self.epg_data.values():
+                programmes.sort(key=lambda p: p.get('start', ''))
+
+            QMessageBox.information(self, "EPG Loaded", f"📅 EPG data loaded successfully.\nEntries parsed: {count}")
 
         except Exception as e:
             QMessageBox.critical(self, "EPG Error", f"Failed to load EPG file:\n{str(e)}")
 
-    from datetime import datetime, timedelta
-
     def openEPGViewer(self, tvg_id):
+        from PyQt5.QtWidgets import QScrollArea, QCheckBox
+        from datetime import datetime
+
         if not hasattr(self, 'epg_data') or tvg_id not in self.epg_data:
             QMessageBox.information(self, "EPG Viewer", "No EPG data available.")
             return
 
+        # === יצירת דיאלוג ===
         dialog = QDialog(self)
-        dialog.setWindowTitle(f"EPG for {tvg_id}")
-        dialog.resize(500, 600)
-        layout = QVBoxLayout(dialog)
+        dialog.setWindowTitle(f"📺 לוח שידורים: {tvg_id}")
+        dialog.resize(600, 700)
+        main_layout = QVBoxLayout(dialog)
 
-        entries = self.getRecentEPG(tvg_id)
-        if not entries:
-            layout.addWidget(QLabel("No recent programs"))
-        else:
-            for entry in entries:
-                label = QLabel(f"<b>{entry['title']}</b><br>{entry['desc']}<br>{entry['start']} → {entry['stop']}")
-                layout.addWidget(label)
+        # === שורת חיפוש ===
+        search_input = QLineEdit()
+        search_input.setPlaceholderText("🔍 חפש תוכנית לפי שם או תיאור...")
+        main_layout.addWidget(search_input)
 
-        dialog.setLayout(layout)
+        # === תיבת סימון - רק עכשיו ===
+        now_only_checkbox = QCheckBox("📡 הצג רק תוכניות שמשודרות עכשיו")
+        main_layout.addWidget(now_only_checkbox)
+
+        # === אזור גלילה ===
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        scroll.setWidget(scroll_widget)
+        main_layout.addWidget(scroll)
+
+        # === פונקציית רענון (פנימית) ===
+        def refresh_epg_view():
+            # ניקוי תצוגה קודמת
+            for i in reversed(range(scroll_layout.count())):
+                widget = scroll_layout.itemAt(i).widget()
+                if widget:
+                    widget.setParent(None)
+
+            entries = self.getRecentEPG(tvg_id)
+            now = datetime.now()
+            keyword = search_input.text().lower()
+            show_now_only = now_only_checkbox.isChecked()
+
+            for entry in sorted(entries, key=lambda e: e.get('start', '')):
+                title = entry.get('title', 'No Title').strip()
+                desc = entry.get('desc', '').strip()
+                start = entry.get('start', '')
+                stop = entry.get('stop', '')
+                play_url = entry.get('play_url') or entry.get('catchup-url')
+
+                # סינון לפי חיפוש
+                if keyword and keyword not in title.lower() and keyword not in desc.lower():
+                    continue
+
+                # סינון לפי זמן נוכחי
+                try:
+                    start_dt = datetime.strptime(start[:12], '%Y%m%d%H%M')
+                    stop_dt = datetime.strptime(stop[:12], '%Y%m%d%H%M')
+                    if show_now_only and not (start_dt <= now <= stop_dt):
+                        continue
+                except:
+                    pass  # מקרה של פורמט תאריך שגוי
+
+                # תרגום תאריכים
+                def format_time(ts):
+                    try:
+                        return datetime.strptime(ts[:12], '%Y%m%d%H%M').strftime('%d/%m/%Y %H:%M')
+                    except:
+                        return ts
+
+                # תצוגת תוכנית
+                label = QLabel(f"""
+                    <b style="font-size:14px;">{title}</b><br>
+                    <span style="color:gray;">{desc}</span><br>
+                    <span style="color:blue;">{format_time(start)} → {format_time(stop)}</span>
+                """)
+                label.setWordWrap(True)
+
+                program_box = QVBoxLayout()
+                program_box.addWidget(label)
+
+                if play_url:
+                    play_button = QPushButton("▶ הפעל")
+                    play_button.setStyleSheet("background-color: green; color: white; font-weight: bold;")
+                    play_button.clicked.connect(lambda _, url=play_url: self.playCatchupStream(url))
+                    program_box.addWidget(play_button)
+
+                # עטיפה ב־QWidget
+                program_widget = QWidget()
+                program_widget.setLayout(program_box)
+                scroll_layout.addWidget(program_widget)
+
+            if scroll_layout.count() == 0:
+                scroll_layout.addWidget(QLabel("❌ לא נמצאו תוכניות תואמות."))
+
+        # === הפעלת רענון ===
+        search_input.textChanged.connect(refresh_epg_view)
+        now_only_checkbox.stateChanged.connect(refresh_epg_view)
+
+        # רענון ראשון
+        refresh_epg_view()
+
+        dialog.setLayout(main_layout)
         dialog.exec_()
 
     def openEPGViewerForSelectedChannel(self):
