@@ -33,6 +33,7 @@ LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_d
 new_logos_counter = 0
 existing_logos_counter = 0
 
+
 def playCatchupStream(self, url):
     try:
         if not url.startswith("http"):
@@ -100,7 +101,6 @@ class CategoryTranslateThread(QThread):
             self.progress.emit(i + 1, old_name)
 
         self.finished.emit(updated_categories, category_mapping, self.mode)
-
 
 
 class MoveChannelsDialog(QDialog):
@@ -207,6 +207,8 @@ def detect_stream_quality(name_or_url):
         return "SD"
     else:
         return "Unknown"
+
+
 def create_channel_widget(name, quality):
     def quality_color(q):
         if q == "4K":
@@ -245,14 +247,12 @@ def create_channel_widget(name, quality):
     widget.setLayout(layout)
     return widget
 
-
     # הזרקת לוגו תקני
     if logo and isinstance(logo, str) and logo.startswith("http"):
         return line.replace("#EXTINF:-1", f'#EXTINF:-1 tvg-logo="{logo}"')
 
     # לא מצאנו לוגו – מחזירים את השורה המקורית
     return line
-
 
 
 def save_israeli_logos_background(self, parsed_channels):
@@ -307,7 +307,6 @@ class ExportGroupsDialog(QDialog):
 
         self.setLayout(layout)
 
-
     def exportSelected(self):
         selectedCategory, ok = QInputDialog.getItem(self, "Select Group", "Choose a group to export:",
                                                     list(self.categories.keys()), 0, False)
@@ -354,8 +353,6 @@ class ExportGroupsDialog(QDialog):
 
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {str(e)}")
-
-
 
 
 class M3UUrlConverterDialog(QDialog):
@@ -520,6 +517,8 @@ class SmartScanDialog(QDialog):
 
         layout.addWidget(self.categoryScanButton)
         layout.addWidget(self.allScanButton)
+
+
 class SmartScanThread(QThread):
     progress = pyqtSignal(int, int, int, tuple)  # checked, offline, duplicate, (name, url, status, reason)
     finished = pyqtSignal()
@@ -660,7 +659,6 @@ class URLCheckerDialog(QDialog):
         self.results = []
         self.thread = None
         self.initUI()
-
 
     def initUI(self):
         self.setWindowTitle("URL Checker")
@@ -805,7 +803,6 @@ class URLCheckerDialog(QDialog):
             self.thread.stop()
             self.statusLine.setText("Status: Stopping...")
 
-
     def getCategoryByChannelName(self, channel_name):
         return self.channel_category_mapping.get(channel_name.lower().strip(), "Unknown")
 
@@ -863,7 +860,6 @@ class SmartScanStatusDialog(QDialog):
         self.progressBar.setValue(0)
         layout.addWidget(self.progressBar)
 
-
         # Table
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)
@@ -877,7 +873,6 @@ class SmartScanStatusDialog(QDialog):
         self.stopBtn.setStyleSheet("background-color: purple; color: white;")
         self.stopBtn.clicked.connect(self.stopScan)
         btnLayout.addWidget(self.stopBtn)
-
 
         self.markBtn = QPushButton("Mark Channels (Duplicates + Offline)")
         self.markBtn.setStyleSheet("background-color: purple; color: white; font-weight: bold;")
@@ -935,7 +930,6 @@ class SmartScanStatusDialog(QDialog):
         self.table.setItem(row, 1, status_item)
         self.table.setItem(row, 2, QTableWidgetItem(reason))
         self.table.setItem(row, 3, QTableWidgetItem(url))
-
 
     def refreshTable(self):
         self.table.setRowCount(0)
@@ -1067,70 +1061,50 @@ class M3UEditor(QWidget):
 
     def merge_or_fix_epg(self):
         """
-        מזהה ספקים לפי כתובות URL בקובץ ה־M3U ומוסיף או מחליף את שורת ה־EPG בראש.
-        משתמש ב־EPG_providers_full.json.
+        מאחד או מתקן את שורת ה־EPG בראש הקובץ לפי ספקים מזוהים.
+        שומר שורת EXTמ3U אחת בלבד, עם כל קישורי ה־EPG התקפים שנמצאו.
         """
-        try:
-            from urllib.parse import urlparse
 
-            epg_json_path = os.path.join(os.path.dirname(__file__), "EPG_providers_full.json")
-            with open(epg_json_path, "r", encoding="utf-8") as f:
-                epg_data = json.load(f)
+        # שלב 1: אסוף את כל הקישורים שהוזנו ידנית או מזוהים מהטעינה
+        all_epg_links = set(self.epg_headers if hasattr(self, 'epg_headers') else [])
 
-            # טקסט הקובץ
-            text = self.textEdit.toPlainText()
-            lines = text.splitlines()
-
-            # שליפת כל ה־URLs בקובץ
-            urls = [line.strip() for line in lines if line.strip().startswith("http")]
-            found_domains = set()
-            for url in urls:
-                parsed = urlparse(url)
-                domain = parsed.netloc.lower()
-                if domain.startswith("www."):
-                    domain = domain[4:]
-                found_domains.add(domain)
-
-            # חיפוש ספקים תואמים
-            matched_providers = []
-            matched_urls = []
-            for provider, epg_urls in epg_data.items():
-                for epg_url in epg_urls:
-                    parsed = urlparse(epg_url)
-                    domain = parsed.netloc.lower()
-                    if domain.startswith("www."):
-                        domain = domain[4:]
-                    if any(domain in found for found in found_domains):
-                        matched_providers.append(provider)
-                        matched_urls.extend(epg_urls)
-                        break  # ספק אחד כבר זוהה → עובר הלאה
-
-            # אין תוצאה
-            if not matched_urls:
-                QMessageBox.warning(self, "לא נמצאו ספקים", "לא זוהו ספקים תואמים מתוך רשימת EPG.")
+        # שלב 2: אם יש תוכן נטען, נזהה ספקים
+        if hasattr(self, 'last_loaded_m3u') and self.last_loaded_m3u:
+            try:
+                with open("EPG_providers_full.json", "r", encoding="utf-8") as f:
+                    providers = json.load(f)
+            except Exception as e:
+                QMessageBox.critical(self, "EPG Error", f"שגיאה בקריאת קובץ EPG:\n{e}")
                 return
 
-            # הכנה של שורת ה־EPG התקנית
-            joined_urls = ",".join(sorted(set(matched_urls)))
-            epg_line = f'#EXTM3U x-tvg-url="{joined_urls}"'
+            # זיהוי ספקים לפי מילים מתוך JSON
+            content_lower = self.last_loaded_m3u.lower()
+            for provider, epg_list in providers.items():
+                for keyword in [provider] + provider.split():
+                    if keyword.lower() in content_lower:
+                        all_epg_links.update(epg_list)
 
-            # סינון השורה הראשונה הקיימת – אם היא EXTמ3U כלשהי
-            new_lines = lines
-            if new_lines and new_lines[0].startswith("#EXTM3U"):
-                new_lines = new_lines[1:]  # הסר שורה ראשונה
+        # שלב 3: ניקוי השורות הקודמות והוספת אחת חדשה
+        cleaned_lines = []
+        added_header = False
 
-            # הוספת שורת EPG בראש
-            new_lines.insert(0, epg_line)
+        for line in self.last_loaded_m3u.splitlines():
+            if not line.startswith("#EXTM3U"):
+                cleaned_lines.append(line)
+            elif not added_header:
+                added_header = True  # רק שורה אחת תיכנס
 
-            # עדכון לתוך הטקסט
-            self.safely_update_text_edit("\n".join(new_lines))
+        # בניית שורת EXTמ3U חדשה
+        final_epg_links = ",".join(sorted(all_epg_links))
+        new_header = f'#EXTM3U x-tvg-url="{final_epg_links}"' if final_epg_links else "#EXTM3U"
 
-            # הצגת הספקים שנמצאו
-            found_str = "\n".join(matched_providers)
-            QMessageBox.information(self, "בוצע", f"שורת EPG עודכנה בהצלחה.\n\nספקים שזוהו:\n{found_str}")
+        cleaned_content = new_header + "\n" + "\n".join(cleaned_lines)
+        self.last_loaded_m3u = cleaned_content  # שמירה לעתיד
 
-        except Exception as e:
-            QMessageBox.critical(self, "שגיאה", f"שגיאה במהלך תיקון או מיזוג EPG:\n{str(e)}")
+        # טעינה מחדש למערכת
+        self.loadM3UFromText(cleaned_content)
+
+        QMessageBox.information(self, "EPG Updated", "✅ שורת EPG עודכנה והוזנה מחדש.")
 
     def open_channel_context_menu(self, position):
         try:
@@ -1413,15 +1387,12 @@ class M3UEditor(QWidget):
         self.previewButton.clicked.connect(self.previewSelectedChannel)
         button_layout.addWidget(self.previewButton)
 
-
-
         for btn in [self.addChannelButton, self.deleteChannelButton, self.moveChannelUpButton,
                     self.moveChannelDownButton, self.selectAllChannelsButton, self.clearChannelsSelectionButton,
                     self.moveSelectedChannelButton, self.editSelectedChannelButton, self.checkDoublesButton]:
             button_layout.addWidget(btn)
 
         layout.addLayout(button_layout)
-
 
         # חיבורים
         self.addChannelButton.clicked.connect(self.addChannel)
@@ -1508,8 +1479,6 @@ class M3UEditor(QWidget):
     def openM3UConverterDialog(self):
         dialog = M3UUrlConverterDialog(self)
         dialog.exec_()
-
-    
 
         def handle_download():
             url = url_input.text().strip()
@@ -2496,7 +2465,6 @@ class M3UEditor(QWidget):
         # Create a horizontal layout for the buttons
         buttons_layout = QHBoxLayout()
 
-
         self.batchM3UDownloadButton = QPushButton('🔀 Smart M3U Loader', self)
         self.batchM3UDownloadButton.setStyleSheet("background-color: black; color: white;")
         self.batchM3UDownloadButton.clicked.connect(self.openBatchDownloader)
@@ -2523,7 +2491,6 @@ class M3UEditor(QWidget):
         self.filterIsraelChannelsButton = QPushButton('🇮🇱 IsraelX Export', self)
         self.filterIsraelChannelsButton.setStyleSheet("background-color: black; color: white;")
         self.filterIsraelChannelsButton.clicked.connect(self.chooseLanguageAndFilterIsraelChannels)
-
 
         buttons_layout.addWidget(self.filterIsraelChannelsButton)
 
@@ -2842,7 +2809,6 @@ class M3UEditor(QWidget):
             # Update the QTextEdit with the modified content
             self.safely_update_text_edit("\n".join(updated_lines))
 
-
             # Refresh the category list in the UI
             self.updateCategoryList()
 
@@ -3001,7 +2967,6 @@ class M3UEditor(QWidget):
                 updated_lines.append(f"{extinf}\n{url}")
 
         self.safely_update_text_edit("\n".join(updated_lines))
-
 
     def refreshCategoryListOnly(self, selected_index=None):
         self.categoryList.clear()
@@ -3536,7 +3501,6 @@ class M3UEditor(QWidget):
         label.setAlignment(Qt.AlignCenter)
         layout.addWidget(label)
 
-
         category_btn = QPushButton("Choose Category")
         category_btn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
 
@@ -3584,31 +3548,31 @@ class M3UEditor(QWidget):
             QMessageBox.information(self, "Info", "No channels found in this category.")
 
     def runURLChecker(self, scan_current_category, dialog):
-            dialog.close()
-            channels = []
+        dialog.close()
+        channels = []
 
-            if scan_current_category:
-                category_item = self.categoryList.currentItem()
-                if not category_item:
-                    QMessageBox.warning(self, "Warning", "Please select a category.")
-                    return
-                category_name = category_item.text().split(" (")[0]
-                for ch in self.categories.get(category_name, []):
+        if scan_current_category:
+            category_item = self.categoryList.currentItem()
+            if not category_item:
+                QMessageBox.warning(self, "Warning", "Please select a category.")
+                return
+            category_name = category_item.text().split(" (")[0]
+            for ch in self.categories.get(category_name, []):
+                name = ch.split(" (")[0]
+                url = self.getUrl(ch)
+                channels.append((name, url))
+        else:
+            for channel_list in self.categories.values():
+                for ch in channel_list:
                     name = ch.split(" (")[0]
                     url = self.getUrl(ch)
                     channels.append((name, url))
-            else:
-                for channel_list in self.categories.values():
-                    for ch in channel_list:
-                        name = ch.split(" (")[0]
-                        url = self.getUrl(ch)
-                        channels.append((name, url))
 
-            if channels:
-                dialog = URLCheckerDialog(channels, self)
-                dialog.exec_()
-            else:
-                QMessageBox.information(self, "Info", "No channels found to scan.")
+        if channels:
+            dialog = URLCheckerDialog(channels, self)
+            dialog.exec_()
+        else:
+            QMessageBox.information(self, "Info", "No channels found to scan.")
 
     def showCategoryPickerDialog(self):
         dialog = QDialog(self)
@@ -4327,7 +4291,6 @@ class M3UEditor(QWidget):
         hebrew_btn.clicked.connect(lambda: apply_filter("he"))
         english_btn.clicked.connect(lambda: apply_filter("en"))
 
-
     def _apply_filter_and_close(self, dialog, lang):
         dialog.accept()
         self.filterIsraelChannelsFromKeywords(lang)
@@ -4371,8 +4334,6 @@ class M3UEditor(QWidget):
         self.categoryList.clear()
         for category, channels in self.categories.items():
             self.categoryList.addItem(f"{category} ({len(channels)})")
-
-
 
     def loadRadioCategories(self, filtered_channels, file_path):
         try:
