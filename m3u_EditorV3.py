@@ -49,11 +49,13 @@ LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_d
 
 def detect_stream_quality(entry: str) -> str:
     e = entry.lower()
-    if '4k' in e:              return '4K'
-    if '1080' in e:            return 'FHD'
-    if '720' in e or re.search(r'\bhd\b', e): return 'HD'
-    if '480' in e or re.search(r'\bsd\b', e): return 'SD'
+    if '4k' in e:                 return '4K'
+    if '2160' in e:               return '4K'
+    if '1080' in e:               return 'FHD'
+    if '720'  in e or 'hd' in e:  return 'HD'
+    if '480'  in e or 'sd' in e:  return 'SD'
     return 'Unknown'
+
 
 def create_channel_widget(name: str, quality: str) -> QWidget:
     w = QWidget()
@@ -2852,38 +2854,52 @@ class M3UEditor(QWidget):
         convert_button.clicked.connect(handle_conversion)
         dialog.exec_()
 
-
     def sortChannels(self):
-        sort_option = self.sortingComboBox.currentText()
-        current_category = self.categoryList.currentItem().text().split(" (")[
-            0] if self.categoryList.currentItem() else None
+        """
+        ממיין את self.categories[קטגוריה-נוכחית] עפ״י האפשרות שב-combobox
+        ואז מרענן - התצוגה וה-M3U.
+        """
+        # קטגוריה נבחרת?
+        cur_item = self.categoryList.currentItem()
+        if not cur_item:
+            return
 
-        if current_category and current_category in self.categories:
-            if sort_option == "Sort by Name A-Z":
-                self.categories[current_category].sort(key=lambda x: x.split(" (")[0])
-            elif sort_option == "Sort by Name Z-A":
-                self.categories[current_category].sort(key=lambda x: x.split(" (")[0], reverse=True)
-            elif sort_option == "Sort by Stream Type":
-                self.categories[current_category].sort(key=lambda x: x.split(",")[-1])
-            elif sort_option == "Sort by Group Title":
-                self.categories[current_category].sort(key=lambda x: x.split("group-title=")[-1].split(",")[0])
-            elif sort_option == "Sort by URL Length":
-                self.categories[current_category].sort(key=lambda x: len(x.split(",")[-1]))
-            elif sort_option == "Sort by Quality (4K → SD)":
-                def quality_rank(channel):
-                    if quality == "4K":
-                        return 0
-                    elif quality == "HD":
-                        return 1
-                    elif quality == "SD":
-                        return 2
-                    else:
-                        return 3
+        cur_cat = cur_item.text().split(" (")[0].strip()
+        if cur_cat not in self.categories:
+            return
 
-                self.categories[current_category].sort(key=quality_rank)
+        option = self.sortingComboBox.currentText()
+        channels = self.categories[cur_cat]
 
-            self.display_channels(self.categoryList.currentItem())
-            self.regenerateM3UTextOnly()  # <-- Add this line
+        if option == "Sort by Name A-Z":
+            channels.sort(key=lambda x: x.split(" (")[0].lower())
+
+        elif option == "Sort by Name Z-A":
+            channels.sort(key=lambda x: x.split(" (")[0].lower(), reverse=True)
+
+        elif option == "Sort by Stream Type":
+            channels.sort(key=lambda x: x.split(",")[-1])
+
+        elif option == "Sort by Group Title":
+            channels.sort(key=lambda x: x.split('group-title="')[-1].split('"')[0])
+
+        elif option == "Sort by URL Length":
+            channels.sort(key=lambda x: len(x.split(" (")[-1]))
+
+        elif option == "Sort by Quality (4K → SD)":
+
+            def quality_rank(entry: str) -> int:
+                q = detect_stream_quality(entry)
+                return {"4K": 0, "FHD": 1, "HD": 2, "SD": 3}.get(q, 4)
+
+            channels.sort(key=quality_rank)
+
+        # שמור את הרשימה המעודכנת
+        self.categories[cur_cat] = channels
+
+        # רענון תצוגה + טקסט M3U
+        self.display_channels(cur_item)
+        self.regenerateM3UTextOnly()
 
     def create_m3u_content_section(self):
         layout = QVBoxLayout()
@@ -3620,38 +3636,52 @@ class M3UEditor(QWidget):
 
     def display_channels(self, item):
         """
-        מציג את הערוצים ברשימה הגרפית (QListWidget),
-        ומעדכן תמיד את סיכום הסטטוס בשורת ה-summaryLabel.
+        מציג את הערוצים ברשימה הגרפית (QListWidget) עם תג-איכות צבעוני,
+        ומעדכן תמיד את summaryLabel העליון.
         """
-        # 1. נקה קודם את ה-QListWidget
+        # נקה את הרשימה
         self.channelList.clear()
 
-        # 2. אם לא נבחר כלום — רק רענן סיכום ויצא
+        # לא נבחרה קטגוריה – רענן סיכום וצא
         if item is None:
             self.updateSummary()
             return
 
-        # 3. מצא את שם הקטגוריה בפורמט שהוצג
-        display_name = item.text().split(" (")[0].strip()
-        # 4. גשר בין התצוגה למפתח במילון
-        real_key = {k.strip(): k for k in self.categories.keys()}.get(display_name)
-        if not real_key:
+        # שם הקטגוריה שמוצג
+        cat_display = item.text().split(" (")[0].strip()
+
+        # המפתח האמיתי במילון
+        real_cat = {k.strip(): k for k in self.categories}.get(cat_display)
+        if not real_cat:
             self.updateSummary()
             return
 
-        # 5. הוסף לכל ערוץ את הפריט שלו
-        for entry in self.categories.get(real_key, []):
-            # entry מצוי לרוב כ־"Name (URL)"
-            name = entry.split(" (")[0].strip()
+        # עבור כל ערוץ בקטגוריה
+        for full_entry in self.categories.get(real_cat, []):
+            # full_entry → "Name (URL)"
+            name = full_entry.split(" (")[0].strip()
             if not name:
                 continue
 
-            lw = QListWidgetItem(name)
-            # שמור את המחרוזת המלאה ב-UserRole
-            lw.setData(Qt.UserRole, entry)
-            self.channelList.addItem(lw)
+            # זיהוי איכות
+            quality = detect_stream_quality(full_entry)
 
-        # 6. בסוף — עדכן את הסיכום העליון
+            # בניית וידג׳ט גרפי לשורה (שם + תגית איכות)
+            widget = create_channel_widget(name, quality)
+
+            # כדי שפונקציות אחרות (למשל Edit) ימצאו את הלייבל:
+            widget.findChild(QLabel).setObjectName("channel_label")
+
+            # רשומת QListWidgetItem
+            lw_item = QListWidgetItem()
+            lw_item.setSizeHint(widget.sizeHint())
+            lw_item.setData(Qt.UserRole, full_entry)  # שמירת המחרוזת המלאה
+
+            # הוספה לרשימה
+            self.channelList.addItem(lw_item)
+            self.channelList.setItemWidget(lw_item, widget)
+
+        # עדכון סיכום עליון
         self.updateSummary()
 
     def checkDoubles(self):
