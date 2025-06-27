@@ -37,6 +37,17 @@ from logo import load_logo_cache, get_saved_logo, save_logo_for_channel, is_isra
 from PyQt5.QtWidgets import QMessageBox, QInputDialog
 from telegram_uploader import send_to_telegram
 from deep_translator import GoogleTranslator
+from PyQt5.QtWidgets import QProgressDialog
+from PyQt5.QtCore import QThread, pyqtSignal
+import re
+import re
+from PyQt5.QtWidgets import (
+    QDialog, QVBoxLayout, QPushButton, QProgressDialog,
+    QMessageBox, QInputDialog, QListWidgetItem
+)
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from deep_translator import GoogleTranslator
+
 
 from utils.network import setup_session
 
@@ -126,6 +137,74 @@ class CategoryTranslateThread(QThread):
             self.progress.emit(i + 1, old_name)
 
         self.finished.emit(updated_categories, category_mapping, self.mode)
+
+
+class ChannelTranslateThread(QThread):
+    progress = pyqtSignal(int, str)
+    finished = pyqtSignal(dict, dict)
+
+    _cache = {}
+
+    def __init__(self, categories_dict):
+        super().__init__()
+        self.categories = categories_dict
+        self.trans = GoogleTranslator(source='auto', target='en')
+
+    @staticmethod
+    def _is_english(txt):
+        return all(ord(c)<128 for c in txt if c.isalpha())
+
+    def run(self):
+        # אוספים את כל השמות שצריך לתרגם
+        to_translate = set()
+        for lst in self.categories.values():
+            for entry in lst:
+                name = entry.split(" (")[0].strip()
+                if name and not self._is_english(name):
+                    to_translate.add(name)
+
+        # מסירים מה-cache
+        todo = [n for n in to_translate if n not in ChannelTranslateThread._cache]
+        for i in range(0, len(todo), 50):
+            chunk = todo[i:i+50]
+            try:
+                results = self.trans.translate_batch(chunk)
+                for orig, tr in zip(chunk, results):
+                    ChannelTranslateThread._cache[orig] = tr
+            except:
+                for orig in chunk:
+                    ChannelTranslateThread._cache[orig] = orig
+
+        # כעת מיישמים את התרגום
+        new_cats = {}
+        mapping = {}
+        count = 0
+        total = sum(len(v) for v in self.categories.values())
+
+        for cat, lst in self.categories.items():
+            new_list = []
+            for entry in lst:
+                if "(" in entry and entry.endswith(")"):
+                    name, rest = entry.split(" (",1)
+                    url = rest[:-1]
+                else:
+                    name, url = entry, ""
+
+                if self._is_english(name):
+                    new_name = name
+                else:
+                    new_name = ChannelTranslateThread._cache.get(name, name)
+
+                new_entry = f"{new_name} ({url})" if url else new_name
+                new_list.append(new_entry)
+                mapping[entry] = new_entry
+
+                count += 1
+                self.progress.emit(count, name)
+
+            new_cats[cat] = new_list
+
+        self.finished.emit(new_cats, mapping)
 
 
 class MoveChannelsDialog(QDialog):
@@ -1093,6 +1172,177 @@ class M3UEditor(QWidget):
         self.regenerateM3UTextOnly()
         QMessageBox.information(self, "בוצע", f"שמות הקטגוריות תורגמו לפי: {mode}")
 
+    def translateChannels(self):
+        """
+        מפעיל תרגום אנגלית לכל הערוצים במקביל עם QProgressDialog להגנה על ביצועים,
+        כולל אפשרות לביטול. משתמש ב-ChannelTranslateThread משופר עם batch ו-cache.
+        """
+        # 1. וידוא שיש ערוצים לתרגם
+        total = sum(len(ch_list) for ch_list in self.categories.values())
+        if total == 0:
+            QMessageBox.information(self, "תרגום ערוצים", "אין ערוצים לתרגם.")
+            return
+
+        # 2. יצירת QProgressDialog עם לחצן ביטול
+        self.chProgress = QProgressDialog("מתרגם ערוצים...", "ביטול", 0, total, self)
+        self.chProgress.setWindowModality(Qt.WindowModal)
+        self.chProgress.setWindowTitle("תִרגוּם ערוצים")
+        # כדי שהדיאלוג יופיע מייד, בלי ההשהיה המוגדרת מראש
+        self.chProgress.setMinimumDuration(0)
+        # איתחול ערך התקדמות
+        self.chProgress.setValue(0)
+        # אפשרות לסגור אוטומטית כשיסיים
+        self.chProgress.setAutoClose(True)
+        # אם המשתמש לוחץ ביטול – מנסים לעצור את ה-Thread
+        self.chProgress.canceled.connect(lambda: getattr(self, 'chThread', None) and self.chThread.terminate())
+        self.chProgress.show()
+
+        # 3. הפעלת ה-ChannelTranslateThread
+        self.chThread = ChannelTranslateThread(self.categories.copy())
+        # עדכון הסרגל בכל ערוץ שתורגם
+        self.chThread.progress.connect(lambda idx, name: self.chProgress.setValue(idx))
+        # בסיום – העברה לטיפול ב-on_channels_translated
+        self.chThread.finished.connect(self.on_channels_translated)
+        self.chThread.start()
+
+    def on_channels_translated(self, new_categories, mapping):
+        # סגירת הפרוגרס
+        try:
+            self.chProgress.close()
+        except:
+            pass
+
+        # 1. עדכון self.categories
+        self.categories = new_categories
+
+        # 2. עדכון QListWidget של קטגוריות
+        self.updateCategoryList()
+
+        # 3. בתיבת הטקסט (M3U Content) - נחליף שמות ב־EXTINF
+        content = self.textEdit.toPlainText().splitlines()
+        out = []
+        for line in content:
+            if line.startswith("#EXTINF"):
+                # נחליף כל מיפוי שיש
+                for old, new in mapping.items():
+                    # old בפורמט "OldName (URL)" ⇒ שם ישן אחרי הפסיק
+                    old_name = old.split(" (")[0]
+                    new_name = new.split(" (")[0]
+                    # מחליפים את after-last-comma
+                    if f",{old_name}" in line:
+                        parts = line.rsplit(",", 1)
+                        line = f"{parts[0]},{new_name}"
+                        break
+            out.append(line)
+        self.safely_update_text_edit("\n".join(out))
+
+        # 4. רענון UI – נבחר קטגוריה ראשונה
+        if self.categoryList.count():
+            self.categoryList.setCurrentRow(0)
+            self.display_channels(self.categoryList.currentItem())
+
+        # 5. עדכון המחרוזות הלוגיות
+        self.regenerateM3UTextOnly()
+
+        QMessageBox.information(self, "תרגום ערוצים", "כל הערוצים תורגמו לאנגלית בהצלחה!")
+
+
+    def translateChannels(self):
+        """פותח דיאלוג עם 2 אפשרויות תרגום."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("בחר שפת תרגום ערוצים:")
+        dlg.setWindowFlags(dlg.windowFlags() | Qt.WindowCloseButtonHint)
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(20,20,20,20)
+
+        btn_sel = QPushButton("תרגם נבחרים", dlg)
+        btn_all = QPushButton("תרגם הכל", dlg)
+        for b,c in [(btn_sel, self._translateSelected), (btn_all, self._translateAll)]:
+            b.setFixedHeight(40)
+            b.setStyleSheet("font-size:16px; font-weight:bold;")
+            layout.addWidget(b)
+            b.clicked.connect(lambda _, fn=c, d=dlg: (d.accept(), fn()))
+
+        dlg.exec_()
+
+    def _translateSelected(self):
+        """תרגום רק הערוצים שנבחרו ב־ListWidget."""
+        items = self.channelList.selectedItems()
+        if not items:
+            QMessageBox.information(self, "תרגום ערוצים", "בחר לפחות ערוץ אחד.")
+            return
+        # בונים dict זמני של קטגוריה נוכחית → רשימת full_entry
+        cat = self.categoryList.currentItem().text().split(" (")[0].strip()
+        sel_entries = [it.data(Qt.UserRole) for it in items]
+        subset = {cat: sel_entries}
+        self._startTranslation(subset)
+
+    def _translateAll(self):
+        """תרגום כל הערוצים בכל הקטגוריות."""
+        self._startTranslation(self.categories.copy())
+
+    def _startTranslation(self, cats_dict):
+        total = sum(len(v) for v in cats_dict.values())
+        if total == 0:
+            QMessageBox.information(self, "תרגום ערוצים", "אין ערוצים לתרגם.")
+            return
+
+        dlg = QProgressDialog("מתרגם ערוצים...", "ביטול", 0, total, self)
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setWindowTitle("תִרגוּם ערוצים")
+        dlg.setMinimumDuration(0)
+        dlg.setAutoClose(True)
+        dlg.canceled.connect(lambda: getattr(self, 'chThread', None) and self.chThread.terminate())
+        dlg.show()
+
+        self.chThread = ChannelTranslateThread(cats_dict)
+        self.chThread.progress.connect(lambda idx, nm: dlg.setValue(idx))
+        self.chThread.finished.connect(lambda new_cats, mapping: self._onTranslated(new_cats, mapping, cats_dict))
+        self.chThread.start()
+
+    def _onTranslated(self, new_cats, mapping, orig_dict):
+        """
+        new_cats: dict קטגוריה→new list
+        mapping: old_entry→new_entry
+        orig_dict: dict שהוזן ל-thread (משמש להנהגת אילו קטגוריות לעדכן)
+        """
+        # 1. עדכון רק הקטגוריות שעברו בתרגום
+        for cat in orig_dict.keys():
+            self.categories[cat] = new_cats.get(cat, [])
+
+        # 2. רענון רשימת קטגוריות
+        self.updateCategoryList()
+        # 3. בחירת השורה המתאימה (השארת הבחירה)
+        cur = self.categoryList.currentItem()
+        if cur:
+            name = cur.text().split(" (")[0].strip()
+            for i in range(self.categoryList.count()):
+                if self.categoryList.item(i).text().startswith(name):
+                    self.categoryList.setCurrentRow(i)
+                    break
+
+        # 4. רענון תצוגת הערוצים
+        self.display_channels(self.categoryList.currentItem())
+
+        # 5. תרגום ה־EXTINF בתוכן המלא
+        lines = self.textEdit.toPlainText().splitlines()
+        out = []
+        for line in lines:
+            if line.startswith("#EXTINF"):
+                for old, new in mapping.items():
+                    old_nm = old.split(" (")[0]
+                    new_nm = new.split(" (")[0]
+                    if f",{old_nm}" in line:
+                        parts = line.rsplit(",", 1)
+                        line = f"{parts[0]},{new_nm}"
+                        break
+            out.append(line)
+
+        self.safely_update_text_edit("\n".join(out))
+        self.regenerateM3UTextOnly()
+
+        QMessageBox.information(self, "תרגום ערוצים", "התרגום הסתיים בהצלחה.")
+
     def play_channel_with_name(self, entry):
         """
         מפעיל VLC רק על הערוץ היחיד שבחרנו (entry = "Name (URL)").
@@ -1281,6 +1531,16 @@ class M3UEditor(QWidget):
         self.previewButton.clicked.connect(self.previewSelectedChannels)
         vlc_layout.addWidget(self.previewButton)
 
+        # ▶ Translate Channels ↔ כפתור תרגום ערוצים
+        self.translateChannelsButton = QPushButton("🌐 תרגם ערוצים", self)
+        self.translateChannelsButton.setStyleSheet(
+            "background-color: darkorange; color: white; font-weight: bold;"
+        )
+        vlc_layout.addWidget(self.translateChannelsButton)
+        # ברגע שלחיצה – נפתח דיאלוג פנימי עם 2 אפשרויות
+        self.translateChannelsButton.clicked.connect(self.translateChannels)
+
+        # בסוף, מוסיפים את vlc_layout ל־main_layout
         main_layout.addLayout(vlc_layout)
 
         # לחצן Checker וכדומה
