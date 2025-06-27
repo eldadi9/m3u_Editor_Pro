@@ -1534,7 +1534,7 @@ class M3UEditor(QWidget):
 
         self.translateChannelsButton = QPushButton("🌐 תרגם ערוצים", self)
         self.translateChannelsButton.setStyleSheet(
-            "background-color:darkorange; color:white; font-weight:bold;"
+            "background-color:navy; color:white; font-weight:bold;"
         )
         self.translateChannelsButton.clicked.connect(self.translateChannels)
         btn_layout.addWidget(self.translateChannelsButton)
