@@ -6,55 +6,46 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import re
 import json
 import threading
-import pyperclip
-import requests
-import subprocess
-import time
-import tempfile
-from tempfile import NamedTemporaryFile
-import os, subprocess, tempfile
-from logo import get_saved_logo
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QListWidgetItem
-from PyQt5.QtCore import QSize
+# ------------------- סט Imports מאוחד -------------------
 
+import os
 import shutil
+import tempfile
+import time
+import subprocess
+import requests
+import pyperclip
+from tempfile import NamedTemporaryFile
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
+import re
 
+# PyQt5 – Widgets, Core, Gui
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QFileDialog, QTextEdit, QInputDialog,
-    QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem, QHeaderView,
-    QHBoxLayout, QLabel, QMessageBox, QLineEdit, QAbstractItemView,
-    QMenu, QAction, QCompleter, QProgressBar, QDialog, QComboBox,
-    QPushButton, QFrame
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+    QFileDialog, QTextEdit, QInputDialog, QListWidget,
+    QListWidgetItem, QTableWidget, QTableWidgetItem,
+    QHeaderView, QLabel, QMessageBox, QLineEdit,
+    QAbstractItemView, QMenu, QAction, QCompleter,
+    QProgressBar, QDialog, QComboBox, QPushButton,
+    QFrame, QProgressDialog
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QPixmap, QFont, QColor, QIcon
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui  import QIcon, QFont, QPixmap, QColor
+from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal
+from PyQt5.QtGui import QIcon, QFont, QPixmap, QColor
+
+# לוגואים וטלגרם
 from logo import load_logo_cache, get_saved_logo, save_logo_for_channel, is_israeli_channel
-from PyQt5.QtWidgets import QMessageBox, QInputDialog
 from telegram_uploader import send_to_telegram
-from deep_translator import GoogleTranslator
-from PyQt5.QtWidgets import QProgressDialog
-from PyQt5.QtCore import QThread, pyqtSignal
-import re
-import re
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QPushButton, QProgressDialog,
-    QMessageBox, QInputDialog, QListWidgetItem
-)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+
+# תרגום
 from deep_translator import GoogleTranslator
 
-
+# רשת
 from utils.network import setup_session
-
 
 # משתנים גלובליים
 LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_db.json")
-
+# -----------------------------------------------------------
 
 def detect_stream_quality(entry: str) -> str:
     e = entry.lower()
@@ -638,46 +629,66 @@ class URLCheckerDialog(QDialog):
         self.initUI()
 
     def initUI(self):
+        # כותרת החלון ומאפיינים כלליים
         self.setWindowTitle("URL Checker")
         self.setGeometry(150, 150, 1000, 600)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        self.setWindowFlags(
+            self.windowFlags() |
+            Qt.WindowMinMaxButtonsHint |
+            Qt.WindowCloseButtonHint
+        )
 
+        # לייאאוט ראשי
         layout = QVBoxLayout(self)
+
+        # עיצוב מסגרת הדיאלוג
         self.setStyleSheet("""
             QDialog {
                 border: 5px solid red;
                 background-color: white;
             }
+            QLabel {
+                font-size: 18px;
+            }
+            QPushButton {
+                font-size: 16px; 
+                padding: 10px;
+                color: white;
+                background-color: purple;
+                border-radius: 5px;
+            }
         """)
 
-        # Status summary layout
+        # ─── Summary Status Bar ───
         summaryLayout = QHBoxLayout()
-
         self.checkedLabel = QLabel("Checked\n0", self)
         self.onlineLabel = QLabel("Online\n0", self)
         self.offlineLabel = QLabel("Offline\n0", self)
 
-        for label in [self.checkedLabel, self.onlineLabel, self.offlineLabel]:
-            label.setAlignment(Qt.AlignCenter)
-            label.setStyleSheet(
-                "font-size: 24px; background-color: #6A1B9A; color: white; padddef removeOfflineChannels(self, offline_channel_names):def removeOfflineChannels(self, offline_channel_names):ing: 20px; border-radius: 5px;")
-            summaryLayout.addWidget(label)
+        for lbl in (self.checkedLabel, self.onlineLabel, self.offlineLabel):
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setStyleSheet("background-color: #6A1B9A; color: white; padding: 20px; border-radius: 5px;")
+            summaryLayout.addWidget(lbl)
 
         layout.addLayout(summaryLayout)
 
+        # מצב כללי
         self.statusLine = QLabel("Status: Waiting", self)
         layout.addWidget(self.statusLine)
 
+        # ─── Controls (חיפוש וסינון) ───
         controlLayout = QHBoxLayout()
-
+        # תווית סיכום ערוצים
         self.channelCountLabel = QLabel(f"Channels Count: {len(self.channels)}", self)
         controlLayout.addWidget(self.channelCountLabel)
 
+        # שדה חיפוש
         self.searchInput = QLineEdit(self)
         self.searchInput.setPlaceholderText("Search Channels...")
         self.searchInput.textChanged.connect(self.updateFilter)
         controlLayout.addWidget(self.searchInput)
 
+        # סינון לפי סטטוס
         self.statusFilter = QComboBox(self)
         self.statusFilter.addItems(["All", "Online", "Offline"])
         self.statusFilter.currentIndexChanged.connect(self.updateFilter)
@@ -685,34 +696,43 @@ class URLCheckerDialog(QDialog):
 
         layout.addLayout(controlLayout)
 
+        # ─── טבלת הערוצים ───
         self.channelTable = QTableWidget(self)
         self.channelTable.setColumnCount(5)
-        self.channelTable.setHorizontalHeaderLabels(["Channel Name", "Category", "Status", "Server", "URL"])
+        self.channelTable.setHorizontalHeaderLabels(
+            ["Channel Name", "Category", "Status", "Server", "URL"]
+        )
         header = self.channelTable.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.channelTable)
 
+        # ─── כפתורי פעולה ───
         buttonsLayout = QHBoxLayout()
 
         self.checkBtn = QPushButton("Check URLs", self)
-        self.checkBtn.setStyleSheet("background-color: purple; color: white; font-size: 16px; padding: 10px;")
         self.checkBtn.clicked.connect(self.startChecking)
         buttonsLayout.addWidget(self.checkBtn)
 
         self.stopBtn = QPushButton("Stop Checking", self)
-        self.stopBtn.setStyleSheet("background-color: purple; color: white; font-size: 16px; padding: 10px;")
         self.stopBtn.clicked.connect(self.stopChecking)
         self.stopBtn.setEnabled(False)
         buttonsLayout.addWidget(self.stopBtn)
 
-        layout.addLayout(buttonsLayout)
-
         self.selectOfflineBtn = QPushButton("Select Offline Channels", self)
-        self.selectOfflineBtn.setStyleSheet(
-            "background-color: purple; color: white; font-size: 16px; padding: 10px;"
-        )
         self.selectOfflineBtn.clicked.connect(self.selectOfflineChannels)
         buttonsLayout.addWidget(self.selectOfflineBtn)
+
+        layout.addLayout(buttonsLayout)
+
+        # אין צורך לקרוא למחלקת תווית נוספת — במקרה הצורך כל עדכון בספירה
+        # יתבצע על-ידי קריאה ל־self.updateStatusSummary()
+        # (הגדרה של הפונקציה הזו תוזכר בהמשך, אם היא לא קיימת)
+
+        # שמירה על ה-layout
+        self.setLayout(layout)
+
+        # עדכון ראשוני של הסיכום
+        self.updateStatusSummary()
 
     def selectOfflineChannels(self):
         offline_channels = []
@@ -809,6 +829,18 @@ class URLCheckerDialog(QDialog):
         for name, status, server, url in self.results:
             if (search_text in name.lower()) and (status_filter in [status, "All"]):
                 self.addChannelToTable(name, status, server, url)
+
+    def updateStatusSummary(self):
+        """
+        עדכון תוויות הסטטוס (Checked, Online, Offline)
+        ותווית סך כל הערוצים בטבלה.
+        """
+        total = len(self.channels)
+        self.checkedLabel.setText(f"Checked\n{self.checkedCount}")
+        self.onlineLabel .setText(f"Online\n{self.onlineCount}")
+        self.offlineLabel.setText(f"Offline\n{self.offlineCount}")
+        self.channelCountLabel.setText(f"Channels Count: {total}")
+
 
 
 class SmartScanStatusDialog(QDialog):
@@ -1124,6 +1156,7 @@ class M3UEditor(QWidget):
 
         menu.exec_(self.channelList.viewport().mapToGlobal(position))
 
+
     def translate_category_names(self):
         from PyQt5.QtWidgets import QInputDialog, QMessageBox, QProgressDialog
 
@@ -1151,59 +1184,34 @@ class M3UEditor(QWidget):
         self.translation_thread.start()
 
     def on_translation_finished(self, updated_categories, mapping, mode):
+        # 1. עדכון הקטגוריות הפנימיות
         self.categories = updated_categories
         self.updateCategoryList()
 
-        # עדכון EXTINF בקובץ הטקסט
+        # 2. עדכון כל שורות ה-EXTINF ב-textEdit לפי המיפוי החדש
         try:
-            lines = self.textEdit.toPlainText().splitlines()
+            old_text = self.textEdit.toPlainText().splitlines()
             new_lines = []
-            for line in lines:
+            for line in old_text:
                 if line.startswith("#EXTINF") and 'group-title="' in line:
-                    for old, new in mapping.items():
-                        if f'group-title="{old}"' in line:
-                            line = line.replace(f'group-title="{old}"', f'group-title="{new}"')
+                    for old_cat, new_cat in mapping.items():
+                        token = f'group-title="{old_cat}"'
+                        if token in line:
+                            line = line.replace(token, f'group-title="{new_cat}"')
                             break
                 new_lines.append(line)
             self.safely_update_text_edit("\n".join(new_lines))
         except Exception as e:
             print(f"[EXTINF Update Error] {e}")
 
+        # 3. רענון מבנה המחרוזת הפנימית שלך (מלל + קטגוריות)
         self.regenerateM3UTextOnly()
+
+        # 4. עדכון הסיכום העליון
+        self.updateSummary()
+
+        # 5. הודעת סיום למשתמש
         QMessageBox.information(self, "בוצע", f"שמות הקטגוריות תורגמו לפי: {mode}")
-
-    def translateChannels(self):
-        """
-        מפעיל תרגום אנגלית לכל הערוצים במקביל עם QProgressDialog להגנה על ביצועים,
-        כולל אפשרות לביטול. משתמש ב-ChannelTranslateThread משופר עם batch ו-cache.
-        """
-        # 1. וידוא שיש ערוצים לתרגם
-        total = sum(len(ch_list) for ch_list in self.categories.values())
-        if total == 0:
-            QMessageBox.information(self, "תרגום ערוצים", "אין ערוצים לתרגם.")
-            return
-
-        # 2. יצירת QProgressDialog עם לחצן ביטול
-        self.chProgress = QProgressDialog("מתרגם ערוצים...", "ביטול", 0, total, self)
-        self.chProgress.setWindowModality(Qt.WindowModal)
-        self.chProgress.setWindowTitle("תִרגוּם ערוצים")
-        # כדי שהדיאלוג יופיע מייד, בלי ההשהיה המוגדרת מראש
-        self.chProgress.setMinimumDuration(0)
-        # איתחול ערך התקדמות
-        self.chProgress.setValue(0)
-        # אפשרות לסגור אוטומטית כשיסיים
-        self.chProgress.setAutoClose(True)
-        # אם המשתמש לוחץ ביטול – מנסים לעצור את ה-Thread
-        self.chProgress.canceled.connect(lambda: getattr(self, 'chThread', None) and self.chThread.terminate())
-        self.chProgress.show()
-
-        # 3. הפעלת ה-ChannelTranslateThread
-        self.chThread = ChannelTranslateThread(self.categories.copy())
-        # עדכון הסרגל בכל ערוץ שתורגם
-        self.chThread.progress.connect(lambda idx, name: self.chProgress.setValue(idx))
-        # בסיום – העברה לטיפול ב-on_channels_translated
-        self.chThread.finished.connect(self.on_channels_translated)
-        self.chThread.start()
 
     def on_channels_translated(self, new_categories, mapping):
         # סגירת הפרוגרס
@@ -1248,38 +1256,41 @@ class M3UEditor(QWidget):
 
 
     def translateChannels(self):
-        """פותח דיאלוג עם 2 אפשרויות תרגום."""
+        """
+        פותח דיאלוג עם 2 אפשרויות:
+         • תרגום קטגוריה בודדת
+         • תרגום כל הערוצים
+        """
         dlg = QDialog(self)
-        dlg.setWindowTitle("בחר שפת תרגום ערוצים:")
-        dlg.setWindowFlags(dlg.windowFlags() | Qt.WindowCloseButtonHint)
-        layout = QVBoxLayout(dlg)
-        layout.setContentsMargins(20,20,20,20)
+        dlg.setWindowTitle("תרגם ערוצים")
+        dlg.setLayout(QVBoxLayout())
+        dlg.layout().setContentsMargins(20, 20, 20, 20)
 
-        btn_sel = QPushButton("תרגם נבחרים", dlg)
-        btn_all = QPushButton("תרגם הכל", dlg)
-        for b,c in [(btn_sel, self._translateSelected), (btn_all, self._translateAll)]:
-            b.setFixedHeight(40)
-            b.setStyleSheet("font-size:16px; font-weight:bold;")
-            layout.addWidget(b)
-            b.clicked.connect(lambda _, fn=c, d=dlg: (d.accept(), fn()))
+        btn_cat = QPushButton("תרגם קטגוריה", dlg)
+        btn_all = QPushButton("תרגם את כל הערוצים", dlg)
+
+        for btn in (btn_cat, btn_all):
+            btn.setFixedHeight(40)
+            btn.setStyleSheet("font-size:16px; font-weight:bold;")
+            dlg.layout().addWidget(btn)
+
+        btn_cat.clicked.connect(lambda: (dlg.accept(), self._translateCategory()))
+        btn_all.clicked.connect(lambda: (dlg.accept(), self._translateAll()))
 
         dlg.exec_()
 
-    def _translateSelected(self):
-        """תרגום רק הערוצים שנבחרו ב־ListWidget."""
-        items = self.channelList.selectedItems()
-        if not items:
-            QMessageBox.information(self, "תרגום ערוצים", "בחר לפחות ערוץ אחד.")
+    def _translateCategory(self):
+        # בוחר קטגוריה
+        items = list(self.categories.keys())
+        cat, ok = QInputDialog.getItem(self, "בחר קטגוריה", "תרגם קטגוריה:", items, 0, False)
+        if not ok or not cat:
             return
-        # בונים dict זמני של קטגוריה נוכחית → רשימת full_entry
-        cat = self.categoryList.currentItem().text().split(" (")[0].strip()
-        sel_entries = [it.data(Qt.UserRole) for it in items]
-        subset = {cat: sel_entries}
+        subset = {cat: self.categories[cat][:]}
         self._startTranslation(subset)
 
     def _translateAll(self):
-        """תרגום כל הערוצים בכל הקטגוריות."""
-        self._startTranslation(self.categories.copy())
+        subset = {cat: lst[:] for cat, lst in self.categories.items()}
+        self._startTranslation(subset)
 
     def _startTranslation(self, cats_dict):
         total = sum(len(v) for v in cats_dict.values())
@@ -1291,56 +1302,45 @@ class M3UEditor(QWidget):
         dlg.setWindowModality(Qt.WindowModal)
         dlg.setWindowTitle("תִרגוּם ערוצים")
         dlg.setMinimumDuration(0)
-        dlg.setAutoClose(True)
         dlg.canceled.connect(lambda: getattr(self, 'chThread', None) and self.chThread.terminate())
         dlg.show()
 
         self.chThread = ChannelTranslateThread(cats_dict)
-        self.chThread.progress.connect(lambda idx, nm: dlg.setValue(idx))
+        self.chThread.progress.connect(
+            lambda idx, name: (
+                dlg.setValue(idx),
+                dlg.setLabelText(f"מתרגם: {name} ({idx}/{total})")
+            )
+        )
         self.chThread.finished.connect(lambda new_cats, mapping: self._onTranslated(new_cats, mapping, cats_dict))
         self.chThread.start()
 
     def _onTranslated(self, new_cats, mapping, orig_dict):
-        """
-        new_cats: dict קטגוריה→new list
-        mapping: old_entry→new_entry
-        orig_dict: dict שהוזן ל-thread (משמש להנהגת אילו קטגוריות לעדכן)
-        """
-        # 1. עדכון רק הקטגוריות שעברו בתרגום
-        for cat in orig_dict.keys():
+        # עדכון רק הקטגוריות שעובדו
+        for cat in orig_dict:
             self.categories[cat] = new_cats.get(cat, [])
 
-        # 2. רענון רשימת קטגוריות
         self.updateCategoryList()
-        # 3. בחירת השורה המתאימה (השארת הבחירה)
         cur = self.categoryList.currentItem()
         if cur:
-            name = cur.text().split(" (")[0].strip()
-            for i in range(self.categoryList.count()):
-                if self.categoryList.item(i).text().startswith(name):
-                    self.categoryList.setCurrentRow(i)
-                    break
+            self.display_channels(cur)
 
-        # 4. רענון תצוגת הערוצים
-        self.display_channels(self.categoryList.currentItem())
-
-        # 5. תרגום ה־EXTINF בתוכן המלא
-        lines = self.textEdit.toPlainText().splitlines()
+        # עדכון שמות בתוך #EXTINF בתוכן הגלילי
+        text = self.textEdit.toPlainText().splitlines()
         out = []
-        for line in lines:
+        for line in text:
             if line.startswith("#EXTINF"):
                 for old, new in mapping.items():
                     old_nm = old.split(" (")[0]
                     new_nm = new.split(" (")[0]
                     if f",{old_nm}" in line:
-                        parts = line.rsplit(",", 1)
-                        line = f"{parts[0]},{new_nm}"
+                        props = line.rsplit(",", 1)[0]
+                        line = f"{props},{new_nm}"
                         break
             out.append(line)
-
         self.safely_update_text_edit("\n".join(out))
-        self.regenerateM3UTextOnly()
 
+        self.regenerateM3UTextOnly()
         QMessageBox.information(self, "תרגום ערוצים", "התרגום הסתיים בהצלחה.")
 
     def play_channel_with_name(self, entry):
@@ -1429,29 +1429,30 @@ class M3UEditor(QWidget):
         QMessageBox.information(self, "Logo Scan", "✅ סריקת הלוגואים הושלמה בהצלחה!")
 
     def initUI(self):
-        # כותרת החלון ומאפיינים כלליים
+        # --- הגדרות חלון ---
         self.setWindowTitle('M3U Playlist Editor')
-        self.setGeometry(100, 100, 800, 600)
-        self.setWindowFlags(self.windowFlags() |
-                            Qt.WindowMinMaxButtonsHint |
-                            Qt.WindowCloseButtonHint)
+        self.setGeometry(100, 100, 1000, 700)
+        self.setWindowFlags(
+            self.windowFlags() |
+            Qt.WindowMinMaxButtonsHint |
+            Qt.WindowCloseButtonHint
+        )
 
         # גופן גלובלי
-        font = QFont('Arial', 10)
-        QApplication.setFont(font)
+        QApplication.setFont(QFont('Arial', 10))
 
-        # לייאאוט ראשי
+        # --- לייאאוט ראשי ---
         main_layout = QVBoxLayout(self)
         self.setLayout(main_layout)
 
-        # ─── לוגו עליון ───
+        # --- לוגו עליון ---
         logo_frame = QFrame(self)
         logo_frame.setStyleSheet("background-color: black;")
         logo_layout = QVBoxLayout(logo_frame)
         logo_layout.setContentsMargins(0, 0, 0, 0)
 
         logo_label = QLabel(self)
-        image_path = r'C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\Main Logo.jpg'
+        image_path = os.path.join(os.path.dirname(__file__), "Main Logo.jpg")
         if os.path.exists(image_path):
             pix = QPixmap(image_path).scaledToHeight(80, Qt.SmoothTransformation)
             logo_label.setPixmap(pix)
@@ -1462,95 +1463,96 @@ class M3UEditor(QWidget):
         logo_layout.addWidget(logo_label)
         main_layout.addWidget(logo_frame)
 
-        # ─── שורת חיפוש ───
+        # --- שורת חיפוש ---
+        search_layout = QHBoxLayout()
         self.searchBox = QLineEdit(self)
         self.searchBox.setPlaceholderText("🔍 חיפוש קטגוריה או ערוץ...")
         self.searchBox.textChanged.connect(self.handleSearchTextChanged)
 
         reset_btn = QPushButton("🔄 איפוס", self)
         reset_btn.setStyleSheet("padding:3px; font-weight:bold;")
-        reset_btn.clicked.connect(lambda: self.searchBox.setText(""))
+        reset_btn.clicked.connect(self.searchBox.clear)
 
-        search_layout = QHBoxLayout()
         search_layout.addWidget(self.searchBox)
         search_layout.addWidget(reset_btn)
         main_layout.addLayout(search_layout)
 
-        # ─── כותרת ראשית ───
+        # --- כותרת ראשית ---
         title = QLabel("M3U Playlist Editor", self)
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet(
-            "font-size:25px; font-weight:bold; background-color:black; color:white;"
+            "font-size:25px; font-weight:bold;"
+            "background-color:black; color:white;"
         )
         main_layout.addWidget(title)
 
-        # ─── מידע על קובץ וערוצים ───
+        # --- Info Bar (File + Summary) ---
         info_layout = QHBoxLayout()
         self.fileNameLabel = QLabel("No file loaded", self)
-        self.fileNameLabel.setAlignment(Qt.AlignCenter)
-        self.fileNameLabel.setStyleSheet("font-size:18px; font-weight:bold;")
-        info_layout.addWidget(self.fileNameLabel)
+        self.fileNameLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.fileNameLabel.setStyleSheet("font-size:16px; font-weight:bold;")
+        info_layout.addWidget(self.fileNameLabel, stretch=2)
 
-        self.channelCountLabel = QLabel("Total Channels: 0", self)
-        self.channelCountLabel.setAlignment(Qt.AlignRight)
-        self.channelCountLabel.setStyleSheet("font-size:18px; font-weight:bold;")
-        info_layout.addWidget(self.channelCountLabel)
+        self.summaryLabel = QLabel("", self)
+        self.summaryLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.summaryLabel.setStyleSheet("font-size:16px; font-weight:bold;")
+        info_layout.addWidget(self.summaryLabel, stretch=1)
 
         main_layout.addLayout(info_layout)
 
-        # ─── אזורים אחרים (קטגוריות, ערוצים, M3U content, כלים) ───
+        # --- Sections: קטגוריות, ערוצים, תוכן M3U, כלים ---
         main_layout.addLayout(self.create_category_section())
         main_layout.addLayout(self.create_channel_section())
         main_layout.addLayout(self.create_m3u_content_section())
         main_layout.addLayout(self.create_Tools())
 
-        # ─── כפתורי VLC (Play & Preview) ───
+        # --- כפתורים תחתונים: VLC, Preview, Translate ---
         vlc_icon = QIcon("icons/vlc.png")
+        btn_layout = QHBoxLayout()
 
-        vlc_layout = QHBoxLayout()
-
-        # ▶ נגן ערוץ בודד
         self.playButton = QPushButton("▶ נגן ב־VLC", self)
         self.playButton.setIcon(vlc_icon)
         self.playButton.setIconSize(QSize(24, 24))
         self.playButton.setStyleSheet(
-            "background-color: navy; color: white; font-weight: bold;"
+            "background-color:navy; color:white; font-weight:bold;"
         )
         self.playButton.clicked.connect(
             lambda: self.play_channel_with_name(self.getCurrentEntry())
         )
-        vlc_layout.addWidget(self.playButton)
+        btn_layout.addWidget(self.playButton)
 
-        # ▶ Preview לערוצים מרובים
         self.previewButton = QPushButton("▶ צפה בערוצים", self)
         self.previewButton.setIcon(vlc_icon)
         self.previewButton.setIconSize(QSize(24, 24))
         self.previewButton.setStyleSheet(
-            "background-color: navy; color: white; font-weight: bold;"
+            "background-color:navy; color:white; font-weight:bold;"
         )
         self.previewButton.clicked.connect(self.previewSelectedChannels)
-        vlc_layout.addWidget(self.previewButton)
+        btn_layout.addWidget(self.previewButton)
 
-        # ▶ Translate Channels ↔ כפתור תרגום ערוצים
         self.translateChannelsButton = QPushButton("🌐 תרגם ערוצים", self)
         self.translateChannelsButton.setStyleSheet(
-            "background-color: darkorange; color: white; font-weight: bold;"
+            "background-color:darkorange; color:white; font-weight:bold;"
         )
-        vlc_layout.addWidget(self.translateChannelsButton)
-        # ברגע שלחיצה – נפתח דיאלוג פנימי עם 2 אפשרויות
         self.translateChannelsButton.clicked.connect(self.translateChannels)
+        btn_layout.addWidget(self.translateChannelsButton)
 
-        # בסוף, מוסיפים את vlc_layout ל־main_layout
-        main_layout.addLayout(vlc_layout)
+        main_layout.addLayout(btn_layout)
 
-        # לחצן Checker וכדומה
+        # --- IPTV Checker Button ---
         self.urlCheckButton = QPushButton('IPTV Checker', self)
-        self.urlCheckButton.setStyleSheet("background-color: purple; color: white;")
+        self.urlCheckButton.setStyleSheet("background-color:purple; color:white;")
         self.urlCheckButton.clicked.connect(self.openURLCheckerDialog)
         main_layout.addWidget(self.urlCheckButton)
 
-        # ווידוא כותרת EXTM3U
+        # --- ודא כותרת EXTM3U ---
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
+
+        # --- אתחל את הסיכום הראשוני ---
+        self.updateSummary()
+
+    # שאר המתודות: create_category_section, create_channel_section, translateChannels,
+    # translateCategory, translateAll, _startTranslation, _onTranslated, updateSummary וכו'.
 
     def create_channel_section(self):
         """
@@ -2269,6 +2271,30 @@ class M3UEditor(QWidget):
         except Exception as e:
             print(f"[Search Error] {e}")
 
+
+    def updateSummary(self):
+        """
+        מחשב ומעדכן את self.summaryLabel עם:
+          📺 סך כל הערוצים | 🗂 סך כל הקטגוריות | 🚩 ערוצים בקטגוריה הנבחרת
+        """
+        # 1. סך כל הערוצים בכל הקטגוריות
+        total_channels = sum(len(ch_list) for ch_list in self.categories.values())
+        # 2. סך הקטגוריות
+        total_categories = len(self.categories)
+        # 3. ערוצים בקטגוריה שנבחרה כרגע (או 0 אם אין בחירה)
+        current_item = self.categoryList.currentItem()
+        if current_item:
+            cat_name = current_item.text().split(" (")[0].strip()
+            channels_in_cat = len(self.categories.get(cat_name, []))
+        else:
+            channels_in_cat = 0
+
+        # 4. עדכון התווית
+        self.summaryLabel.setText(
+            f"📺 {total_channels}   |   🗂 {total_categories}   |   🚩 {channels_in_cat}"
+        )
+
+
     def buildSearchCompleter(self):
         search_terms = list(self.categories.keys())
         for ch_list in self.categories.values():
@@ -2522,53 +2548,60 @@ class M3UEditor(QWidget):
             daemon=True
         ).start()
 
-
-
-    def mergeM3UContentToCategories(self, content, allow_duplicates=True):
+    def mergeM3UContentToCategories(self, content: str, allow_duplicates: bool = True):
         """
         ממזג תוכן M3U לתוך self.categories.
-        אם allow_duplicates=True – מוסיף גם ערוצים שכבר קיימים באותה קטגוריה.
+        אם allow_duplicates=True – מוסיף גם ערוצים שכבר קיימים.
+        אחרת – מדלג על כפילויות.
         """
         lines = content.strip().splitlines()
         current_name = ""
-        current_category = "Uncategorized📺"
+        current_category = "Uncategorized"
         current_logo = None
 
-        for i in range(len(lines)):
-            line = lines[i].strip()
-
+        # 1. עבור כל שורה, עקוב אחרי EXTINF ואז שורת URL
+        for idx, line in enumerate(lines):
+            line = line.strip()
             if line.startswith("#EXTINF:"):
-                name_match = re.search(r",(.+)", line)
-                current_name = name_match.group(1).strip() if name_match else ""
-
-                group_match = re.search(r'group-title="([^"]+)"', line)
-                current_category = group_match.group(1).strip() if group_match else "Uncategorized📺"
-
-                logo_match = re.search(r'tvg-logo="([^"]+)"', line)
-                current_logo = logo_match.group(1).strip() if logo_match else None
+                # חלץ שם
+                m1 = re.search(r",(.+)", line)
+                current_name = m1.group(1).strip() if m1 else ""
+                # חלץ category
+                m2 = re.search(r'group-title="([^"]+)"', line)
+                current_category = m2.group(1).strip() if m2 else "Uncategorized"
+                # חלץ logo
+                m3 = re.search(r'tvg-logo="([^"]+)"', line)
+                current_logo = m3.group(1).strip() if m3 else None
 
             elif line.startswith("http") and current_name:
-                # צור רשומת ערוץ
-                channel_entry = f"{current_name} ({line})"
+                # בנה את ה-entry
+                entry = f"{current_name} ({line})"
                 if current_logo:
-                    channel_entry += f' tvg-logo="{current_logo}"'
+                    entry += f' tvg-logo="{current_logo}"'
 
-                # הכן את הקטגוריה אם לא קיימת
+                # וודא את הקטגוריה במילון
                 if current_category not in self.categories:
                     self.categories[current_category] = []
 
-                # בדוק כפילות רק אם לא מאפשרים כפולים
-                if allow_duplicates or channel_entry not in self.categories[current_category]:
-                    self.categories[current_category].append(channel_entry)
+                # הוסף אם מותר או לא קיים
+                if allow_duplicates or entry not in self.categories[current_category]:
+                    self.categories[current_category].append(entry)
 
-                # שמירת EXTINF למעקב (אם קיים)
-                if not hasattr(self, 'extinf_lookup'):
+                # שמור EXTINF ל-lookup
+                if not hasattr(self, "extinf_lookup"):
                     self.extinf_lookup = {}
-                if channel_entry not in self.extinf_lookup:
-                    self.extinf_lookup[channel_entry] = lines[i - 1]  # שורת EXTINF המקורית
+                if entry not in self.extinf_lookup:
+                    # EXTINF תמיד קודם
+                    self.extinf_lookup[entry] = lines[idx - 1]
 
+                # נקה למחרוזת הבאה
                 current_name = ""
                 current_logo = None
+
+        # 2. בסיום — רענן את הרשימה והסיכום
+        self.updateCategoryList()
+        self.regenerateM3UTextOnly()
+        self.updateSummary()
 
     def ensure_extm3u_header(self):
         """
@@ -2819,18 +2852,6 @@ class M3UEditor(QWidget):
         convert_button.clicked.connect(handle_conversion)
         dialog.exec_()
 
-    def displayTotalChannels(self):
-        """
-        מחשבת ומציגה את כמות כל הערוצים בכל הקטגוריות
-        ואת מספר הקטגוריות, בתווית גלובלית אחת.
-        """
-        total_channels = sum(len(ch_list) for ch_list in self.categories.values())
-        total_categories = len(self.categories)
-        text = f"📺 Total Channels: {total_channels}   |   🗂 Categories: {total_categories}"
-        self.channelCountLabel.setText(text)
-        self.channelCountLabel.setToolTip(
-            f"{total_channels} ערוצים ב־{total_categories} קטגוריות"
-        )
 
     def sortChannels(self):
         sort_option = self.sortingComboBox.currentText()
@@ -2919,7 +2940,8 @@ class M3UEditor(QWidget):
             self.categoryList.addItem(display_text)
 
             # עדכון הספירה הכללית של ערוצים + קטגוריות
-            self.displayTotalChannels()
+            self.updateSummary()
+
 
     def cleanEmptyCategories(self):
         """
@@ -3029,7 +3051,8 @@ class M3UEditor(QWidget):
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An error occurred while deleting categories: {str(e)}")
-            self.displayTotalChannels()
+            self.updateSummary()
+
 
     def moveCategoryUp(self):
         current_row = self.categoryList.currentRow()
@@ -3255,7 +3278,8 @@ class M3UEditor(QWidget):
             self.display_channels(self.categoryList.currentItem())
 
         QMessageBox.information(self, "Success", f"Deleted {deleted} channel(s).")
-        self.displayTotalChannels()
+        self.updateSummary()
+
 
     def updateM3UContent(self):
         try:
@@ -3596,27 +3620,39 @@ class M3UEditor(QWidget):
 
     def display_channels(self, item):
         """
-        מציג את הערוצים באופן גרפי עם תג איכות.
+        מציג את הערוצים ברשימה הגרפית (QListWidget),
+        ומעדכן תמיד את סיכום הסטטוס בשורת ה-summaryLabel.
         """
+        # 1. נקה קודם את ה-QListWidget
         self.channelList.clear()
+
+        # 2. אם לא נבחר כלום — רק רענן סיכום ויצא
         if item is None:
+            self.updateSummary()
             return
 
-        cat = item.text().split(" (")[0].strip()
-        real = {k.strip(): k for k in self.categories}.get(cat)
-        if not real:
+        # 3. מצא את שם הקטגוריה בפורמט שהוצג
+        display_name = item.text().split(" (")[0].strip()
+        # 4. גשר בין התצוגה למפתח במילון
+        real_key = {k.strip(): k for k in self.categories.keys()}.get(display_name)
+        if not real_key:
+            self.updateSummary()
             return
 
-        for entry in self.categories[real]:
+        # 5. הוסף לכל ערוץ את הפריט שלו
+        for entry in self.categories.get(real_key, []):
+            # entry מצוי לרוב כ־"Name (URL)"
             name = entry.split(" (")[0].strip()
-            quality = detect_stream_quality(entry)
-            widget = create_channel_widget(name, quality)
+            if not name:
+                continue
 
-            lw_item = QListWidgetItem()
-            lw_item.setSizeHint(widget.sizeHint())
-            lw_item.setData(Qt.UserRole, entry)
-            self.channelList.addItem(lw_item)
-            self.channelList.setItemWidget(lw_item, widget)
+            lw = QListWidgetItem(name)
+            # שמור את המחרוזת המלאה ב-UserRole
+            lw.setData(Qt.UserRole, entry)
+            self.channelList.addItem(lw)
+
+        # 6. בסוף — עדכן את הסיכום העליון
+        self.updateSummary()
 
     def checkDoubles(self):
         """
@@ -4104,34 +4140,35 @@ class M3UEditor(QWidget):
             self,
             "Open M3U File",
             "",
-            "M3U Files (*.m3u *.m3u8);;All Files (*)", options=options
+            "M3U Files (*.m3u *.m3u8);;All Files (*)",
+            options=options
         )
-        if fileName:
-            try:
-                with open(fileName, 'r', encoding='utf-8') as file:
-                    content = file.read()
+        if not fileName:
+            return
 
-                # טען M3U דרך המתודה הראשית
-                self.loadM3UFromText(content, append=False)
+        try:
+            with open(fileName, 'r', encoding='utf-8') as file:
+                content = file.read()
 
-                # ✅ עדכון תצוגה
-                total_channels = sum(len(channels) for channels in self.categories.values())
-                total_categories = len(self.categories)
-                summary = f"📺 Total Channels: {total_channels}   |   🗂 Categories: {total_categories}"
-                self.channelCountLabel.setText(summary)
-                self.channelCountLabel.setToolTip(f"{total_channels} ערוצים בסך הכל ב-{total_categories} קטגוריות")
-                self.fileNameLabel.setText(f"Loaded File: {os.path.basename(fileName)}")
+            # טען M3U דרך המתודה הראשית (append=False מוחק קודם כל)
+            self.loadM3UFromText(content, append=False)
 
-                # 🧠 טעינת קובץ EPG אוטומטית אם קיים
-                epg_base = os.path.splitext(fileName)[0]
-                for ext in [".xml", ".xml.gz"]:
-                    epg_candidate = epg_base + ext
-                    if os.path.exists(epg_candidate):
-                        self.loadEPG(epg_candidate)
-                        break  # נטען רק את הראשון שנמצא
+            # עדכן רק את שם הקובץ בתווית
+            self.fileNameLabel.setText(f"Loaded File: {os.path.basename(fileName)}")
 
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to load file:\n{str(e)}")
+            # ונדאג שסיכום הערוצים יתעדכן אוטומטית
+            self.updateSummary()
+
+            # 🧠 אם יש קובץ EPG שקשור, טען אותו
+            epg_base = os.path.splitext(fileName)[0]
+            for ext in (".xml", ".xml.gz"):
+                epg_candidate = epg_base + ext
+                if os.path.exists(epg_candidate):
+                    self.loadEPG(epg_candidate)
+                    break
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load file:\n{str(e)}")
 
     def loadEPG(self, epg_path):
         try:
