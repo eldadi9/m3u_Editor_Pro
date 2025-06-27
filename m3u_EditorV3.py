@@ -237,28 +237,19 @@ class ExportGroupsDialog(QDialog):
             with open(file_path, 'w', encoding='utf-8') as file:
                 file.write("#EXTM3U\n")
                 for channel in self.categories[category]:
-                    # ✅ שימוש בשורת EXTINF המקורית אם קיימת
-                    extinf_line = self.parent.extinf_lookup.get(channel)
-
-                    # אם אין שורת EXTINF מקורית — ניצור אחת עם group-title
+                    extinf_line = self.parent.extinf_lookup.get(channel) or ""
                     if not extinf_line:
-                        channel_name = channel.split(" (")[0].strip()
-                        extinf_line = f'#EXTINF:-1 group-title="{category}",{channel_name}'
-                    else:
-                        # אם יש EXTINF אבל חסר group-title — נוסיף group-title
-                        if 'group-title="' not in extinf_line:
-                            parts = extinf_line.split(",", 1)
-                            if len(parts) == 2:
-                                props, name = parts
-                                extinf_line = f'{props} group-title="{category}",{name}'
+                        name = channel.split(" (")[0].strip()
+                        extinf_line = f'#EXTINF:-1 group-title="{category}",{name}'
+                    elif 'group-title="' not in extinf_line:
+                        props, name = extinf_line.split(",", 1)
+                        extinf_line = f'{props} group-title="{category}",{name}'
 
                     url = self.parent.getUrl(channel)
-                    channel_name = channel.split(" (")[0].strip()
-                    url = self.parent.append_channel_name_to_url(url, channel_name)
                     file.write(f"{extinf_line}\n{url}\n")
 
         except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {str(e)}")
+            QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {e}")
 
 
 class M3UUrlConverterDialog(QDialog):
