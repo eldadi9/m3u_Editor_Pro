@@ -2791,36 +2791,58 @@ class M3UEditor(QWidget):
         )
 
     def sortChannels(self):
-        sort_option = self.sortingComboBox.currentText()
-        current_category = self.categoryList.currentItem().text().split(" (")[
-            0] if self.categoryList.currentItem() else None
+        """
+        ממיין את self.categories[<קטגוריה נוכחית>] עפ״י האפשרות שב-sortingComboBox
+        ואז מרענן את התצוגה וה-M3U.
+        """
+        # בודק שיש קטגוריה נבחרת
+        cur_item = self.categoryList.currentItem()
+        if not cur_item:
+            return
 
-        if current_category and current_category in self.categories:
-            if sort_option == "Sort by Name A-Z":
-                self.categories[current_category].sort(key=lambda x: x.split(" (")[0])
-            elif sort_option == "Sort by Name Z-A":
-                self.categories[current_category].sort(key=lambda x: x.split(" (")[0], reverse=True)
-            elif sort_option == "Sort by Stream Type":
-                self.categories[current_category].sort(key=lambda x: x.split(",")[-1])
-            elif sort_option == "Sort by Group Title":
-                self.categories[current_category].sort(key=lambda x: x.split("group-title=")[-1].split(",")[0])
-            elif sort_option == "Sort by URL Length":
-                self.categories[current_category].sort(key=lambda x: len(x.split(",")[-1]))
-            elif sort_option == "Sort by Quality (4K → SD)":
-                def quality_rank(channel):
-                    if quality == "4K":
-                        return 0
-                    elif quality == "HD":
-                        return 1
-                    elif quality == "SD":
-                        return 2
-                    else:
-                        return 3
+        # שם הקטגוריה (ללא הספירה שבסוגריים)
+        cur_cat = cur_item.text().split(" (")[0].strip()
+        if cur_cat not in self.categories:
+            return
 
-                self.categories[current_category].sort(key=quality_rank)
+        # אופציית המיון הנבחרת מה-ComboBox
+        option = self.sortingComboBox.currentText()
+        channels = self.categories[cur_cat]
 
-            self.display_channels(self.categoryList.currentItem())
-            self.regenerateM3UTextOnly()  # <-- Add this line
+        if option == "Sort by Name A-Z":
+            channels.sort(key=lambda x: x.split(" (")[0].lower())
+
+        elif option == "Sort by Name Z-A":
+            channels.sort(key=lambda x: x.split(" (")[0].lower(), reverse=True)
+
+        elif option == "Sort by Stream Type":
+            channels.sort(key=lambda x: x.split(",")[-1])
+
+        elif option == "Sort by Group Title":
+            channels.sort(key=lambda x: x.split('group-title="')[-1].split('"')[0])
+
+        elif option == "Sort by URL Length":
+            channels.sort(key=lambda x: len(x.split(" (")[-1]))
+
+        elif option == "Sort by Quality (4K → SD)":
+            # משתמש בפונקציה detect_stream_quality המזהה איכות מתוך המחרוזת
+            def quality_rank(entry: str) -> int:
+                q = detect_stream_quality(entry)
+                return {
+                    "4K": 0,
+                    "FHD": 1,
+                    "HD": 2,
+                    "SD": 3
+                }.get(q, 4)
+
+            channels.sort(key=quality_rank)
+
+        # שמירת התוצאה בחזרה במילון
+        self.categories[cur_cat] = channels
+
+        # רענון התצוגה וכתיבת ה-M3U המעודכן
+        self.display_channels(cur_item)
+        self.regenerateM3UTextOnly()
 
     def create_m3u_content_section(self):
         layout = QVBoxLayout()
