@@ -46,6 +46,7 @@ from PyQt5.QtWidgets import (
     QMessageBox, QInputDialog, QListWidgetItem
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtWidgets import QProgressDialog, QMessageBox
 from deep_translator import GoogleTranslator
 
 
@@ -68,9 +69,12 @@ def create_channel_widget(name: str, quality: str) -> QWidget:
     w = QWidget()
     h = QHBoxLayout(w)
     h.setContentsMargins(5, 2, 5, 2)
+
+    # 1. השם
     lbl = QLabel(name)
     h.addWidget(lbl)
-    h.addStretch()
+
+    # 2. תווית האיכות מיד אחרי השם
     qlbl = QLabel(quality)
     styles = {
         '4K':      'background-color:#66cc66; color:black; padding:2px; border-radius:3px;',
@@ -81,7 +85,12 @@ def create_channel_widget(name: str, quality: str) -> QWidget:
     }
     qlbl.setStyleSheet(styles.get(quality, styles['Unknown']))
     h.addWidget(qlbl)
+
+    # 3. אם רוצים שהשורה תתמרח אחרי התווית:
+    h.addStretch()
+
     return w
+
 
 
 class CategoryTranslateThread(QThread):
@@ -1251,27 +1260,44 @@ class M3UEditor(QWidget):
         self._startTranslation(subset)
 
     def _startTranslation(self, cats_dict):
-        total = sum(len(v) for v in cats_dict.values())
+        total = sum(len(lst) for lst in cats_dict.values())
         if total == 0:
             QMessageBox.information(self, "תרגום ערוצים", "אין ערוצים לתרגם.")
             return
 
-        dlg = QProgressDialog("מתרגם ערוצים...", "ביטול", 0, total, self)
-        dlg.setWindowModality(Qt.WindowModal)
-        dlg.setWindowTitle("תִרגוּם ערוצים")
-        dlg.setMinimumDuration(0)
-        dlg.canceled.connect(lambda: getattr(self, 'chThread', None) and self.chThread.terminate())
-        dlg.show()
-
-        self.chThread = ChannelTranslateThread(cats_dict)
-        self.chThread.progress.connect(
-            lambda idx, name: (
-                dlg.setValue(idx),
-                dlg.setLabelText(f"מתרגם: {name} ({idx}/{total})")
-            )
+        # 1. יוצרים ושומרים את הדיאלוג במשתנה של המופע
+        self.chProgress = QProgressDialog(
+            "מתרגם ערוצים...",  # טקסט ראשי
+            "ביטול",  # טקסט כפתור ביטול
+            0, total,  # טווח הערכים
+            self  # parent
         )
-        self.chThread.finished.connect(lambda new_cats, mapping: self._onTranslated(new_cats, mapping, cats_dict))
+        self.chProgress.setWindowModality(Qt.WindowModal)
+        self.chProgress.setWindowTitle("תִרגוּם ערוצים")
+        self.chProgress.setMinimumDuration(0)  # להציג מיד
+        self.chProgress.setAutoClose(True)  # לסגור אוטומטית בהגעה למקסימום
+        self.chProgress.setAutoReset(True)  # לאפס את הערך אם יופעל שוב
+        self.chProgress.canceled.connect(lambda: getattr(self, 'chThread', None) and self.chThread.terminate())
+        self.chProgress.show()
+
+        # 2. אתחול ה-QThread
+        self.chThread = ChannelTranslateThread(cats_dict)
+        # הפרדת העדכון לרצף קריאות נקי יותר
+        self.chThread.progress.connect(self._update_translation_progress)
+        # כשהסתיים – נסגור את ה-QProgressDialog ואז נקרא לעדכון UI
+        self.chThread.finished.connect(lambda new_cats, mapping: (
+            self.chProgress.setValue(self.chProgress.maximum()),
+            self.chProgress.close(),
+            self._onTranslated(new_cats, mapping, cats_dict)
+        ))
         self.chThread.start()
+
+    def _update_translation_progress(self, idx: int, name: str):
+        """
+        מעדכן את הסרגל ואת התווית בכל אירוע פרוגרס
+        """
+        self.chProgress.setValue(idx)
+        self.chProgress.setLabelText(f"מתרגם: {name} ({idx}/{self.chProgress.maximum()})")
 
     def _onTranslated(self, new_cats, mapping, orig_dict):
         # עדכון רק הקטגוריות שעובדו
