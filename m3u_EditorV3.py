@@ -376,7 +376,7 @@ class M3UUrlConverterDialog(QDialog):
         # Download button
         self.downloadButton = QPushButton("Download M3U", self)
         self.downloadButton.setStyleSheet("background-color: red; color: white; font-weight: bold;")
-        self.downloadButton.clicked.connect(self.downloadM3U)
+        self.downloadButton.clicked.connect(self.downloadOriginalM3U)
         layout.addWidget(self.downloadButton)
 
         # Result display
@@ -404,51 +404,70 @@ class M3UUrlConverterDialog(QDialog):
         self.setLayout(layout)
 
     def convertToM3U(self):
+        import requests
+        from urllib.parse import urlparse
+        from PyQt5.QtWidgets import QMessageBox
+
+        host_raw = self.hostInput.text().strip()
         username = self.usernameInput.text().strip()
         password = self.passwordInput.text().strip()
-        host = self.hostInput.text().strip()
 
-        if not username or not password or not host:
-            self.resultLabel.setText("❌ Please fill all fields")
+        if not (host_raw and username and password):
+            QMessageBox.warning(self, "שגיאה", "נא למלא Host, Username ו-Password")
             return
 
-        # הסרה של http/https אם יש
-        if host.startswith("http://") or host.startswith("https://"):
-            host = host.split("://")[1]
+        tmp = host_raw if host_raw.startswith(("http://", "https://")) else "http://" + host_raw
+        parsed = urlparse(tmp)
+        host_only = parsed.hostname
+        given_port = parsed.port
 
-        # בנה את שתי הגרסאות האפשריות
-        urls_to_try = [
-            f"https://{host}/get.php?username={username}&password={password}&type=m3u_plus",
-            f"http://{host}/get.php?username={username}&password={password}&type=m3u_plus"
-        ]
+        ports = ([given_port] if given_port else []) + [8080, 80, None]
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Accept": "*/*",
+        })
 
-        headers = {
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "*/*"
-        }
+        found = None
+        for scheme in ("http", "https"):
+            for port in ports:
+                netloc = f"{host_only}:{port}" if port else host_only
+                # ← החלפנו את הסדר: קודם m3u_plus
+                for t in ("m3u_plus", "m3u"):
+                    url = f"{scheme}://{netloc}/get.php?username={username}&password={password}&type={t}"
+                    try:
+                        resp = session.get(url, timeout=5, allow_redirects=True)
+                        print(f"בדיקה: {url} → {resp.status_code}")
+                        if resp.status_code < 400:
+                            found = url
+                            break
+                    except requests.RequestException:
+                        continue
+                if found:
+                    break
+            if found:
+                break
 
-        for url in urls_to_try:
-            try:
-                response = requests.head(url, headers=headers, timeout=5)
-                if response.status_code == 200:
-                    self.m3uURL = url
-                    self.resultLabel.setText(f"✅ {self.m3uURL}")
-                    self.copyButton.show()
-                    self.downloadButton.show()
-                    return
-            except:
-                continue
+        if not found:
+            QMessageBox.critical(self, "שגיאה", "לא נמצא URL תקין – בדוק Host ונסה שוב")
+            self.copyButton.hide()
+            self.downloadButton.hide()
+            return
 
-        # אם לא הצליח – תוצאה שקטה
-        self.resultLabel.setText("❌ Could not find a working M3U URL")
-        self.copyButton.hide()
-        self.downloadButton.hide()
+        self.m3uURL = found
+        self.resultLabel.setText(found)
+        self.copyButton.show()
+        self.downloadButton.show()
 
     def copyResultToClipboard(self):
-        resultText = self.resultLabel.text()
-        pyperclip.copy(resultText)
-        QMessageBox.information(self, "Success", "Result copied to clipboard!")
-        pass
+        import pyperclip
+        from PyQt5.QtWidgets import QMessageBox
+
+        if hasattr(self, "m3uURL"):
+            pyperclip.copy(self.m3uURL)
+            QMessageBox.information(self, "Copied", "M3U URL copied to clipboard.")
+        else:
+            QMessageBox.warning(self, "No URL", "Nothing to copy.")
 
     def downloadM3U(self):
         try:
@@ -486,6 +505,45 @@ class M3UUrlConverterDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to download M3U file:\n\n{str(e)}")
 
+    def downloadOriginalM3U(self):
+        from PyQt5.QtWidgets import QFileDialog, QMessageBox
+        import requests
+
+        if not hasattr(self, 'm3uURL') or not self.m3uURL:
+            QMessageBox.warning(self, "Missing URL", "Please generate a valid M3U URL first.")
+            return
+
+        # session עם כותרות של דפדפן
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Accept": "*/*",
+        })
+
+        try:
+            resp = session.get(self.m3uURL, stream=True, timeout=15, allow_redirects=True)
+            resp.raise_for_status()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to download M3U:\n{e}")
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Original M3U File",
+            "playlist_original.m3u",
+            "M3U Files (*.m3u);;All Files (*)"
+        )
+        if not path:
+            return
+
+        try:
+            with open(path, "wb") as f:
+                for chunk in resp.iter_content(8 * 1024):
+                    f.write(chunk)
+            QMessageBox.information(self, "Success", "Original M3U file saved successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save file:\n{e}")
+
 
 class SmartScanDialog(QDialog):
     def __init__(self, parent=None):
@@ -506,7 +564,7 @@ class SmartScanDialog(QDialog):
 
 
 class SmartScanThread(QThread):
-    progress = pyqtSignal(int, int, int, tuple)  # checked, offline, duplicate, (name, url, status, reason)
+    progress = pyqtSignal(int, int, int, tuple)
     finished = pyqtSignal()
 
     def __init__(self, channels, duplicate_names):
@@ -517,59 +575,33 @@ class SmartScanThread(QThread):
 
     def run(self):
         checked = offline = duplicate = 0
-        duplicates_count = {}
-
         headers = {
             "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
             "Accept": "*/*",
             "Connection": "close"
         }
-
         for name, url in self.channels:
             if self.stop_requested:
+                # מחכים רגע קטן לפני יציאה כדי לא לקרוע סיגנלים באמצע
+                time.sleep(0.05)
                 break
-
-                time.sleep(0.05)  # האטה כדי לא להציף את הרשת
-
-            status = "Online"
-            reason = ""
-
-            # בדיקת דופליקייטים
-            duplicates_count[name] = duplicates_count.get(name, 0) + 1
-            is_duplicate = duplicates_count[name] > 1
-
-            # בדיקת כתובת URL בפועל
+            status = "Offline"; reason = "Unknown"
             try:
                 res = requests.get(url, headers=headers, stream=True, timeout=4)
-
-                if res.status_code >= 400:
-                    status = "Offline"
+                if res.status_code < 400 and any(x in res.text.lower() for x in ["#extm3u", ".ts", ".mp4", ".m3u8"]):
+                    status = "Online"; reason = "OK"
+                    # כאן תוכלו להוסיף בדיקות נוספות dup וכו׳
+                else:
                     reason = f"HTTP {res.status_code}"
-                elif not any(x in res.text.lower() for x in ["#extm3u", "http", ".ts", ".m3u8", ".mp4", ".aac"]):
-                    status = "Offline"
-                    reason = "Invalid Content"
-
-            except requests.exceptions.Timeout:
-                status = "Offline"
-                reason = "Timeout"
-            except requests.exceptions.ConnectionError:
-                status = "Offline"
-                reason = "Connection Error"
             except Exception as e:
-                status = "Offline"
                 reason = str(e)
-
-            # עדכון מונים
+            checked += 1
             if status == "Offline":
                 offline += 1
-            if is_duplicate:
-                duplicate += 1
-                reason = (reason + " & Duplicate") if reason else "Duplicate"
-
-            checked += 1
+            # שידור עדכון
             self.progress.emit(checked, offline, duplicate, (name, url, status, reason))
-
         self.finished.emit()
+
 
     def stop(self):
         self.stop_requested = True
@@ -1663,62 +1695,69 @@ class M3UEditor(QWidget):
                     out.write(url_line + "\n")
 
     def openM3UConverterDialog(self):
-        dialog = M3UUrlConverterDialog(self)
-        dialog.exec_()
+        from PyQt5.QtCore import Qt
+        # יוצרים את הדיאלוג ומוודאים שהוא יימחק אוטומטית בסגירה
+        dlg = M3UUrlConverterDialog(self)
+        dlg.setAttribute(Qt.WA_DeleteOnClose)
+        dlg.finished.connect(dlg.deleteLater)
+        dlg.exec_()
 
-        def handle_download():
-            url = url_input.text().strip()
-            if not url:
-                QMessageBox.warning(dialog, "Missing URL", "Please enter a valid M3U URL.")
+
+    def handle_download():
+        import re
+        from datetime import datetime
+        import requests
+        from PyQt5.QtWidgets import QMessageBox, QFileDialog
+
+        url = url_input.text().strip()
+        if not url:
+            QMessageBox.warning(dialog, "Missing URL", "Please enter a valid M3U URL.")
+            return
+
+        if not (url.startswith("http://") or url.startswith("https://")):
+            QMessageBox.warning(dialog, "Invalid URL", "URL must start with http:// or https://")
+            return
+
+        try:
+            session = setup_session()
+            resp = session.get(url, timeout=5)
+            resp.raise_for_status()
+            content = resp.text.strip()
+
+            if not content.startswith("#EXTM3U"):
+                QMessageBox.warning(dialog, "Invalid File", "Downloaded file is not a valid M3U playlist.")
                 return
 
-            if not re.match(r'^https?://', url):
-                QMessageBox.warning(dialog, "Invalid URL", "Please enter a valid URL starting with http:// or https://")
-                return
+            choice = QMessageBox.question(
+                dialog,
+                "M3U Downloaded",
+                "M3U file downloaded successfully.\n\nLoad into the system?",
+                QMessageBox.Yes | QMessageBox.No
+            )
 
-            try:
-                session = setup_session()  # ← חדש
-                response = session.get(url, timeout=5)
-                response.raise_for_status()
-                content = response.text.strip()
-
-                if not content.startswith("#EXTM3U"):
-                    QMessageBox.warning(dialog, "Invalid File", "The downloaded file is not a valid M3U playlist.")
-                    return
-
-                # שואל אם לטעון
-                choice = QMessageBox.question(
-                    dialog, "M3U Downloaded",
-                    "M3U file downloaded successfully.\n\nDo you want to load it into the system?",
-                    QMessageBox.Yes | QMessageBox.No
+            if choice == QMessageBox.Yes:
+                self.loadM3UFromText(content)
+            else:
+                m = re.search(r"username=([\w]+)", url)
+                default_name = f"{m.group(1)}.m3u" if m else f"m3u_{datetime.now():%Y%m%d_%H%M%S}.m3u"
+                path, _ = QFileDialog.getSaveFileName(
+                    dialog,
+                    "Save M3U File",
+                    default_name,
+                    "M3U Files (*.m3u);;All Files (*)"
                 )
+                if path:
+                    with open(path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    QMessageBox.information(dialog, "Saved", "M3U file saved successfully.")
 
-                if choice == QMessageBox.Yes:
-                    self.loadM3UFromText(content)
-                else:
-                    # קובע שם ברירת מחדל
-                    match = re.search(r'username=([a-zA-Z0-9]+)', url)
-                    if match:
-                        default_name = f"{match.group(1)}.m3u"
-                    else:
-                        from datetime import datetime
-                        default_name = f"m3u_{datetime.now().strftime('%Y%m%d_%H%M%S')}.m3u"
+            # סוגרים דרך accept() כדי שה-deleteLater יעבוד
+            dialog.accept()
 
-                    file_path, _ = QFileDialog.getSaveFileName(dialog, "Save M3U File", default_name,
-                                                               "M3U Files (*.m3u);;All Files (*)")
-                    if file_path:
-                        with open(file_path, 'w', encoding='utf-8') as f:
-                            f.write(content)
-                        QMessageBox.information(dialog, "Saved", "M3U file saved successfully.")
-
-                dialog.close()
-
-            except Exception as e:
-                QMessageBox.critical(dialog, "Download Error", f"Failed to download or parse M3U:\n{str(e)}")
-
-        download_button.clicked.connect(handle_download)
-
-        dialog.exec_()
+        except requests.exceptions.RequestException as e:
+            QMessageBox.critical(dialog, "Network Error", f"Network error:\n{e}")
+        except Exception as e:
+            QMessageBox.critical(dialog, "Error", f"Unexpected error:\n{e}")
 
     def openBatchDownloader(self):
         dialog = QDialog(self)
@@ -2345,168 +2384,142 @@ class M3UEditor(QWidget):
     # self.textEdit.setPlainText(fixed_content)
 
     def mergeM3Us(self):
+        # 1. בחר קובץ M3U נוסף
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(
-            self, "Open Additional M3U File", "",
-            "M3U Files (*.m3u *.m3u8);;All Files (*)", options=options
+            self,
+            "Open Additional M3U File",
+            "",
+            "M3U Files (*.m3u *.m3u8);;All Files (*)",
+            options=options
         )
         if not fileName:
             return
 
+        # 2. קרא את התוכן מהקובץ
         try:
-            with open(fileName, 'r', encoding='utf-8') as file:
-                new_content = file.read()
-
-            # Extract EPG URLs from the EXT line
-            for line in new_content.strip().splitlines():
-                if line.startswith("#EXTM3U"):
-                    matches = re.findall(r'(url-tvg|x-tvg-url)="([^"]+)"', line)
-                    if not hasattr(self, "epg_headers"):
-                        self.epg_headers = []
-                    if matches:
-                        urls = [match[1] for match in matches]
-                        joined = ",".join(urls)
-                        self.epg_headers.append(f'#EXTM3U url-tvg="{joined}"')
-
-            # ✅ Clean and split new file
-            new_lines = [line for line in new_content.strip().splitlines() if
-                         line.strip() and not line.startswith("#EXTM3U")]
-
-            try:
-                with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
-                    logo_db = json.load(f)
-            except:
-                logo_db = {}
-
-            merged_lines = []
-            merged_channel_count = 0  # ✅ מונה חדש לערוצים
-            i = 0
-            while i < len(new_lines):
-                line = new_lines[i]
-                if line.startswith("#EXTINF:"):
-                    extinf_line = line
-                    url_line = new_lines[i + 1] if i + 1 < len(new_lines) else ""
-                    name_match = re.search(r",(.+)", extinf_line)
-                    channel_name = name_match.group(1).strip() if name_match else ""
-                    extinf_line = self.inject_logo(extinf_line, channel_name, logo_db)  # ← תיקון!
-                    merged_lines.append(extinf_line)
-                    if url_line:
-                        merged_lines.append(url_line)
-                    merged_channel_count += 1  # ✅ עדכון מונה
-                    i += 2
-                else:
-                    i += 1
-
-            # Add to text editor
-            current_content = self.textEdit.toPlainText().strip()
-            current_lines = current_content.splitlines() if current_content else []
-
-            # Remove old EPG headers
-            current_lines = [line for line in current_lines if
-                             not line.startswith("#EXTM3U")]
-
-            # Build unified header
-            header = self.buildUnifiedEPGHeader()
-            final_lines = [header] + current_lines + merged_lines
-
-            self.safely_update_text_edit("\n".join(final_lines))
-
-            self.mergeM3UContentToCategories("\n".join(merged_lines), allow_duplicates=True)
-
-            # ✅ הוספת השורה כאן:
-            self.cleanEmptyCategories()
-
-            self.updateCategoryList()
-            self.regenerateM3UTextOnly()
-
-            if self.categoryList.count() > 0:
-                self.categoryList.setCurrentRow(0)
-                self.display_channels(self.categoryList.currentItem())
-
-            self.fileNameLabel.setText(f"Loaded File: {fileName.split('/')[-1]} (Merged)")
-
-            # ✅ נוסיף הודעה עם מספר ערוצים:
-            QMessageBox.information(
-                self,
-                "Merge Complete",
-                f"The M3U files have been merged successfully.\nChannels added: {merged_channel_count}"
-            )
-
+            with open(fileName, 'r', encoding='utf-8') as f:
+                new_content = f.read()
         except Exception as e:
-            QMessageBox.critical(self, "Error", "Failed to merge M3U files: " + str(e))
+            QMessageBox.critical(self, "Error", f"Failed to read file:\n{e}")
+            return
+
+        # 3. עדכון self.epg_headers עם כל שורות #EXTM3U מהקובץ החדש
+        if not hasattr(self, 'epg_headers'):
+            self.epg_headers = []
+        for line in new_content.strip().splitlines():
+            if line.startswith("#EXTM3U"):
+                if line not in self.epg_headers:
+                    self.epg_headers.append(line)  # :contentReference[oaicite:0]{index=0}
+
+        # 4. פילוח התוכן למערך שורות מבלי #EXTM3U
+        lines = [
+            l for l in new_content.strip().splitlines()
+            if l.strip() and not l.startswith("#EXTM3U")
+        ]
+
+        # 5. בנייה מחדש של merged_lines (שומר סדר EXTINF + URL)
+        merged_lines = []
+        i = 0
+        # טעינת מסד הלוגואים (לשימוש ב-inject_logo)
+        logo_db = {}
+        if os.path.exists(LOGO_DB_PATH):
+            try:
+                with open(LOGO_DB_PATH, 'r', encoding='utf-8') as lf:
+                    logo_db = json.load(lf)
+            except:
+                pass
+        while i < len(lines):
+            if lines[i].startswith("#EXTINF:"):
+                extinf = lines[i]
+                url = lines[i + 1] if i + 1 < len(lines) else ""
+                # הזרקת לוגו במידת הצורך
+                name_match = re.search(r',(.+)', extinf)
+                name = name_match.group(1).strip() if name_match else ""
+                extinf = self.inject_logo(extinf, name, logo_db)
+                merged_lines.append(extinf)
+                if url:
+                    merged_lines.append(url)
+                i += 2
+            else:
+                i += 1
+
+        # 6. בנייה של שורת כותרת EPG מאוחדת
+        unified = self.buildUnifiedEPGHeader()  # :contentReference[oaicite:1]{index=1}
+
+        # 7. בנייה של התוכן הקיים ללא כותרות EXT וללא שורות ריקות
+        old = self.textEdit.toPlainText().splitlines()
+        body = [l for l in old if not l.startswith("#EXTM3U")]
+
+        # 8. הרכבה סופית ועדכון הטקסט באלמנט
+        final = "\n".join([unified] + body + merged_lines)
+        self.textEdit.blockSignals(True)
+        self.textEdit.setPlainText(final)
+        self.textEdit.blockSignals(False)
+
+        # 9. מיזוג הערוצים לקטגוריות (כולל כפילויות)
+        self.mergeM3UContentToCategories("\n".join(merged_lines),
+                                         allow_duplicates=True)  # :contentReference[oaicite:2]{index=2}
+
+        # 10. רענון ה־UI והצגה ראשונית
+        self.cleanEmptyCategories()
+        self.updateCategoryList()
+        self.regenerateM3UTextOnly()
+        if self.categoryList.count():
+            self.categoryList.setCurrentRow(0)
+            self.display_channels(self.categoryList.currentItem())
+
+        # 11. עדכון תווית הקובץ
+        self.fileNameLabel.setText(f"Loaded File: {os.path.basename(fileName)}")
 
     def loadM3UFromText(self, content, append=False):
-        # 0️⃣ שומר עותק מלא של הטקסט
-        self.last_loaded_m3u = content
-
+        # אם לא append מנקים את הקטגוריות
         if not append:
             self.categories.clear()
 
-        # 1️⃣ אוסף את כותרות ה־EPG הקיימות
+        # ----- 1️⃣ ניהול EPG headers -----
+        # אתחול self.epg_headers בפעם הראשונה (או בכל load מחדש)
         if not hasattr(self, "epg_headers") or not append:
             self.epg_headers = []
-        for line in content.splitlines():
+
+        # שלב 1: אסוף את כל ה־EPG headers (בלי strip על כל הקובץ)
+        detected_epg_headers = []
+        for line in content.splitlines():  # <-- splitlines() בלי strip()
             if line.startswith("#EXTM3U") and ("url-tvg=" in line or "x-tvg-url=" in line):
-                if line not in self.epg_headers:
-                    self.epg_headers.append(line)
+                detected_epg_headers.append(line.strip())
 
-        # 2️⃣ מסיר את כל שורות #EXTM3U מהגוף
-        body = "\n".join(l for l in content.splitlines() if not l.startswith("#EXTM3U"))
+        # שלב 2: הוספת headers ייחודיים
+        for header in detected_epg_headers:
+            if header not in self.epg_headers:
+                self.epg_headers.append(header)
 
-        # 3️⃣ בונה כותרת מאוחדת
-        unified = self.buildUnifiedEPGHeader()
-        merged = unified + "\n" + body
+        # שלב 3: ניקוי כל שורות EXTМ3U (בלי להסיר רווחים)
+        lines = [
+            line for line in content.splitlines()  # <-- שוב splitlines() בלי strip()
+            if not line.startswith("#EXTM3U")
+        ]
 
-        # 4️⃣ ממשיך כרגיל עם הפרס והעדכון
-        self.parseM3UContentEnhanced(merged)
-        self.updateCategoryList()
-        self.buildSearchCompleter()
-
-        # 5️⃣ סריקה ושמירת לוגואים ברקע
-        threading.Thread(
-            target=self.extract_and_save_logos_for_all_channels,
-            args=(merged,),
-            daemon=True
-        ).start()
-
-        if not append:
-            self.categories.clear()
-
-        if not hasattr(self, "epg_headers") or not append:
-            self.epg_headers = []
-
-        for line in content.strip().splitlines():
-            if line.startswith("#EXTM3U"):
-                matches = re.findall(r'(url-tvg|x-tvg-url)="([^"]+)"', line)
-                if matches:
-                    urls = [match[1] for match in matches]
-                    joined = ",".join(urls)
-                    self.epg_headers.append(f'#EXTM3U url-tvg="{joined}"')
-
-        # הסרה מוחלטת של כל שורות EXTМ3U
-        content = "\n".join([line for line in content.strip().splitlines()
-                             if not line.startswith("#EXTM3U")])
-
+        # ----- 2️⃣ בניית שורת EXTМ3U אחידה -----
         unified_header = self.buildUnifiedEPGHeader()
-        content = unified_header + "\n" + content
+        # מוסיפים שתי השורות הבאות: כותרת, שורה ריקה, ואז כל התוכן
+        content2 = unified_header + "\n\n" + "\n".join(lines)
 
-
-        self.parseM3UContentEnhanced(content)
+        # ----- 4️⃣ פרס קובץ M3U -----
+        self.parseM3UContentEnhanced(content2)
         self.updateCategoryList()
         self.buildSearchCompleter()
-        self.logosFinished.connect(self.onLogosFinished)
 
+        # ----- 5️⃣ בחירת קטגוריה ראשונה -----
         if self.categoryList.count() > 0:
             self.categoryList.setCurrentRow(0)
             self.display_channels(self.categoryList.currentItem())
 
+        # ----- 6️⃣ סריקת לוגואים ברקע -----
         threading.Thread(
             target=self.extract_and_save_logos_for_all_channels,
-            args=(content,),
+            args=(content2,),
             daemon=True
         ).start()
-
-
 
     def mergeM3UContentToCategories(self, content, allow_duplicates=True):
         """
@@ -3821,35 +3834,24 @@ class M3UEditor(QWidget):
         dialog.exec_()
 
     def openSmartScanDialog(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Smart Scan")
-        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-        dialog.setStyleSheet("""
-            QDialog {
-                border: 6px solid red;
-                background-color: white;
-            }
-        """)
+        from PyQt5.QtCore import Qt
 
-        layout = QVBoxLayout(dialog)
-        label = QLabel("Choose scan type:")
-        label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(label)
+        # מכינים רשימת ערוצים ומיפוי לקטגוריות
+        channels = []
+        category_map = {}
+        for cat, lst in self.categories.items():
+            for ch in lst:
+                name = ch.split(" (")[0].strip()
+                url = self.getUrl(ch)
+                if url:
+                    channels.append((name, url))
+                    category_map[name.lower()] = cat
 
-        category_btn = QPushButton("Scan Selected Category")
-        all_btn = QPushButton("Scan All Channels")
-
-        category_btn.setStyleSheet("background-color: black; color: white; font-weight: bold;")
-        all_btn.setStyleSheet("background-color: red; color: white; font-weight: bold;")
-
-        layout.addWidget(category_btn)
-        layout.addWidget(all_btn)
-
-        category_btn.clicked.connect(lambda: [dialog.accept(), self.showSmartScanCategoryPicker()])
-        all_btn.clicked.connect(lambda: [dialog.accept(), self.startSmartScan(all_categories=True)])
-
-        dialog.setLayout(layout)
-        dialog.exec_()
+        # יוצרים את הדיאלוג ומוודאים שהוא יימחק אוטומטית
+        dlg = SmartScanStatusDialog(channels, category_map, self)
+        dlg.setAttribute(Qt.WA_DeleteOnClose)
+        dlg.finished.connect(dlg.deleteLater)
+        dlg.exec_()
 
     def performSmartScan(self, category_only, dialog):
         dialog.close()
