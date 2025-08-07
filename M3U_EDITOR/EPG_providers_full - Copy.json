@@ -34,8 +34,7 @@
     "http://f1-mania.ru/janitor/EPG.xml.gz"
   ],
   "Filmax": [
-    "https://filmax-tv.ru/epg.xml.gz",
-    "https://fm7.pp.ru/epg.xml.gz"
+    "https://filmax-tv.ru/epg.xml.gz"
   ],
   "FOX-TV": [
     "http://epg.fox-tv.fun/1.xmltv",
@@ -140,91 +139,5 @@
   ],
   "kvclub.xyz": [
     "http://epg.kvclub.xyz/xmltv.xml.gz"
-  ],
-  "iLook New": [
-    "http://epg.one/epg.xml",
-    "http://epg.one/epg.xml.gz",
-    "http://epg.one/epg2.xml.gz"
-  ],
-  "Sharavoz": [
-    "http://iptv-content.rv77.pw/guide.xml",
-    "http://iptv-content.rv77.pw/epg.xml.xz"
-  ],
-  "Sharavoz Lite EPG": [
-    "http://iptv-content.rv77.pw/guide-lite.xml",
-    "http://iptv-content.rv77.pw/epg-lite.xml.gz",
-    "http://iptv-content.rv77.pw/epg-lite.xml.xz"
-  ],
-  "Cbilling": [
-    "http://epg.g-cdn.app/xmltv.xml.gz"
-  ],
-  "Dosug TV": [
-    "http://epg.propg.net/epg.xml.gz"
-  ],
-  "Peak TV": [
-    "http://epg.peaktv.info/epg/epg.xml.gz"
-  ],
-  "Play-x-ru": [
-    "http://stream4k.ru:8080/play/epg.xml.gz"
-  ],
-  "Clarity": [
-    "http://stream4k.ru:8080/cl/epg.xml",
-    "http://stream4k.ru:8080/epg.xml"
-  ],
-  "CMS": [
-    "http://stream4k.ru:8080/cms/epg.xml"
-  ],
-  "IPTV-ONLINE": [
-    "https://see-tv.eu/epg/epg.xml.gz"
-  ],
-  "RU-TV-": [
-    "http://epg.ru-tv.site/14.xml"
-  ],
-  "RU-List": [
-    "http://rutv.aws-static-hosting.com/epg.xml.gz"
-  ],
-  "Uspeh TV": [
-    "https://epg.admuspeh.my"
-  ],
-  "Only4": [
-    "http://only4.tv/epg/epg.xml"
-  ],
-  "VipLime": [
-    "http://epg.cdntv.online/full.xml.gz",
-    "http://epg.cdntv.online/lite.xml.gz"
-  ],
-  "TV team": [
-    "http://epg.team/tvteam.xml.7.2 - (Архив на 7 дн.)"
-  ],
-  "Glanz TV": [
-    "https://epg.online/epg.xml.gz"
-  ],
-  "Ping TV": [
-    "http://epg.ping-tv.com/1.xmltv",
-    "http://epg.ping-tv.com/1-light.xmltv"
-  ],
-  "MiniMax": [
-    "https://epg-mm.ga/minimax_epg.xml.gz",
-    "http://epg.minimax-tv.ru/minimax_epg.xml"
-  ],
-  "Blink TV": [
-    "http://epg.blinktv.cc/epg.xml.gz"
-  ],
-  "Zigfreed TV": [
-    "http://zigfreed.ru/epg.xml.gz"
-  ],
-  "Zigfreed TV Kinozaly": [
-    "http://zigfreed.ru/Z/epg.xml"
-  ],
-  "MyMagic": [
-    "http://epg.mymagic-tv.net/6.xmltv"
-  ],
-  "Tvoe TV": [
-    "http://tvoetv.space/tvoetv.xml",
-    "https://epg.tvoetv.io/api/epg.xml.gz",
-    "http://tvoetv.space/tvoetv-humor.xml"
-  ],
-  "TapITV": [
-    "http://tapitv.com/ttvm.xmltv.xml.gz"
   ]
 }

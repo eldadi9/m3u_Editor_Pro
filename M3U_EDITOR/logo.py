@@ -7,13 +7,19 @@ import threading
 LOGO_DB_PATH = os.path.join(os.path.dirname(__file__), "logos_db.json")
 
 
+import os
+import json
+
 def load_logo_cache():
-    """Load existing logos_db.json or return empty dict."""
-    try:
-        with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
+    path = os.path.join(os.path.dirname(__file__), "logos_db.json")
+    if not os.path.exists(path):
         return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"⚠ שגיאה בטעינת logos_db.json: {e}")
+        return {}  # חזרה לקובץ ריק במקום קריסה
 
 
 def save_logo_for_channel(channel_name, logo_url):

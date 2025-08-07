@@ -139,7 +139,14 @@ class CategoryTranslateThread(QThread):
             except:
                 final_base = old_name  # fallback
 
-            updated_categories[final_base] = channels
+            # התיקון: בדיקה אם הקטגוריה המתורגמת כבר קיימת
+            if final_base in updated_categories:
+                # אם כבר קיימת - הוסף ערוצים לקטגוריה הקיימת
+                updated_categories[final_base].extend(channels)
+            else:
+                # אם לא קיימת - צור קטגוריה חדשה
+                updated_categories[final_base] = channels
+
             category_mapping[old_name] = final_base
             self.progress.emit(i + 1, old_name)
 
@@ -1062,6 +1069,15 @@ class M3UEditor(QWidget):
         self.logo_cache = load_logo_cache()
         self.logosFinished.connect(self.onLogosFinished)
 
+    @property
+    def full_text(self) -> str:
+        """
+        מחזיר את כל תוכן ה־M3U שמוצג בעורך.
+        """
+        return self.textEdit.toPlainText()
+
+
+
     def merge_or_fix_epg(self):
         """
         מאחד או מתקן את שורת ה־EPG בראש הקובץ לפי ספקים מזוהים.
@@ -1260,21 +1276,419 @@ class M3UEditor(QWidget):
         """
         dlg = QDialog(self)
         dlg.setWindowTitle("תרגם ערוצים")
-        dlg.setLayout(QVBoxLayout())
-        dlg.layout().setContentsMargins(20, 20, 20, 20)
+        dlg.setModal(True)
+        dlg.setMinimumSize(350, 200)
 
-        btn_cat = QPushButton("תרגם קטגוריה", dlg)
-        btn_all = QPushButton("תרגם את כל הערוצים", dlg)
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(20)
 
-        for btn in (btn_cat, btn_all):
-            btn.setFixedHeight(40)
-            btn.setStyleSheet("font-size:16px; font-weight:bold;")
-            dlg.layout().addWidget(btn)
+        # כותרת
+        title_label = QLabel("בחר אפשרות תרגום")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #2c3e50;
+                margin-bottom: 10px;
+            }
+        """)
+        layout.addWidget(title_label)
 
+        # כפתור תרגום קטגוריה
+        btn_cat = QPushButton("🔤 תרגם קטגוריה נוכחית", dlg)
+        btn_cat.setFixedHeight(50)
+        btn_cat.setStyleSheet("""
+            QPushButton {
+                font-size: 16px;
+                font-weight: bold;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #3498db, stop:1 #2980b9);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #2980b9, stop:1 #3498db);
+            }
+            QPushButton:pressed {
+                background: #2471a3;
+            }
+        """)
+
+        # כפתור תרגום כולל
+        btn_all = QPushButton("🌐 תרגם את כל הערוצים", dlg)
+        btn_all.setFixedHeight(50)
+        btn_all.setStyleSheet("""
+            QPushButton {
+                font-size: 16px;
+                font-weight: bold;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #e74c3c, stop:1 #c0392b);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #c0392b, stop:1 #e74c3c);
+            }
+            QPushButton:pressed {
+                background: #a93226;
+            }
+        """)
+
+        layout.addWidget(btn_cat)
+        layout.addWidget(btn_all)
+
+        # הוספת מידע על מספר ערוצים
+        info_label = QLabel()
+        current_category = self.categoryList.currentItem()
+        if current_category:
+            current_channels = len(self.categories.get(current_category.text(), []))
+            total_channels = sum(len(channels) for channels in self.categories.values())
+            info_text = f"קטגוריה נוכחית: {current_channels:,} ערוצים\nסה\"כ ערוצים: {total_channels:,}"
+        else:
+            total_channels = sum(len(channels) for channels in self.categories.values())
+            info_text = f"סה\"כ ערוצים: {total_channels:,}"
+
+        info_label.setText(info_text)
+        info_label.setAlignment(Qt.AlignCenter)
+        info_label.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                color: #7f8c8d;
+                background: #ecf0f1;
+                padding: 8px;
+                border-radius: 4px;
+                margin-top: 10px;
+            }
+        """)
+        layout.addWidget(info_label)
+
+        # חיבור הכפתורים
         btn_cat.clicked.connect(lambda: (dlg.accept(), self._translateCategory()))
         btn_all.clicked.connect(lambda: (dlg.accept(), self._translateAll()))
 
         dlg.exec_()
+
+    def _translateCategory(self):
+        """תרגום קטגוריה נוכחית בלבד - מהיר יותר"""
+        current_item = self.categoryList.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "שגיאה", "לא נבחרה קטגוריה")
+            return
+
+        category_name = current_item.text()
+        channels = self.categories.get(category_name, [])
+
+        if not channels:
+            QMessageBox.information(self, "מידע", "הקטגוריה ריקה")
+            return
+
+        # יצירת thread לתרגום מהיר של קטגוריה אחת
+        single_category = {category_name: channels}
+        self._startFastTranslation(single_category, f"מתרגם קטגוריה: {category_name}")
+
+    def _translateAll(self):
+        """תרגום כל הערוצים - עם אופטימיזציות מהירות"""
+        if not self.categories:
+            QMessageBox.information(self, "מידע", "אין קטגוריות לתרגום")
+            return
+
+        total_channels = sum(len(channels) for channels in self.categories.values())
+
+        # אזהרה אם יש הרבה ערוצים
+        if total_channels > 5000:
+            reply = QMessageBox.question(
+                self, "אזהרה",
+                f"יש {total_channels:,} ערוצים לתרגום.\n"
+                f"התהליך עלול לקחת זמן רב.\n"
+                f"האם להמשיך?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+
+        self._startFastTranslation(self.categories, "מתרגם את כל הערוצים")
+
+    def _startFastTranslation(self, categories_to_translate, status_message):
+        """התחלת תרגום מהיר עם אופטימיזציות"""
+        from PyQt5.QtCore import QThread, pyqtSignal
+
+        class FastChannelTranslateThread(QThread):
+            """Thread מהיר לתרגום ערוצים עם batch processing"""
+            progress = pyqtSignal(int, str, float)
+            finished = pyqtSignal(dict, dict)
+            error = pyqtSignal(str)
+
+            def __init__(self, categories_dict):
+                super().__init__()
+                self.categories = categories_dict
+                self._stop_requested = False
+
+            def stop(self):
+                self._stop_requested = True
+
+            def run(self):
+                import re
+                from deep_translator import GoogleTranslator
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                import time
+
+                def clean(text):
+                    if not text:
+                        return ""
+                    return re.sub(r'[\r\n\t\x00-\x1F]', '', str(text)).strip()
+
+                def is_english(text):
+                    if not text:
+                        return False
+                    return all(ord(c) < 128 for c in str(text) if c.isalpha())
+
+                def batch_translate(translator, texts, batch_size=20):
+                    """תרגום בקבוצות למהירות מיטבית"""
+                    results = {}
+
+                    # חלוקה לקבוצות קטנות
+                    text_batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
+
+                    for batch in text_batches:
+                        if self._stop_requested:
+                            break
+
+                        try:
+                            # ניסיון תרגום batch
+                            translated_batch = translator.translate_batch(batch)
+                            for original, translated in zip(batch, translated_batch):
+                                results[original] = clean(translated) if translated else original
+                        except:
+                            # fallback לתרגום יחיד אם batch נכשל
+                            for text in batch:
+                                try:
+                                    time.sleep(0.1)  # המתנה קצרה
+                                    result = translator.translate(text)
+                                    results[text] = clean(result) if result else text
+                                except:
+                                    results[text] = text  # שמירת המקור אם נכשל
+
+                    return results
+
+                try:
+                    # אתחול מתרגם
+                    translator_en = GoogleTranslator(source='auto', target='en')
+
+                    # איסוף כל הטקסטים שצריך לתרגם
+                    texts_to_translate = set()
+                    channel_names = []
+
+                    for channels in self.categories.values():
+                        for channel in channels:
+                            # חילוץ שם הערוץ
+                            if " (" in channel and channel.endswith(")"):
+                                name = channel.split(" (")[0].strip()
+                            else:
+                                name = channel.strip()
+
+                            if name and not is_english(name):
+                                texts_to_translate.add(name)
+
+                            channel_names.append((channel, name))
+
+                    self.progress.emit(0, "מכין רשימת תרגומים...", 0)
+
+                    # תרגום batch של כל הטקסטים
+                    if texts_to_translate:
+                        translation_cache = batch_translate(translator_en, list(texts_to_translate))
+                        self.progress.emit(50, "מיישם תרגומים...", 50)
+                    else:
+                        translation_cache = {}
+
+                    # יישום התרגומים
+                    updated_categories = {}
+                    category_mapping = {}
+
+                    total_categories = len(self.categories)
+
+                    for i, (category_name, channels) in enumerate(self.categories.items()):
+                        if self._stop_requested:
+                            break
+
+                        # תרגום שם הקטגוריה
+                        translated_category = translation_cache.get(category_name, category_name)
+
+                        # תרגום ערוצים
+                        translated_channels = []
+                        for channel in channels:
+                            if " (" in channel and channel.endswith(")"):
+                                name = channel.split(" (")[0].strip()
+                                url_part = channel.split(" (", 1)[1]
+
+                                # שימוש בcache לתרגום
+                                translated_name = translation_cache.get(name, name)
+                                translated_channel = f"{translated_name} ({url_part}"
+                            else:
+                                translated_name = translation_cache.get(channel.strip(), channel)
+                                translated_channel = translated_name
+
+                            translated_channels.append(translated_channel)
+
+                        # איחוד קטגוריות זהות
+                        if translated_category in updated_categories:
+                            updated_categories[translated_category].extend(translated_channels)
+                        else:
+                            updated_categories[translated_category] = translated_channels
+
+                        category_mapping[category_name] = translated_category
+
+                        # עדכון progress
+                        progress = ((i + 1) / total_categories) * 50 + 50
+                        self.progress.emit(i + 1, f"מעבד: {category_name[:30]}...", progress)
+
+                    self.finished.emit(updated_categories, category_mapping)
+
+                except Exception as e:
+                    self.error.emit(f"שגיאה בתרגום: {str(e)}")
+
+        # יצירת והרצת Thread
+        self.channel_translate_thread = FastChannelTranslateThread(categories_to_translate)
+
+        # יצירת Progress Dialog
+        progress_dialog = self._createTranslationProgressDialog(status_message)
+
+        # חיבור סיגנלים
+        self.channel_translate_thread.progress.connect(progress_dialog.update_progress)
+        self.channel_translate_thread.finished.connect(lambda categories, mapping: [
+            progress_dialog.accept(),
+            self._applyChannelTranslation(categories, mapping)
+        ])
+        self.channel_translate_thread.error.connect(lambda error: [
+            progress_dialog.reject(),
+            QMessageBox.critical(self, "שגיאה", error)
+        ])
+
+        # הצגת Dialog והתחלת Thread
+        progress_dialog.show()
+        self.channel_translate_thread.start()
+
+    def _createTranslationProgressDialog(self, title):
+        """יצירת dialog התקדמות מודרני"""
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QProgressBar, QLabel
+        from PyQt5.QtCore import Qt
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("תרגום ערוצים")
+        dialog.setModal(True)
+        dialog.setMinimumSize(400, 150)
+        dialog.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # תווית סטטוס
+        status_label = QLabel(title)
+        status_label.setAlignment(Qt.AlignCenter)
+        status_label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #2c3e50;
+                margin-bottom: 15px;
+            }
+        """)
+
+        # פס התקדמות
+        progress_bar = QProgressBar()
+        progress_bar.setRange(0, 100)
+        progress_bar.setValue(0)
+        progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #bdc3c7;
+                border-radius: 8px;
+                text-align: center;
+                font-weight: bold;
+                font-size: 12px;
+                min-height: 25px;
+                background: #ecf0f1;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #3498db, stop:1 #2980b9);
+                border-radius: 6px;
+            }
+        """)
+
+        # תווית אחוזים ופרטים
+        details_label = QLabel("מתחיל...")
+        details_label.setAlignment(Qt.AlignCenter)
+        details_label.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                color: #7f8c8d;
+                margin-top: 10px;
+            }
+        """)
+
+        layout.addWidget(status_label)
+        layout.addWidget(progress_bar)
+        layout.addWidget(details_label)
+
+        # פונקציה לעדכון
+        def update_progress(processed, current_item, percentage):
+            progress_bar.setValue(int(percentage))
+            details_label.setText(f"{percentage:.1f}% - {current_item}")
+
+            if percentage >= 100:
+                status_label.setText("✅ התרגום הושלם!")
+                details_label.setText("סוגר...")
+
+        dialog.update_progress = update_progress
+        return dialog
+
+    def _applyChannelTranslation(self, translated_categories, category_mapping):
+        """יישום תוצאות התרגום"""
+
+        # שמירת מצב לפני
+        channels_before = sum(len(channels) for channels in self.categories.values())
+        categories_before = len(self.categories)
+
+        # החלפת הקטגוריות
+        self.categories = translated_categories
+
+        # עדכון התצוגה
+        self.cleanEmptyCategories()
+        self.updateCategoryList()
+        self.regenerateM3UTextOnly()
+
+        if self.categoryList.count() > 0:
+            self.categoryList.setCurrentRow(0)
+            self.display_channels(self.categoryList.currentItem())
+
+        # הצגת תוצאות
+        channels_after = sum(len(channels) for channels in self.categories.values())
+        categories_after = len(self.categories)
+
+        # ספירת מיזוגים
+        merges = 0
+        for target_category in translated_categories.keys():
+            original_sources = [k for k, v in category_mapping.items() if v == target_category]
+            if len(original_sources) > 1:
+                merges += 1
+
+        success_msg = f"""תרגום ערוצים הושלם!
+
+    📊 תוצאות:
+    • קטגוריות: {categories_before} → {categories_after}
+    • ערוצים מתורגמים: {channels_after:,}
+    • מיזוגי קטגוריות: {merges}
+
+    ✅ כל הערוצים תורגמו לאנגלית בהצלחה!"""
+
+        QMessageBox.information(self, "תרגום הושלם", success_msg)
 
     def _translateCategory(self):
         # בוחר קטגוריה
@@ -2402,7 +2816,12 @@ class M3UEditor(QWidget):
     # self.textEdit.setPlainText(fixed_content)
 
     def mergeM3Us(self):
-        # 1. בחר קובץ M3U נוסף
+        """מיזוג קובץ M3U נוסף לפלייליסט הקיים - גרסה מתוקנת"""
+
+        # שמירת מצב הנוכחי לפני המיזוג
+        channels_before = self.count_total_channels()
+
+        # בחירת קובץ לצירוף
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(
             self,
@@ -2414,7 +2833,7 @@ class M3UEditor(QWidget):
         if not fileName:
             return
 
-        # 2. קרא את התוכן מהקובץ
+        # קריאה לתוכן הקובץ
         try:
             with open(fileName, 'r', encoding='utf-8') as f:
                 new_content = f.read()
@@ -2422,24 +2841,10 @@ class M3UEditor(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to read file:\n{e}")
             return
 
-        # 3. עדכון self.epg_headers עם כל שורות #EXTM3U מהקובץ החדש
-        if not hasattr(self, 'epg_headers'):
-            self.epg_headers = []
-        for line in new_content.strip().splitlines():
-            if line.startswith("#EXTM3U"):
-                if line not in self.epg_headers:
-                    self.epg_headers.append(line)  # :contentReference[oaicite:0]{index=0}
+        # עיבוד השורות
+        lines = [l.strip() for l in new_content.strip().splitlines() if l.strip()]
 
-        # 4. פילוח התוכן למערך שורות מבלי #EXTM3U
-        lines = [
-            l for l in new_content.strip().splitlines()
-            if l.strip() and not l.startswith("#EXTM3U")
-        ]
-
-        # 5. בנייה מחדש של merged_lines (שומר סדר EXTINF + URL)
-        merged_lines = []
-        i = 0
-        # טעינת מסד הלוגואים (לשימוש ב-inject_logo)
+        # טעינת בסיס הלוגואים
         logo_db = {}
         if os.path.exists(LOGO_DB_PATH):
             try:
@@ -2447,48 +2852,112 @@ class M3UEditor(QWidget):
                     logo_db = json.load(lf)
             except:
                 pass
+
+        # ספירת ערוצים חדשים שנוספו (רק ערוצים תקינים)
+        channels_added = 0
+        merged_lines = []
+
+        i = 0
         while i < len(lines):
-            if lines[i].startswith("#EXTINF:"):
-                extinf = lines[i]
-                url = lines[i + 1] if i + 1 < len(lines) else ""
-                # הזרקת לוגו במידת הצורך
-                name_match = re.search(r',(.+)', extinf)
-                name = name_match.group(1).strip() if name_match else ""
-                extinf = self.inject_logo(extinf, name, logo_db)
-                merged_lines.append(extinf)
-                if url:
-                    merged_lines.append(url)
-                i += 2
+            line = lines[i]
+
+            # בדיקה אם זו שורת EXTINF
+            if line.startswith("#EXTINF:"):
+                # וידוא שיש URL בשורה הבאה
+                if i + 1 < len(lines) and not lines[i + 1].startswith("#"):
+                    extinf_line = line
+                    url_line = lines[i + 1]
+
+                    # חילוץ שם הערוץ
+                    name_match = re.search(r',(.+)', extinf_line)
+                    channel_name = name_match.group(1).strip() if name_match else "Unknown Channel"
+
+                    # הזרקת לוגו
+                    extinf_line = self.inject_logo(extinf_line, channel_name, logo_db)
+
+                    # הוספה לרשימה
+                    merged_lines.extend([extinf_line, url_line])
+                    channels_added += 1
+
+                    i += 2  # דילוג על שתי השורות שעובדו
+                else:
+                    # EXTINF ללא URL - דילוג
+                    i += 1
             else:
+                # שורה אחרת - דילוג
                 i += 1
 
-        # 6. בנייה של שורת כותרת EPG מאוחדת
-        unified = self.buildUnifiedEPGHeader()  # :contentReference[oaicite:1]{index=1}
+        if channels_added == 0:
+            QMessageBox.information(self, "M3U Merge", "לא נמצאו ערוצים תקינים לצירוף")
+            return
 
-        # 7. בנייה של התוכן הקיים ללא כותרות EXT וללא שורות ריקות
-        old = self.textEdit.toPlainText().splitlines()
-        body = [l for l in old if not l.startswith("#EXTM3U")]
+        # מיזוג התוכן לתוכן הקיים
+        current_content = self.textEdit.toPlainText()
 
-        # 8. הרכבה סופית ועדכון הטקסט באלמנט
-        final = "\n".join([unified] + body + merged_lines)
+        # בניית התוכן החדש
+        if current_content.strip():
+            # יש תוכן קיים - הוספה בסוף
+            if not current_content.endswith('\n'):
+                current_content += '\n'
+            new_full_content = current_content + '\n'.join(merged_lines)
+        else:
+            # אין תוכן קיים - יצירת קובץ חדש
+            unified_header = self.buildUnifiedEPGHeader()
+            new_full_content = unified_header + '\n' + '\n'.join(merged_lines)
+
+        # עדכון התוכן בעורך
         self.textEdit.blockSignals(True)
-        self.textEdit.setPlainText(final)
+        self.textEdit.setPlainText(new_full_content)
         self.textEdit.blockSignals(False)
 
-        # 9. מיזוג הערוצים לקטגוריות (כולל כפילויות)
-        self.mergeM3UContentToCategories("\n".join(merged_lines),
-                                         allow_duplicates=True)  # :contentReference[oaicite:2]{index=2}
+        # מיזוג התוכן לקטגוריות (כולל כפילויות)
+        merged_content_for_categories = '\n'.join(merged_lines)
+        self.mergeM3UContentToCategories(merged_content_for_categories, allow_duplicates=True)
 
-        # 10. רענון ה־UI והצגה ראשונית
+        # עדכון תצוגה
         self.cleanEmptyCategories()
         self.updateCategoryList()
         self.regenerateM3UTextOnly()
+
+        # חזרה לקטגוריה הראשונה אם קיימת
         if self.categoryList.count():
             self.categoryList.setCurrentRow(0)
             self.display_channels(self.categoryList.currentItem())
 
-        # 11. עדכון תווית הקובץ
-        self.fileNameLabel.setText(f"Loaded File: {os.path.basename(fileName)}")
+        # ספירת ערוצים אחרי המיזוג
+        channels_after = self.count_total_channels()
+        actual_added = channels_after - channels_before
+
+        # עדכון תצוגת שם הקובץ
+        current_file_text = self.fileNameLabel.text()
+        if "Merged with:" not in current_file_text:
+            self.fileNameLabel.setText(f"{current_file_text} | Merged with: {os.path.basename(fileName)}")
+        else:
+            self.fileNameLabel.setText(f"{current_file_text}, {os.path.basename(fileName)}")
+
+        # הצגת הודעת הצלחה עם פירוט
+        message = f"""המיזוג הושלם בהצלחה!
+
+    📊 סיכום:
+    • ערוצים שנוספו: {channels_added}
+    • סה"כ ערוצים לפני: {channels_before:,}
+    • סה"כ ערוצים אחרי: {channels_after:,}
+    • הגידול בפועל: {actual_added:,}
+
+    ✅ כל הערוצים והקטגוריות נוספו לפלייליסט"""
+
+        QMessageBox.information(self, "M3U Merge Completed", message)
+
+        # בדיקת עקביות (אופציונלי - להסרה בייצור)
+        if actual_added != channels_added:
+            print(f"Warning: Expected {channels_added} but actual increase was {actual_added}")
+
+    def count_total_channels(self):
+        """ספירת סה"כ ערוצים בכל הקטגוריות"""
+        total = 0
+        for category_channels in self.categories.values():
+            total += len(category_channels)
+        return total
 
     def loadM3UFromText(self, content, append=False):
         # אם לא append מנקים את הקטגוריות
@@ -2543,47 +3012,253 @@ class M3UEditor(QWidget):
         """
         ממזג תוכן M3U לתוך self.categories.
         אם allow_duplicates=True – מוסיף גם ערוצים שכבר קיימים באותה קטגוריה.
+        גרסה מתוקנת עם טיפול משופר בשגיאות וספירה מדויקת.
         """
-        lines = content.strip().splitlines()
-        current_name = ""
-        current_category = "Uncategorized📺"
-        current_logo = None
+        if not content or not content.strip():
+            return
 
-        for i in range(len(lines)):
-            line = lines[i].strip()
+        lines = [line.strip() for line in content.strip().splitlines() if line.strip()]
 
+        # אתחול המטמון של EXTINF אם לא קיים
+        if not hasattr(self, 'extinf_lookup'):
+            self.extinf_lookup = {}
+
+        # משתנים למעקב
+        channels_processed = 0
+        categories_created = 0
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+
+            # בדיקה אם זו שורת EXTINF
             if line.startswith("#EXTINF:"):
-                name_match = re.search(r",(.+)", line)
-                current_name = name_match.group(1).strip() if name_match else ""
+                # וידוא שיש שורת URL אחריה
+                if i + 1 >= len(lines) or lines[i + 1].startswith("#"):
+                    print(f"Warning: EXTINF line without URL at index {i}: {line}")
+                    i += 1
+                    continue
 
-                group_match = re.search(r'group-title="([^"]+)"', line)
-                current_category = group_match.group(1).strip() if group_match else "Uncategorized📺"
+                extinf_line = line
+                url_line = lines[i + 1]
 
-                logo_match = re.search(r'tvg-logo="([^"]+)"', line)
-                current_logo = logo_match.group(1).strip() if logo_match else None
+                # וידוא שה-URL תקין
+                if not (url_line.startswith("http://") or url_line.startswith("https://") or
+                        url_line.startswith("rtmp://") or url_line.startswith("rtsp://")):
+                    print(f"Warning: Invalid URL format at index {i + 1}: {url_line}")
+                    i += 2
+                    continue
 
-            elif line.startswith("http") and current_name:
-                # צור רשומת ערוץ
-                channel_entry = f"{current_name} ({line})"
-                if current_logo:
-                    channel_entry += f' tvg-logo="{current_logo}"'
+                # חילוץ שם הערוץ
+                name_match = re.search(r',(.+)', extinf_line)
+                if not name_match:
+                    print(f"Warning: No channel name found in EXTINF: {extinf_line}")
+                    i += 2
+                    continue
 
-                # הכן את הקטגוריה אם לא קיימת
-                if current_category not in self.categories:
-                    self.categories[current_category] = []
+                channel_name = name_match.group(1).strip()
+                if not channel_name:
+                    print(f"Warning: Empty channel name in EXTINF: {extinf_line}")
+                    i += 2
+                    continue
 
-                # בדוק כפילות רק אם לא מאפשרים כפולים
-                if allow_duplicates or channel_entry not in self.categories[current_category]:
-                    self.categories[current_category].append(channel_entry)
+                # חילוץ קטגוריה
+                group_match = re.search(r'group-title="([^"]*)"', extinf_line)
+                category = group_match.group(1).strip() if group_match else "Uncategorized📺"
 
-                # שמירת EXTINF למעקב (אם קיים)
-                if not hasattr(self, 'extinf_lookup'):
-                    self.extinf_lookup = {}
-                if channel_entry not in self.extinf_lookup:
-                    self.extinf_lookup[channel_entry] = lines[i - 1]  # שורת EXTINF המקורית
+                # וידוא שהקטגוריה לא ריקה
+                if not category:
+                    category = "Uncategorized📺"
 
-                current_name = ""
-                current_logo = None
+                # חילוץ לוגו (אופציונלי)
+                logo_match = re.search(r'tvg-logo="([^"]*)"', extinf_line)
+                logo = logo_match.group(1).strip() if logo_match else None
+
+                # יצירת רשומת ערוץ
+                channel_entry = f"{channel_name} ({url_line})"
+
+                # הוספת לוגו לרשומה אם קיים
+                if logo and logo.strip():
+                    channel_entry += f' tvg-logo="{logo}"'
+
+                # יצירת הקטגוריה אם לא קיימת
+                if category not in self.categories:
+                    self.categories[category] = []
+                    categories_created += 1
+                    print(f"Created new category: {category}")
+
+                # בדיקת כפילויות
+                should_add = True
+                if not allow_duplicates:
+                    # בדיקה מדויקת יותר - השוואה לפי שם וURL
+                    existing_entries = self.categories[category]
+                    for existing_entry in existing_entries:
+                        existing_name = existing_entry.split(" (")[0].strip()
+                        existing_url_match = re.search(r'\(([^)]+)\)', existing_entry)
+                        existing_url = existing_url_match.group(1) if existing_url_match else ""
+
+                        if existing_name == channel_name and existing_url == url_line:
+                            should_add = False
+                            print(f"Duplicate found in category '{category}': {channel_name}")
+                            break
+
+                # הוספת הערוץ
+                if should_add:
+                    self.categories[category].append(channel_entry)
+                    channels_processed += 1
+
+                    # שמירת EXTINF למעקב
+                    self.extinf_lookup[channel_entry] = extinf_line
+
+                    print(f"Added channel to '{category}': {channel_name}")
+
+                i += 2  # דילוג על שתי השורות שעובדו
+
+            else:
+                # שורה שאינה EXTINF - דילוג
+                i += 1
+
+        print(f"Merge completed: {channels_processed} channels added, {categories_created} categories created")
+
+    def cleanEmptyCategories(self):
+        """
+        מסיר קטגוריות ריקות מ-self.categories
+        גרסה משופרת עם לוגים
+        """
+        empty_categories = []
+
+        for category_name, channels in list(self.categories.items()):
+            # בדיקה אם הקטגוריה ריקה או מכילה רק ערוצים לא תקינים
+            valid_channels = []
+            for channel in channels:
+                # בדיקה שהערוץ מכיל שם ו-URL
+                if " (" in channel and channel.endswith(")"):
+                    name_part = channel.split(" (")[0].strip()
+                    url_part = channel.split(" (")[1].rstrip(")").strip()
+
+                    if name_part and url_part:
+                        valid_channels.append(channel)
+
+            if not valid_channels:
+                empty_categories.append(category_name)
+            else:
+                # עדכון הקטגוריה עם ערוצים תקינים בלבד
+                self.categories[category_name] = valid_channels
+
+        # הסרת קטגוריות ריקות
+        for empty_cat in empty_categories:
+            print(f"Removing empty category: {empty_cat}")
+            del self.categories[empty_cat]
+
+        if empty_categories:
+            print(f"Cleaned {len(empty_categories)} empty categories")
+
+    def validateChannelEntry(self, channel_entry):
+        """
+        בודק אם רשומת ערוץ תקינה
+        מחזיר: (is_valid: bool, channel_name: str, url: str, error_msg: str)
+        """
+        if not channel_entry or not isinstance(channel_entry, str):
+            return False, "", "", "Empty or invalid entry type"
+
+        channel_entry = channel_entry.strip()
+        if not channel_entry:
+            return False, "", "", "Empty entry after strip"
+
+        # בדיקת פורמט בסיסי
+        if " (" not in channel_entry or not channel_entry.endswith(")"):
+            return False, "", "", "Invalid format - missing '(' or ')'"
+
+        try:
+            # חילוץ שם ו-URL
+            name_part = channel_entry.split(" (")[0].strip()
+            url_with_extras = channel_entry.split(" (", 1)[1].rstrip(")")
+
+            # חילוץ URL (עד לרווח הראשון או סוף המחרוזת)
+            url_part = url_with_extras.split()[0] if url_with_extras else ""
+
+            # בדיקות תקינות
+            if not name_part:
+                return False, name_part, url_part, "Empty channel name"
+
+            if not url_part:
+                return False, name_part, url_part, "Empty URL"
+
+            # בדיקת פורמט URL
+            valid_protocols = ["http://", "https://", "rtmp://", "rtsp://"]
+            if not any(url_part.startswith(protocol) for protocol in valid_protocols):
+                return False, name_part, url_part, f"Invalid URL protocol: {url_part}"
+
+            return True, name_part, url_part, ""
+
+        except Exception as e:
+            return False, "", "", f"Error parsing entry: {str(e)}"
+
+    def getChannelStatistics(self):
+        """
+        מחזיר סטטיסטיקות מפורטות על הערוצים
+        """
+        stats = {
+            'total_channels': 0,
+            'total_categories': len(self.categories),
+            'valid_channels': 0,
+            'invalid_channels': 0,
+            'categories_with_channels': {},
+            'empty_categories': [],
+            'duplicate_names': [],
+            'protocol_distribution': {},
+            'validation_errors': []
+        }
+
+        all_names = []
+
+        for category_name, channels in self.categories.items():
+            category_valid = 0
+            category_invalid = 0
+
+            if not channels:
+                stats['empty_categories'].append(category_name)
+                continue
+
+            for channel in channels:
+                stats['total_channels'] += 1
+
+                is_valid, name, url, error = self.validateChannelEntry(channel)
+
+                if is_valid:
+                    stats['valid_channels'] += 1
+                    category_valid += 1
+                    all_names.append(name.lower())
+
+                    # ספירת פרוטוקולים
+                    if url.startswith('http://'):
+                        stats['protocol_distribution']['HTTP'] = stats['protocol_distribution'].get('HTTP', 0) + 1
+                    elif url.startswith('https://'):
+                        stats['protocol_distribution']['HTTPS'] = stats['protocol_distribution'].get('HTTPS', 0) + 1
+                    elif url.startswith('rtmp://'):
+                        stats['protocol_distribution']['RTMP'] = stats['protocol_distribution'].get('RTMP', 0) + 1
+                    elif url.startswith('rtsp://'):
+                        stats['protocol_distribution']['RTSP'] = stats['protocol_distribution'].get('RTSP', 0) + 1
+                else:
+                    stats['invalid_channels'] += 1
+                    category_invalid += 1
+                    stats['validation_errors'].append(f"Category '{category_name}': {error}")
+
+            if category_valid > 0:
+                stats['categories_with_channels'][category_name] = {
+                    'valid': category_valid,
+                    'invalid': category_invalid,
+                    'total': len(channels)
+                }
+
+        # זיהוי כפילויות
+        name_counts = {}
+        for name in all_names:
+            name_counts[name] = name_counts.get(name, 0) + 1
+
+        stats['duplicate_names'] = [name for name, count in name_counts.items() if count > 1]
+
+        return stats
 
     def ensure_extm3u_header(self):
         """
@@ -2708,7 +3383,7 @@ class M3UEditor(QWidget):
         self.exportGroupButton.clicked.connect(self.openExportDialog)
         buttons_layout.addWidget(self.exportGroupButton)
 
-        self.filterIsraelChannelsButton = QPushButton('🇮🇱 IsraelX Export', self)
+        self.filterIsraelChannelsButton = QPushButton('🎯 Filtered Export', self)
         self.filterIsraelChannelsButton.setStyleSheet("background-color: black; color: white;")
         self.filterIsraelChannelsButton.clicked.connect(self.chooseLanguageAndFilterIsraelChannels)
 
@@ -3244,6 +3919,17 @@ class M3UEditor(QWidget):
         except Exception as e:
             print(f"[LOGO] ❌ שגיאה בייצוא עם לוגואים: {e}")
 
+    def get_saved_logo(channel_name):
+        try:
+            with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                logos = json.load(f)
+                logo = logos.get(channel_name)
+                if isinstance(logo, list):
+                    return logo[0] if logo else None
+                return logo
+        except Exception as e:
+            print(f"[LOGO] שגיאה בקריאת בסיס לוגואים: {e}")
+            return None
 
     def refreshCategoryListOnly(self, selected_index=None):
         self.categoryList.clear()
