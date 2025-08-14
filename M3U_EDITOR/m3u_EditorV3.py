@@ -17,6 +17,8 @@ from logo import get_saved_logo
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QListWidgetItem
 from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QTimer
+
 
 import shutil
 from datetime import datetime, timedelta
@@ -860,202 +862,726 @@ class URLCheckerDialog(QDialog):
 class SmartScanStatusDialog(QDialog):
     def __init__(self, channels, duplicates, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Smart Scan In Progress")
-        self.resize(800, 400)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-        self.setStyleSheet("QDialog { border: 5px solid red; background-color: white; }")
 
+        # משתני אתחול חיוניים
+        self.scan_results = []
+        self.thread = None
+        self._is_closing = False
+        self.duplicates = duplicates if duplicates else []
+
+        # Debug info
+        print(f"[Init] Starting with {len(channels) if channels else 0} channels")
+        print(f"[Init] Parent exists: {parent is not None}")
+        print(f"[Init] Parent has categories: {hasattr(parent, 'categories') if parent else False}")
+
+        # בדיקת תקינות נתונים משופרת
+        if not channels or not isinstance(channels, (list, tuple)):
+            # נסה לקבל channels מה-parent
+            if parent and hasattr(parent, 'channels'):
+                channels = parent.channels
+                print(f"[Init] Retrieved {len(channels)} channels from parent")
+            else:
+                QMessageBox.warning(None, "Error", "No channels data available for scanning.")
+                self.reject()
+                return
+
+        # שמור את הערוצים המקוריים
+        original_channels = channels.copy()
+
+        try:
+            # בחירת אופן הסריקה
+            scan_choice = self._showScanChoiceDialog()
+            if scan_choice is None:
+                self.reject()
+                return
+
+            # אם נבחרה קטגוריה ספציפית
+            if scan_choice == "category":
+                selected_category = self._showCategorySelectionDialog()
+                if selected_category is None:
+                    self.reject()
+                    return
+
+                print(f"[Init] Selected category: '{selected_category}'")
+
+                # סנן ערוצים לפי הקטגוריה
+                filtered_channels = self._filterChannelsByCategory(channels, selected_category)
+
+                if not filtered_channels:
+                    reply = QMessageBox.question(
+                        self,
+                        "No Channels Found",
+                        f"No channels found in category: '{selected_category}'\n\n"
+                        "This might happen if channel names don't match exactly.\n\n"
+                        "Would you like to scan ALL channels instead?",
+                        QMessageBox.Yes | QMessageBox.No
+                    )
+
+                    if reply == QMessageBox.Yes:
+                        print("[Init] User chose to scan all channels instead")
+                        channels = original_channels
+                    else:
+                        self.reject()
+                        return
+                else:
+                    channels = filtered_channels
+                    print(f"[Init] Using {len(channels)} filtered channels")
+
+        except Exception as e:
+            print(f"[Dialog Setup Error] {e}")
+            import traceback
+            traceback.print_exc()
+
+            reply = QMessageBox.question(
+                self,
+                "Setup Error",
+                f"Error during setup: {str(e)}\n\nWould you like to continue with scanning all channels?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+
+            if reply != QMessageBox.Yes:
+                self.reject()
+                return
+            channels = original_channels
+
+        # שמור את הערוצים הסופיים
         self.channels = channels
-        self.duplicates = duplicates
-        self.scan_results = []  # To support filtering
 
+        # הגדרת החלון
+        self.setWindowTitle("Smart Scan In Progress")
+        self.resize(900, 500)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+        # עיצוב מהיר ויעיל
+        self.setStyleSheet(self._getOptimizedStyleSheet())
+
+        # cache צבעים לביצועים מהירים
+        self._color_cache = {
+            'offline': QColor("#ffebee"),
+            'duplicate': QColor("#fff3e0"),
+            'online': QColor("#e8f5e8"),
+            'white': QColor("white")
+        }
+
+        # בניית ה-UI
+        self._buildUI()
+
+        # התחל סריקה
+        self._startScanning()
+
+    def _getOptimizedStyleSheet(self):
+        """StyleSheet מהיר ומאופטם"""
+        return """
+            QDialog { 
+                border: 3px solid #2196F3; 
+                background-color: #f0f8ff;
+                border-radius: 10px;
+            }
+            QLabel { 
+                color: #1976D2; 
+                font-weight: bold;
+            }
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton#stopBtn {
+                background-color: #f44336;
+            }
+            QPushButton#markBtn {
+                background-color: #ff9800;
+            }
+            QProgressBar {
+                border: 2px solid #2196F3;
+                border-radius: 5px;
+                text-align: center;
+                font-weight: bold;
+                height: 25px;
+            }
+            QProgressBar::chunk {
+                background-color: #4CAF50;
+                border-radius: 3px;
+            }
+            QTableWidget {
+                border: 2px solid #2196F3;
+                border-radius: 5px;
+                gridline-color: #E0E0E0;
+                background-color: white;
+            }
+            QHeaderView::section {
+                background-color: #2196F3;
+                color: white;
+                padding: 8px;
+                border: none;
+                font-weight: bold;
+            }
+        """
+
+    def _buildUI(self):
+        """בניית ממשק משתמש מהיר"""
         layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(15, 15, 15, 15)
 
-        # Label
-        self.labelStats = QLabel("Starting scan...")
-        self.labelStats.setStyleSheet("font-size: 18px; font-weight: bold;")
+        # כותרת
+        title_label = QLabel("🔍 Smart Channel Scanner")
+        title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #1976D2;")
+        layout.addWidget(title_label)
+
+        # סטטיסטיקות
+        self.labelStats = QLabel("Initializing scan...")
+        self.labelStats.setStyleSheet("font-size: 14px; font-weight: bold; color: #1976D2; padding: 5px;")
         layout.addWidget(self.labelStats)
 
-        # Progress bar
+        # פס התקדמות
         self.progressBar = QProgressBar(self)
         self.progressBar.setMinimum(0)
-        self.progressBar.setMaximum(len(channels))
+        self.progressBar.setMaximum(len(self.channels))
         self.progressBar.setValue(0)
         layout.addWidget(self.progressBar)
 
-        # Table
+        # סינון
+        filter_layout = QHBoxLayout()
+        filter_layout.setAlignment(Qt.AlignRight)
+
+        filter_label = QLabel("Filter:")
+        filter_label.setStyleSheet("font-size: 12px; color: #1976D2;")
+
+        self.filterCombo = QComboBox()
+        self.filterCombo.setFixedWidth(120)
+        self.filterCombo.addItems(["All", "Online", "Offline", "Duplicate"])
+        self.filterCombo.currentIndexChanged.connect(self.applyFilter)
+
+        filter_layout.addWidget(filter_label)
+        filter_layout.addWidget(self.filterCombo)
+        layout.addLayout(filter_layout)
+
+        # טבלה מהירה
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["Channel", "Status", "Reason", "URL"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setAlternatingRowColors(True)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.verticalHeader().setVisible(False)
+
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+
         layout.addWidget(self.table)
 
-        # Buttons
+        # כפתורים
         btnLayout = QHBoxLayout()
+
         self.stopBtn = QPushButton("Stop Scan")
-        self.stopBtn.setStyleSheet("background-color: purple; color: white;")
+        self.stopBtn.setObjectName("stopBtn")
         self.stopBtn.clicked.connect(self.stopScan)
         btnLayout.addWidget(self.stopBtn)
 
         self.markBtn = QPushButton("Mark Channels (Duplicates + Offline)")
-        self.markBtn.setStyleSheet("background-color: purple; color: white; font-weight: bold;")
+        self.markBtn.setObjectName("markBtn")
         self.markBtn.clicked.connect(self.markProblematicChannels)
         btnLayout.addWidget(self.markBtn)
 
         layout.addLayout(btnLayout)
 
-        # Filter
-        # Filter (dropdown) – reposition to top right with smaller size
-        filter_layout = QHBoxLayout()
-        filter_layout.setAlignment(Qt.AlignRight)  # Align to right
+    def _normalizeChannels(self, channels):
+        """
+        ממיר רשימות ערוצים לפורמט אחיד של [(name, url)].
+        תומך ב:
+        - רשימה של tuples/list: (name, url)
+        - רשימה של מחרוזות בפורמט "Name (URL)"
+        - מתעלם מפריטים שלא ניתן לחלץ מהם URL תקין
+        - מסיר כפילויות זהות בדיוק, תוך שמירה על סדר
+        """
+        normalized = []
 
-        filter_label = QLabel("Show:")
-        filter_label.setStyleSheet("font-size: 10px;")
+        for ch in channels:
+            try:
+                name = None
+                url = None
 
-        self.filterCombo = QComboBox()
-        self.filterCombo.setFixedWidth(120)  # Small width
-        self.filterCombo.addItems(["All", "Online", "Offline", "Duplicate"])
-        self.filterCombo.currentIndexChanged.connect(self.applyFilter)
-        self.filterCombo.setStyleSheet("font-size: 10px; padding: 2px;")
+                # פורמט [(name, url)] או [name, url]
+                if isinstance(ch, (list, tuple)) and len(ch) >= 2:
+                    name = str(ch[0]).strip()
+                    url = str(ch[1]).strip()
 
-        filter_layout.addWidget(filter_label)
-        filter_layout.addWidget(self.filterCombo)
+                # פורמט "Name (URL)"
+                elif isinstance(ch, str):
+                    s = ch.strip()
+                    if " (" in s and s.endswith(")"):
+                        # rsplit כדי לא לשבור שמות שמכילים "("
+                        name_part, rest = s.rsplit(" (", 1)
+                        name = name_part.strip()
+                        url = rest[:-1].strip()  # הסרת ')'
+                    else:
+                        # אם זו מחרוזת שלא בפורמט "Name (URL)"
+                        # נוודא שלפחות יש URL. אם אין - נדלג.
+                        if s.lower().startswith(("http://", "https://")):
+                            name = s  # שם זמני זהה ל־URL
+                            url = s
 
-        # Insert filter layout at the top (just under the progress bar)
-        layout.insertLayout(2, filter_layout)  # Adjust index if needed
+                # ולידציית URL בסיסית
+                if not url or not url.lower().startswith(("http://", "https://")):
+                    continue
 
-        # Thread must be created **after all setup**
-        self.thread = SmartScanThread(channels, duplicates)
-        self.thread.progress.connect(self.updateProgress)
-        self.thread.finished.connect(self.scanFinished)
-        self.thread.start()
+                # שם ברירת מחדל אם חסר
+                if not name:
+                    name = url
+
+                normalized.append((name, url))
+
+            except Exception:
+                # פריט בעייתי - מדלגים
+                continue
+
+        # הסרת כפילויות זהות בדיוק תוך שמירה על הסדר
+        seen = set()
+        result = []
+        for name, url in normalized:
+            key = (name, url)
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append((name, url))
+
+        return result
+
+    def _startScanning(self):
+        """התחל את תהליך הסריקה"""
+        if not self.channels:
+            QMessageBox.warning(self, "Error", "No channels to scan.")
+            self.reject()
+            return
+
+        try:
+            # צור את ה-thread עם הערוצים (בלי duplicate_names סטטי)
+            self.thread = SmartScanThread(self.channels)
+
+            # חבר את הסיגנלים
+            self.thread.progress.connect(self.updateProgress)
+            self.thread.finished.connect(self.scanFinished)
+
+            # התחל את הסריקה
+            self.thread.start()
+
+            # הפעל טיימר לעדכון תצוגה
+            if hasattr(self, 'timer'):
+                self.timer.start(100)  # עדכון כל 100ms
+
+        except Exception as e:
+            print(f"[Scan Start Error] {e}")
+            QMessageBox.critical(self, "Error", f"Failed to start scanning: {str(e)}")
+            self.reject()
+
+    def _showScanChoiceDialog(self):
+        """חלון בחירת סריקה מהיר"""
+        try:
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Choose Scan Type")
+            dialog.setFixedSize(350, 150)
+            dialog.setModal(True)
+
+            layout = QVBoxLayout(dialog)
+
+            title = QLabel("Select scanning method:")
+            title.setStyleSheet("font-size: 14px; font-weight: bold;")
+            layout.addWidget(title)
+
+            btn_layout = QVBoxLayout()
+
+            category_btn = QPushButton("Scan Specific Category")
+            category_btn.clicked.connect(lambda: dialog.done(1))
+            btn_layout.addWidget(category_btn)
+
+            all_btn = QPushButton("Scan All Channels")
+            all_btn.clicked.connect(lambda: dialog.done(2))
+            btn_layout.addWidget(all_btn)
+
+            cancel_btn = QPushButton("Cancel")
+            cancel_btn.clicked.connect(lambda: dialog.done(0))
+            btn_layout.addWidget(cancel_btn)
+
+            layout.addLayout(btn_layout)
+
+            result = dialog.exec_()
+            if result == 1:
+                return "category"
+            elif result == 2:
+                return "all"
+            return None
+        except Exception as e:
+            print(f"[Scan Choice Dialog Error] {e}")
+            return "all"
+
+    def _showCategorySelectionDialog(self):
+        """חלון בחירת קטגוריה מהיר ומשופר"""
+        try:
+            if not self.parent() or not hasattr(self.parent(), 'categories'):
+                QMessageBox.warning(self, "No Categories", "No categories available.")
+                return None
+
+            categories = getattr(self.parent(), 'categories', {})
+            if not categories:
+                QMessageBox.warning(self, "No Categories", "No categories found.")
+                return None
+
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Select Category")
+            dialog.setFixedSize(400, 300)
+            dialog.setModal(True)
+
+            layout = QVBoxLayout(dialog)
+
+            title = QLabel("Choose category to scan:")
+            title.setStyleSheet("font-size: 14px; font-weight: bold; margin-bottom: 10px;")
+            layout.addWidget(title)
+
+            # רשימה עם מידע
+            category_list = QListWidget()
+            category_list.setStyleSheet("font-size: 12px;")
+
+            for category_name in sorted(categories.keys()):
+                channel_count = len(categories[category_name])
+                display_text = f"{category_name} ({channel_count} channels)"
+                item = QListWidgetItem(display_text)
+                item.setData(Qt.UserRole, category_name)
+                category_list.addItem(item)
+
+            # בחר את הפריט הראשון כברירת מחדל
+            if category_list.count() > 0:
+                category_list.setCurrentRow(0)
+
+            layout.addWidget(category_list)
+
+            info_label = QLabel("Select a category to scan only its channels")
+            info_label.setStyleSheet("font-size: 10px; color: #666; margin-top: 5px;")
+            layout.addWidget(info_label)
+
+            btn_layout = QHBoxLayout()
+            ok_btn = QPushButton("Select")
+            ok_btn.setStyleSheet("background-color: #4CAF50; color: white; padding: 5px 15px;")
+            ok_btn.clicked.connect(lambda: dialog.accept())
+
+            cancel_btn = QPushButton("Cancel")
+            cancel_btn.setStyleSheet("background-color: #f44336; color: white; padding: 5px 15px;")
+            cancel_btn.clicked.connect(lambda: dialog.reject())
+
+            btn_layout.addWidget(ok_btn)
+            btn_layout.addWidget(cancel_btn)
+            layout.addLayout(btn_layout)
+
+            if dialog.exec_() == QDialog.Accepted:
+                current_item = category_list.currentItem()
+                if current_item:
+                    return current_item.data(Qt.UserRole)
+            return None
+
+        except Exception as e:
+            print(f"[Category Selection Error] {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def _filterChannelsByCategory(self, channels, selected_category):
+        """סינון ערוצים אולטרה-מהיר עם אלגוריתם משופר"""
+        try:
+            if not self.parent() or not hasattr(self.parent(), 'categories'):
+                print(f"[Filter] No parent or categories found")
+                return channels
+
+            categories = getattr(self.parent(), 'categories', {})
+            category_channels = categories.get(selected_category, [])
+
+            if not category_channels:
+                print(f"[Filter] No channels in category: {selected_category}")
+                return []
+
+            print(f"[Filter] Category '{selected_category}' has {len(category_channels)} channels")
+
+            # יצירת מילון לחיפוש מהיר O(1)
+            category_names_dict = {}
+
+            for ch in category_channels:
+                try:
+                    # נרמול השם
+                    normalized = ch.strip().lower()
+                    category_names_dict[normalized] = ch
+
+                    # אם יש סוגריים, הוסף גם את השם בלעדיהם
+                    if ' (' in ch:
+                        base_name = ch.split(' (')[0].strip().lower()
+                        category_names_dict[base_name] = ch
+
+                except Exception as e:
+                    print(f"[Filter] Error processing category channel '{ch}': {e}")
+                    continue
+
+            print(f"[Filter] Created lookup dict with {len(category_names_dict)} entries")
+
+            # סינון מהיר עם lookup
+            filtered = []
+            seen = set()  # למניעת כפילויות
+
+            for channel in channels:
+                try:
+                    channel_lower = channel.strip().lower()
+
+                    # בדיקה מהירה במילון
+                    if channel_lower in category_names_dict:
+                        if channel not in seen:
+                            filtered.append(channel)
+                            seen.add(channel)
+                        continue
+
+                    # בדיקת שם בסיס
+                    if ' (' in channel:
+                        base_name = channel.split(' (')[0].strip().lower()
+                        if base_name in category_names_dict:
+                            if channel not in seen:
+                                filtered.append(channel)
+                                seen.add(channel)
+                            continue
+
+                    # חיפוש חלקי רק אם נדרש
+                    for cat_key in category_names_dict:
+                        if cat_key in channel_lower or channel_lower in cat_key:
+                            if channel not in seen:
+                                filtered.append(channel)
+                                seen.add(channel)
+                            break
+
+                except Exception as e:
+                    print(f"[Filter] Error processing channel '{channel}': {e}")
+                    continue
+
+            print(f"[Filter] Filtered result: {len(filtered)} unique channels matched")
+
+            # אם לא נמצאו התאמות, החזר את ערוצי הקטגוריה
+            if not filtered and category_channels:
+                print("[Filter] No matches found, returning category channels as fallback")
+                return category_channels
+
+            return filtered
+
+        except Exception as e:
+            print(f"[Filter Channels Error] {e}")
+            import traceback
+            traceback.print_exc()
+            return channels
 
     def updateProgress(self, checked, offline, duplicate, data):
-        name, url, status, reason = data
-        total = self.progressBar.maximum()
-        problematic = offline + duplicate
-        self.labelStats.setText(
-            f"Scanned: {checked}/{total} | Offline: {offline} | Duplicates: {duplicate} | ❌ Total Not Good: {problematic}")
-        self.progressBar.setValue(checked)
-        self.scan_results.append((name, status, reason, url))
-        row = self.table.rowCount()
-        self.table.insertRow(row)
+        """עדכון התקדמות אולטרה-מהיר"""
+        try:
+            if self._is_closing:
+                return
 
-        self.table.setItem(row, 0, QTableWidgetItem(name))
-        status_item = QTableWidgetItem(status)
-        if "offline" in status.lower():
-            status_item.setBackground(QColor("#ffcccc"))  # red
-        elif "duplicate" in reason.lower():
-            status_item.setBackground(QColor("#ffffcc"))  # yellow
-        else:
-            status_item.setBackground(QColor("#ccffcc"))  # green
+            name, url, status, reason = data
+            total = self.progressBar.maximum()
+            problematic = offline + duplicate
 
-        self.table.setItem(row, 1, status_item)
-        self.table.setItem(row, 2, QTableWidgetItem(reason))
-        self.table.setItem(row, 3, QTableWidgetItem(url))
+            # עדכון טקסט
+            self.labelStats.setText(
+                f"Scanned: {checked}/{total} | Offline: {offline} | Duplicates: {duplicate} | Issues: {problematic}"
+            )
 
-    def refreshTable(self):
-        self.table.setRowCount(0)
-        selected_filter = self.filterCombo.currentText().lower()
+            # עדכון פס התקדמות
+            self.progressBar.setValue(checked)
 
-        for name, status, reason, url in self.scan_results:
-            if selected_filter != "all":
-                if selected_filter == "offline" and "offline" not in status.lower():
-                    continue
-                elif selected_filter == "online" and "online" not in status.lower():
-                    continue
-                elif selected_filter == "duplicate" and "duplicate" not in reason.lower():
-                    continue
+            # שמירת תוצאה
+            self.scan_results.append((name, status, reason, url))
+
+            # הוספה לטבלה
+            self._addTableRow(name, status, reason, url)
+
+        except Exception as e:
+            print(f"[Update Progress Error] {e}")
+
+    def _addTableRow(self, name, status, reason, url):
+        """הוספת שורה מהירה לטבלה"""
+        try:
+            if self._is_closing:
+                return
 
             row = self.table.rowCount()
             self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(name))
 
-            status_item = QTableWidgetItem(status)
-            if "offline" in status.lower():
-                status_item.setBackground(QColor("#ffcccc"))
-            elif "duplicate" in reason.lower():
-                status_item.setBackground(QColor("#ffffcc"))
+            # הוספת פריטים
+            self.table.setItem(row, 0, QTableWidgetItem(str(name)))
+
+            status_item = QTableWidgetItem(str(status))
+
+            # צביעה מהירה
+            status_lower = str(status).lower()
+            if "offline" in status_lower:
+                status_item.setBackground(self._color_cache['offline'])
+            elif "duplicate" in str(reason).lower():
+                status_item.setBackground(self._color_cache['duplicate'])
             else:
-                status_item.setBackground(QColor("#ccffcc"))
+                status_item.setBackground(self._color_cache['online'])
 
             self.table.setItem(row, 1, status_item)
-            self.table.setItem(row, 2, QTableWidgetItem(reason))
-            self.table.setItem(row, 3, QTableWidgetItem(url))
+            self.table.setItem(row, 2, QTableWidgetItem(str(reason)))
+            self.table.setItem(row, 3, QTableWidgetItem(str(url)))
+
+        except Exception as e:
+            print(f"[Add Table Row Error] {e}")
+
+    def refreshTable(self):
+        """רענון טבלה מהיר"""
+        try:
+            if self._is_closing:
+                return
+
+            self.table.setRowCount(0)
+            selected_filter = self.filterCombo.currentText().lower()
+
+            for name, status, reason, url in self.scan_results:
+                should_show = True
+
+                if selected_filter != "all":
+                    status_lower = status.lower()
+                    reason_lower = reason.lower()
+
+                    if selected_filter == "online" and "offline" in status_lower:
+                        should_show = False
+                    elif selected_filter == "offline" and "offline" not in status_lower:
+                        should_show = False
+                    elif selected_filter == "duplicate" and "duplicate" not in reason_lower:
+                        should_show = False
+
+                if should_show:
+                    self._addTableRow(name, status, reason, url)
+
+        except Exception as e:
+            print(f"[Refresh Table Error] {e}")
 
     def applyFilter(self):
-        self.refreshTable()
+        """החלת סינון מהירה"""
+        try:
+            self.refreshTable()
+        except Exception as e:
+            print(f"[Apply Filter Error] {e}")
 
     def scanFinished(self):
-        self.labelStats.setText(self.labelStats.text() + " ✅ Done.")
-        self.stopBtn.setEnabled(False)
-        self.progressBar.setValue(self.progressBar.maximum())
-        self.progressBar.setStyleSheet("QProgressBar::chunk { background-color: green; }")
+        """סיום סריקה"""
+        try:
+            if self._is_closing:
+                return
+
+            self.labelStats.setText(self.labelStats.text() + " ✅ Done.")
+            self.stopBtn.setEnabled(False)
+            self.progressBar.setValue(self.progressBar.maximum())
+            print("[Scan] Scan completed successfully")
+
+        except Exception as e:
+            print(f"[Scan Finished Error] {e}")
 
     def stopScan(self):
-        self.thread.stop()
-        self.labelStats.setText("Scan stopped by user.")
-        self.stopBtn.setEnabled(False)
+        """עצירת סריקה מהירה"""
+        try:
+            if self.thread and self.thread.isRunning():
+                self.thread.stop()
+                self.thread.wait(1000)
+            self.labelStats.setText("Scan stopped by user.")
+            self.stopBtn.setEnabled(False)
+            print("[Scan] Scan stopped by user")
+
+        except Exception as e:
+            print(f"[Stop Scan Error] {e}")
 
     def markProblematicChannels(self):
-        urls_to_mark = set()
-        channel_statuses = {}
-        duplicate_count = 0
-        offline_count = 0
+        """סימון ערוצים בעייתיים במהירות שיא"""
+        try:
+            if not self.scan_results:
+                QMessageBox.information(self, "No Results", "No scan results available.")
+                return
 
-        # שלב ראשון: אסוף נתונים
-        for row in range(self.table.rowCount()):
-            name = self.table.item(row, 0).text().strip()
-            status = self.table.item(row, 1).text().lower().strip()
-            url = self.table.item(row, 3).text().strip()
+            urls_to_mark = set()
+            channel_statuses = {}
+            duplicate_count = 0
+            offline_count = 0
 
-            if name not in channel_statuses:
-                channel_statuses[name] = []
+            # איסוף נתונים מהיר
+            for name, status, reason, url in self.scan_results:
+                if name not in channel_statuses:
+                    channel_statuses[name] = []
+                channel_statuses[name].append({
+                    'status': status.lower(),
+                    'url': url,
+                    'is_offline': 'offline' in status.lower()
+                })
 
-            channel_statuses[name].append({'status': status, 'url': url})
+            # עיבוד מהיר
+            for name, entries in channel_statuses.items():
+                offline_entries = [e for e in entries if e['is_offline']]
+                online_entries = [e for e in entries if not e['is_offline']]
 
-        # שלב שני: סמן לפי החוקים
-        for name, entries in channel_statuses.items():
-            offline_entries = [e for e in entries if e['status'] == 'offline']
-            online_entries = [e for e in entries if e['status'] != 'offline']
-
-            # אם יש אופליין, תמיד לסמן אותם
-            for entry in offline_entries:
-                urls_to_mark.add(entry['url'])
-                offline_count += 1
-
-            # אם יותר מערוץ אחד (כפולים), נסמן רק את הכפולים שאינם כבר מסומנים (אונליין בלבד)
-            if len(entries) > 1:
-                duplicate_entries_to_mark = []
-                if len(online_entries) > 1:
-                    # יש יותר מאונליין אחד, נסמן את השני והלאה
-                    duplicate_entries_to_mark.extend(online_entries[1:])
-                elif len(online_entries) == 1 and offline_entries:
-                    # אחד אונליין ויתר אופליין - לא לסמן אונליין, כבר סימנו אופליין
-                    pass
-                elif len(offline_entries) > 1 and not online_entries:
-                    # כל הכפולים אופליין וכבר סומנו, אין צורך לעשות משהו נוסף
-                    pass
-
-                for entry in duplicate_entries_to_mark:
+                # סימון אופליין
+                for entry in offline_entries:
                     urls_to_mark.add(entry['url'])
-                    duplicate_count += 1
+                    offline_count += 1
 
-        total_marked = len(urls_to_mark)
+                # סימון כפולים (רק אונליין נוספים)
+                if len(online_entries) > 1:
+                    for entry in online_entries[1:]:
+                        urls_to_mark.add(entry['url'])
+                        duplicate_count += 1
 
-        # שלב שלישי: סימון בפועל
-        if hasattr(self.parent(), "selectChannelsByUrls"):
-            self.parent().selectChannelsByUrls(urls_to_mark)
-            QMessageBox.information(
-                self, "Marked",
-                f"נמצאו {duplicate_count} כפולים וגם {offline_count} לא תקינים.\n"
-                f"סה\"כ סומנו {total_marked} ערוצים."
-            )
-        else:
-            QMessageBox.warning(
-                self, "Error",
-                "Method selectChannelsByUrls not found."
-            )
+            total_marked = len(urls_to_mark)
+
+            # סימון בפועל
+            if self.parent() and hasattr(self.parent(), "selectChannelsByUrls"):
+                self.parent().selectChannelsByUrls(urls_to_mark)
+                QMessageBox.information(
+                    self, "Marked Successfully",
+                    f"✅ Found and marked:\n"
+                    f"• {duplicate_count} duplicate channels\n"
+                    f"• {offline_count} offline channels\n"
+                    f"━━━━━━━━━━━━━━━\n"
+                    f"Total: {total_marked} channels marked"
+                )
+                print(f"[Mark] Marked {total_marked} channels")
+            else:
+                QMessageBox.warning(self, "Error", "Parent method not found.")
+
+        except Exception as e:
+            print(f"[Mark Channels Error] {e}")
+            QMessageBox.critical(self, "Error", f"Failed to mark channels: {str(e)}")
+
+    def closeEvent(self, event):
+        """סגירה מהירה ובטוחה"""
+        try:
+            self._is_closing = True
+            if self.thread and self.thread.isRunning():
+                self.thread.stop()
+                self.thread.wait(2000)
+            event.accept()
+            print("[Close] Dialog closed")
+
+        except Exception as e:
+            print(f"[Close Event Error] {e}")
+            event.accept()
+
+    def reject(self):
+        """דחייה מהירה"""
+        try:
+            self._is_closing = True
+            if self.thread and self.thread.isRunning():
+                self.thread.stop()
+                self.thread.wait(1000)
+            print("[Reject] Dialog rejected")
+
+        except Exception as e:
+            print(f"[Reject Error] {e}")
+        finally:
+            super().reject()
 
 class M3UEditor(QWidget):
     logosFinished = pyqtSignal()
@@ -2670,59 +3196,124 @@ class M3UEditor(QWidget):
 
             # 🧹 איפוס – אם אין טקסט
             if not text:
+                # איפוס מהיר עם batch updates
+                self.categoryList.setUpdatesEnabled(False)
+                self.channelList.setUpdatesEnabled(False)
+
+                white_color = QColor("white")
                 for i in range(self.categoryList.count()):
-                    item = self.categoryList.item(i)
-                    item.setBackground(QColor("white"))
+                    self.categoryList.item(i).setBackground(white_color)
                 for i in range(self.channelList.count()):
                     ch_item = self.channelList.item(i)
-                    ch_item.setBackground(QColor("white"))
+                    ch_item.setBackground(white_color)
                     ch_item.setSelected(False)
+
+                self.categoryList.setUpdatesEnabled(True)
+                self.channelList.setUpdatesEnabled(True)
                 return
 
-            # 🔍 חיפוש בקטגוריות
+            # צבעים מוכנים מראש
+            yellow_color = QColor("#fff88a")
+            white_color = QColor("white")
+            green_color = QColor("#c0ffc0")
+
+            # 🔍 חיפוש בקטגוריות - מהיר יותר עם caching
             category_found = False
-            for i in range(self.categoryList.count()):
+            category_count = self.categoryList.count()
+
+            # השבתת עדכונים למהירות
+            self.categoryList.setUpdatesEnabled(False)
+
+            for i in range(category_count):
                 item = self.categoryList.item(i)
-                category_name = item.text().split(" (")[0].lower()
+                item_text = item.text()
 
-                if text in category_name:
-                    item.setBackground(QColor("#fff88a"))  # צהוב רך
-                    self.categoryList.setCurrentItem(item)
-                    self.display_channels(item)
-                    category_found = True
+                # cache של הטקסט הנקי
+                if not hasattr(item, '_cached_clean_text'):
+                    item._cached_clean_text = item_text.split(" (")[0].lower()
+
+                if text in item._cached_clean_text:
+                    item.setBackground(yellow_color)
+                    if not category_found:  # רק פעם אחת
+                        self.categoryList.setCurrentItem(item)
+                        category_found = True
                 else:
-                    item.setBackground(QColor("white"))
+                    item.setBackground(white_color)
 
-            # 🔍 אם לא נמצאה קטגוריה – חפש בערוצים
+            self.categoryList.setUpdatesEnabled(True)
+
+            # אם נמצאה קטגוריה - הצג את הערוצים
+            if category_found:
+                current_item = self.categoryList.currentItem()
+                if current_item:
+                    self.display_channels(current_item)
+                return
+
+            # 🔍 אם לא נמצאה קטגוריה – חפש בערוצים (מהיר יותר)
             if not category_found:
-                for category, channels in self.categories.items():
-                    for channel in channels:
-                        channel_name = channel.split(" (")[0].lower()
-                        if text in channel_name:
-                            # טען את הקטגוריה התואמת
-                            for i in range(self.categoryList.count()):
-                                item = self.categoryList.item(i)
-                                if category in item.text():
-                                    item.setBackground(QColor("#fff88a"))  # צהוב
-                                    self.categoryList.setCurrentItem(item)
-                                    self.display_channels(item)
-                                    break
+                # יצירת מילון מהיר לחיפוש אם לא קיים
+                if not hasattr(self, '_channel_lookup_cache'):
+                    self._channel_lookup_cache = {}
+                    for category, channels in self.categories.items():
+                        for channel in channels:
+                            channel_clean = channel.split(" (")[0].lower()
+                            if channel_clean not in self._channel_lookup_cache:
+                                self._channel_lookup_cache[channel_clean] = []
+                            self._channel_lookup_cache[channel_clean].append((category, channel))
 
-                            # סמן את הערוץ התואם
-                            for j in range(self.channelList.count()):
-                                ch_item = self.channelList.item(j)
-                                for j in range(self.channelList.count()):
-                                    ch_item = self.channelList.item(j)
-                                    text_lower = ch_item.text().lower()
-                                    if text in text_lower:
-                                        ch_item.setSelected(True)
-                                        ch_item.setBackground(QColor("#c0ffc0"))  # סימון ירוק
-                                        self.channelList.scrollToItem(ch_item)
-                                        return
+                # חיפוש מהיר במילון
+                found_channel = None
+                found_category = None
 
+                # חיפוש ישיר במילון
+                for cached_channel, category_channel_pairs in self._channel_lookup_cache.items():
+                    if text in cached_channel:
+                        found_category, found_channel = category_channel_pairs[0]
+                        break
+
+                if found_channel and found_category:
+                    # השבתת עדכונים
+                    self.categoryList.setUpdatesEnabled(False)
+                    self.channelList.setUpdatesEnabled(False)
+
+                    # איפוס קטגוריות
+                    for i in range(category_count):
+                        self.categoryList.item(i).setBackground(white_color)
+
+                    # מציאת וסימון הקטגוריה הנכונה
+                    for i in range(category_count):
+                        item = self.categoryList.item(i)
+                        if found_category in item.text():
+                            item.setBackground(yellow_color)
+                            self.categoryList.setCurrentItem(item)
+                            self.display_channels(item)
+                            break
+
+                    # מציאת וסימון הערוץ
+                    channel_count = self.channelList.count()
+                    for j in range(channel_count):
+                        ch_item = self.channelList.item(j)
+                        ch_text = ch_item.text().lower()
+                        if text in ch_text:
+                            ch_item.setSelected(True)
+                            ch_item.setBackground(green_color)
+                            self.channelList.scrollToItem(ch_item)
+                            break
+                        else:
+                            ch_item.setSelected(False)
+                            ch_item.setBackground(white_color)
+
+                    # הפעלת עדכונים
+                    self.categoryList.setUpdatesEnabled(True)
+                    self.channelList.setUpdatesEnabled(True)
 
         except Exception as e:
             print(f"[Search Error] {e}")
+            # ודא שהעדכונים מופעלים במקרה של שגיאה
+            if hasattr(self, 'categoryList'):
+                self.categoryList.setUpdatesEnabled(True)
+            if hasattr(self, 'channelList'):
+                self.channelList.setUpdatesEnabled(True)
 
     def buildSearchCompleter(self):
         search_terms = list(self.categories.keys())
@@ -3744,36 +4335,93 @@ class M3UEditor(QWidget):
             self.displayTotalChannels()
 
     def moveCategoryUp(self):
-        current_row = self.categoryList.currentRow()
-        if current_row > 0:
-            current_item = self.categoryList.takeItem(current_row)
-            self.categoryList.insertItem(current_row - 1, current_item)
+        try:
+            current_row = self.categoryList.currentRow()
+            if current_row <= 0:
+                return
+
+            # חסימת סיגנלים ועדכונים בזמן ההזזה
+            self.categoryList.blockSignals(True)
+            self.setUpdatesEnabled(False)
+
+            # הזזת הפריט ברשימת ה-UI
+            item = self.categoryList.takeItem(current_row)
+            if item is None:
+                # הגנה למקרה נדיר
+                self.categoryList.blockSignals(False)
+                self.setUpdatesEnabled(True)
+                return
+
+            self.categoryList.insertItem(current_row - 1, item)
             self.categoryList.setCurrentRow(current_row - 1)
 
-            category_keys = list(self.categories.keys())
-            category_keys[current_row], category_keys[current_row - 1] = category_keys[current_row - 1], category_keys[
-                current_row]
-            reordered_categories = {key: self.categories[key] for key in category_keys}
-            self.categories = reordered_categories
+            # עדכון סדר המילון במהירות וללא הקפצות
+            keys = list(self.categories.keys())
+            keys[current_row - 1], keys[current_row] = keys[current_row], keys[current_row - 1]
 
-            self.refreshCategoryListOnly(selected_index=current_row - 1)
-            self.regenerateM3UTextOnly()
+            # בנייה מחדש על בסיס הצילום הקיים כדי למנוע גישה תוך שינוי
+            old_categories = self.categories
+            self.categories = {k: old_categories[k] for k in keys}
+
+        except Exception as e:
+            try:
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "Error", f"moveCategoryUp failed: {e}")
+            except Exception:
+                pass
+        finally:
+            # שחרור חסימות ועדכונים
+            self.categoryList.blockSignals(False)
+            self.setUpdatesEnabled(True)
+
+            # רענון מושהה לטיק הבא של לולאת האירועים למניעת קריסות Qt
+            idx = max(0, current_row - 1)
+            QTimer.singleShot(0, lambda: self.refreshCategoryListOnly(selected_index=idx))
+            QTimer.singleShot(0, self.regenerateM3UTextOnly)
 
     def moveCategoryDown(self):
-        current_row = self.categoryList.currentRow()
-        if current_row < self.categoryList.count() - 1:
-            current_item = self.categoryList.takeItem(current_row)
-            self.categoryList.insertItem(current_row + 1, current_item)
+        try:
+            current_row = self.categoryList.currentRow()
+            last_index = self.categoryList.count() - 1
+            if current_row < 0 or current_row >= last_index:
+                return
+
+            # חסימת סיגנלים ועדכונים בזמן ההזזה
+            self.categoryList.blockSignals(True)
+            self.setUpdatesEnabled(False)
+
+            # הזזת הפריט ברשימת ה-UI
+            item = self.categoryList.takeItem(current_row)
+            if item is None:
+                self.categoryList.blockSignals(False)
+                self.setUpdatesEnabled(True)
+                return
+
+            self.categoryList.insertItem(current_row + 1, item)
             self.categoryList.setCurrentRow(current_row + 1)
 
-            category_keys = list(self.categories.keys())
-            category_keys[current_row], category_keys[current_row + 1] = category_keys[current_row + 1], category_keys[
-                current_row]
-            reordered_categories = {key: self.categories[key] for key in category_keys}
-            self.categories = reordered_categories
+            # עדכון סדר המילון במהירות וללא הקפצות
+            keys = list(self.categories.keys())
+            keys[current_row], keys[current_row + 1] = keys[current_row + 1], keys[current_row]
 
-            self.refreshCategoryListOnly(selected_index=current_row + 1)
-            self.regenerateM3UTextOnly()
+            old_categories = self.categories
+            self.categories = {k: old_categories[k] for k in keys}
+
+        except Exception as e:
+            try:
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "Error", f"moveCategoryDown failed: {e}")
+            except Exception:
+                pass
+        finally:
+            # שחרור חסימות ועדכונים
+            self.categoryList.blockSignals(False)
+            self.setUpdatesEnabled(True)
+
+            # רענון מושהה לטיק הבא של לולאת האירועים
+            idx = min(self.categoryList.count() - 1, current_row + 1)
+            QTimer.singleShot(0, lambda: self.refreshCategoryListOnly(selected_index=idx))
+            QTimer.singleShot(0, self.regenerateM3UTextOnly)
 
     def sortCategories(self):
         sort_option = self.categorySortComboBox.currentText()
