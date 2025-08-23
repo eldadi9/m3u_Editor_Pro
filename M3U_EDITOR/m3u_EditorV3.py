@@ -574,10 +574,10 @@ class SmartScanThread(QThread):
     progress = pyqtSignal(int, int, int, tuple)
     finished = pyqtSignal()
 
-    def __init__(self, channels, duplicate_names):
+    def __init__(self, channels, duplicate_names=None):  # הפוך את duplicate_names לאופציונלי
         super().__init__()
         self.channels = channels
-        self.duplicate_names = duplicate_names
+        self.duplicate_names = duplicate_names if duplicate_names is not None else set()
         self.stop_requested = False
 
     def run(self):
@@ -1162,7 +1162,7 @@ class SmartScanStatusDialog(QDialog):
 
         try:
             # צור את ה-thread עם הערוצים (בלי duplicate_names סטטי)
-            self.thread = SmartScanThread(self.channels)
+            self.thread = SmartScanThread(self.channels, self.duplicates)
 
             # חבר את הסיגנלים
             self.thread.progress.connect(self.updateProgress)
@@ -1363,10 +1363,24 @@ class SmartScanStatusDialog(QDialog):
 
             print(f"[Filter] Filtered result: {len(filtered)} unique channels matched")
 
-            # אם לא נמצאו התאמות, החזר את ערוצי הקטגוריה
+            # אם לא נמצאו התאמות, החזר את ערוצי הקטגוריה בפורמט הנכון
             if not filtered and category_channels:
-                print("[Filter] No matches found, returning category channels as fallback")
-                return category_channels
+                print("[Filter] No matches found, converting category channels to tuples")
+                # המרה לפורמט של tuples
+                converted = []
+                for ch in category_channels:
+                    try:
+                        if " (" in ch and ch.endswith(")"):
+                            name = ch.split(" (")[0].strip()
+                            url = ch.split(" (", 1)[1].rstrip(")")
+                            converted.append((name, url))
+                        else:
+                            # אם הפורמט לא מוכר, נדלג
+                            print(f"[Filter] Skipping invalid format: {ch}")
+                    except Exception as e:
+                        print(f"[Filter] Error converting channel: {e}")
+                        continue
+                return converted if converted else channels  # החזר את המקורי אם ההמרה נכשלה
 
             return filtered
 
