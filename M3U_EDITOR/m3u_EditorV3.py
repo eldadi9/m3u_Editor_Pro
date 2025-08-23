@@ -1809,130 +1809,92 @@ class M3UEditor(QWidget):
         QMessageBox.information(self, "תרגום ערוצים", "כל הערוצים תורגמו לאנגלית בהצלחה!")
 
     def translateChannels(self):
-        """
-        פותח דיאלוג עם 2 אפשרויות:
-         • תרגום קטגוריה בודדת
-         • תרגום כל הערוצים
-        """
+        """דיאלוג משופר עם 3 אפשרויות"""
         dlg = QDialog(self)
         dlg.setWindowTitle("תרגם ערוצים")
         dlg.setModal(True)
-        dlg.setMinimumSize(350, 200)
+        dlg.setMinimumSize(400, 250)
 
         layout = QVBoxLayout(dlg)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(20)
 
-        # כותרת
-        title_label = QLabel("בחר אפשרות תרגום")
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("""
-            QLabel {
-                font-size: 18px;
-                font-weight: bold;
-                color: #2c3e50;
-                margin-bottom: 10px;
-            }
-        """)
-        layout.addWidget(title_label)
+        # כפתור לקטגוריה נוכחית
+        btn_current = QPushButton("📝 תרגם קטגוריה נוכחית")
+        btn_current.clicked.connect(lambda: [dlg.accept(), self._translateCategory()])
 
-        # כפתור תרגום קטגוריה
-        btn_cat = QPushButton("🔤 תרגם קטגוריה נוכחית", dlg)
-        btn_cat.setFixedHeight(50)
-        btn_cat.setStyleSheet("""
-            QPushButton {
-                font-size: 16px;
-                font-weight: bold;
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #3498db, stop:1 #2980b9);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 10px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #2980b9, stop:1 #3498db);
-            }
-            QPushButton:pressed {
-                background: #2471a3;
-            }
-        """)
+        # כפתור לבחירת קטגוריות מרובות - חדש!
+        btn_selected = QPushButton("☑️ תרגם קטגוריות נבחרות")
+        btn_selected.setStyleSheet("background-color: #9b59b6; color: white;")
+        btn_selected.clicked.connect(lambda: [dlg.accept(), self._translateSelectedCategories()])
 
-        # כפתור תרגום כולל
-        btn_all = QPushButton("🌐 תרגם את כל הערוצים", dlg)
-        btn_all.setFixedHeight(50)
-        btn_all.setStyleSheet("""
-            QPushButton {
-                font-size: 16px;
-                font-weight: bold;
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #e74c3c, stop:1 #c0392b);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 10px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #c0392b, stop:1 #e74c3c);
-            }
-            QPushButton:pressed {
-                background: #a93226;
-            }
-        """)
+        # כפתור לכל הקטגוריות
+        btn_all = QPushButton("🌐 תרגם את כל הערוצים")
+        btn_all.clicked.connect(lambda: [dlg.accept(), self._translateAll()])
 
-        layout.addWidget(btn_cat)
+        layout.addWidget(btn_current)
+        layout.addWidget(btn_selected)  # החדש!
         layout.addWidget(btn_all)
-
-        # הוספת מידע על מספר ערוצים
-        info_label = QLabel()
-        current_category = self.categoryList.currentItem()
-        if current_category:
-            current_channels = len(self.categories.get(current_category.text(), []))
-            total_channels = sum(len(channels) for channels in self.categories.values())
-            info_text = f"קטגוריה נוכחית: {current_channels:,} ערוצים\nסה\"כ ערוצים: {total_channels:,}"
-        else:
-            total_channels = sum(len(channels) for channels in self.categories.values())
-            info_text = f"סה\"כ ערוצים: {total_channels:,}"
-
-        info_label.setText(info_text)
-        info_label.setAlignment(Qt.AlignCenter)
-        info_label.setStyleSheet("""
-            QLabel {
-                font-size: 12px;
-                color: #7f8c8d;
-                background: #ecf0f1;
-                padding: 8px;
-                border-radius: 4px;
-                margin-top: 10px;
-            }
-        """)
-        layout.addWidget(info_label)
-
-        # חיבור הכפתורים
-        btn_cat.clicked.connect(lambda: (dlg.accept(), self._translateCategory()))
-        btn_all.clicked.connect(lambda: (dlg.accept(), self._translateAll()))
 
         dlg.exec_()
 
-    def _translateCategory(self):
-        """תרגום קטגוריה נוכחית בלבד - מהיר יותר"""
-        current_item = self.categoryList.currentItem()
-        if not current_item:
-            QMessageBox.warning(self, "שגיאה", "לא נבחרה קטגוריה")
-            return
+    def _translateSelectedCategories(self):
+        """תרגום קטגוריות נבחרות בלבד"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("בחר קטגוריות לתרגום")
+        dialog.setMinimumSize(400, 500)
 
-        category_name = current_item.text()
-        channels = self.categories.get(category_name, [])
+        layout = QVBoxLayout(dialog)
 
-        if not channels:
-            QMessageBox.information(self, "מידע", "הקטגוריה ריקה")
-            return
+        # רשימה עם checkboxes
+        list_widget = QListWidget()
+        list_widget.setSelectionMode(QAbstractItemView.MultiSelection)
 
-        # יצירת thread לתרגום מהיר של קטגוריה אחת
-        single_category = {category_name: channels}
-        self._startFastTranslation(single_category, f"מתרגם קטגוריה: {category_name}")
+        for category in self.categories.keys():
+            item = QListWidgetItem(f"{category} ({len(self.categories[category])} ערוצים)")
+            item.setCheckState(Qt.Unchecked)
+            list_widget.addItem(item)
+
+        layout.addWidget(QLabel("סמן קטגוריות לתרגום:"))
+        layout.addWidget(list_widget)
+
+        # כפתורי פעולה
+        btn_layout = QHBoxLayout()
+
+        select_all_btn = QPushButton("בחר הכל")
+        select_all_btn.clicked.connect(lambda: [
+            list_widget.item(i).setCheckState(Qt.Checked)
+            for i in range(list_widget.count())
+        ])
+
+        deselect_all_btn = QPushButton("בטל הכל")
+        deselect_all_btn.clicked.connect(lambda: [
+            list_widget.item(i).setCheckState(Qt.Unchecked)
+            for i in range(list_widget.count())
+        ])
+
+        translate_btn = QPushButton("תרגם נבחרות")
+        translate_btn.setStyleSheet("background-color: green; color: white;")
+
+        btn_layout.addWidget(select_all_btn)
+        btn_layout.addWidget(deselect_all_btn)
+        btn_layout.addWidget(translate_btn)
+        layout.addLayout(btn_layout)
+
+        def start_translation():
+            selected = {}
+            for i in range(list_widget.count()):
+                item = list_widget.item(i)
+                if item.checkState() == Qt.Checked:
+                    cat_name = item.text().split(" (")[0]
+                    selected[cat_name] = self.categories[cat_name]
+
+            if selected:
+                dialog.accept()
+                self._startFastTranslation(selected, f"מתרגם {len(selected)} קטגוריות")
+            else:
+                QMessageBox.warning(dialog, "אזהרה", "לא נבחרו קטגוריות")
+
+        translate_btn.clicked.connect(start_translation)
+        dialog.exec_()
 
     def _translateAll(self):
         """תרגום כל הערוצים - עם אופטימיזציות מהירות"""
@@ -2190,14 +2152,30 @@ class M3UEditor(QWidget):
         return dialog
 
     def _applyChannelTranslation(self, translated_categories, category_mapping):
-        """יישום תוצאות התרגום"""
+        """יישום תוצאות התרגום - מעדכן רק את הקטגוריות שתורגמו"""
 
         # שמירת מצב לפני
         channels_before = sum(len(channels) for channels in self.categories.values())
         categories_before = len(self.categories)
 
-        # החלפת הקטגוריות
-        self.categories = translated_categories
+        # במקום להחליף את כל self.categories, נעדכן רק את מה שתורגם
+        for old_category, new_category in category_mapping.items():
+            if old_category in self.categories:
+                # אם השם השתנה
+                if old_category != new_category:
+                    # העבר את הערוצים לקטגוריה החדשה
+                    if new_category in self.categories:
+                        # אם הקטגוריה החדשה כבר קיימת - מזג
+                        self.categories[new_category].extend(translated_categories[new_category])
+                    else:
+                        # צור קטגוריה חדשה
+                        self.categories[new_category] = translated_categories[new_category]
+
+                    # מחק את הקטגוריה הישנה
+                    del self.categories[old_category]
+                else:
+                    # אם השם לא השתנה, רק עדכן את הערוצים
+                    self.categories[old_category] = translated_categories[old_category]
 
         # עדכון התצוגה
         self.cleanEmptyCategories()
@@ -2212,23 +2190,11 @@ class M3UEditor(QWidget):
         channels_after = sum(len(channels) for channels in self.categories.values())
         categories_after = len(self.categories)
 
-        # ספירת מיזוגים
-        merges = 0
-        for target_category in translated_categories.keys():
-            original_sources = [k for k, v in category_mapping.items() if v == target_category]
-            if len(original_sources) > 1:
-                merges += 1
-
-        success_msg = f"""תרגום ערוצים הושלם!
-
-    📊 תוצאות:
-    • קטגוריות: {categories_before} → {categories_after}
-    • ערוצים מתורגמים: {channels_after:,}
-    • מיזוגי קטגוריות: {merges}
-
-    ✅ כל הערוצים תורגמו לאנגלית בהצלחה!"""
-
-        QMessageBox.information(self, "תרגום הושלם", success_msg)
+        QMessageBox.information(
+            self, "תרגום הושלם",
+            f"✅ תורגמו {len(category_mapping)} קטגוריות\n"
+            f"📊 סה\"כ ערוצים: {channels_after:,}"
+        )
 
     def _translateCategory(self):
         # בוחר קטגוריה
@@ -4727,12 +4693,6 @@ class M3UEditor(QWidget):
 
         print("[LOG] 🔄 עדכון M3U בוצע", "כולל סריקת לוגואים" if not skip_logos else "ללא סריקת לוגואים")
 
-    def getCategoryName(self, channel):
-        """
-        Placeholder method to extract the category from a channel string.
-        """
-        # Implement logic based on your channel data structure
-        return "Default Category"
 
     def moveChannelUp(self):
         """
@@ -5729,9 +5689,7 @@ class M3UEditor(QWidget):
             except Exception:
                 continue
 
-    def playCatchupIfExists(self, epg_entry):
-        # בעתיד: אם יש catchup-url מובנה בתוך epg_entry
-        QMessageBox.information(self, "Play", f"Trying to play:\n{epg_entry.get('title')}")
+
 
     def saveM3U(self):
         options = QFileDialog.Options()
