@@ -1810,7 +1810,7 @@ class M3UEditor(QWidget):
         if not self.categories:
             QMessageBox.warning(self, "אין נתונים", "אין ערוצים לסינון")
             return
-        self.filter_system.runAutomaticAdvancedFilter('he')  # או 'en' אם תרצה
+        self.filter_system.chooseIsraelLanguageAndRunAdvanced()
 
     def filterIsraelChannelsFromKeywords(self, lang):
         """

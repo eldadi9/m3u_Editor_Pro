@@ -1,6 +1,8 @@
 import random
 import re
 from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLabel
+from PyQt5.QtCore import Qt
 
 class M3UFilterEnhanced:
     CATEGORY_EMOJIS = {
@@ -17,12 +19,30 @@ class M3UFilterEnhanced:
         'Partner': ['📱','📞','💻','📡','🔗'],
         'Cellcom': ['📲','📶','📳','📴','📵'],
         'Free Tv': ['🆓','📺','📡','🎥','🎬'],
-        'Other': ['📌','🔸','🔹','▪️','▫️','◾','◽'],
+        'Other': ['✨','⭐','🚀','🎯','📺','🎉','🎊','🧩'],
         'World Sports': ['🌍⚽','🏃','🏊','🚴','🤸','⛷️'],
         'World Music': ['🌎🎵','🎸','🥁','🎻','🎺','🎷'],
         'World Movies': ['🌏🎬','🎥','📽️','🎞️','🍿'],
         'World News': ['🌐📰','🗞️','📡','🎙️','📻'],
         'World Kids': ['🌍👶','🧸','🎈','🎮','🦄'],
+    }
+
+    HE_DISPLAY = {
+        'News': 'חדשות',
+        'Sports': 'ספורט',
+        'Kids': 'ערוצי ילדים',
+        'Movies': 'סרטים',
+        'Entertainment': 'בידור',
+        'Music': 'מוזיקה',
+        'Documentaries': 'טבע ודוקו',
+        'Nature': 'טבע',
+        'Yes': 'יס',
+        'Hot': 'הוט',
+        'Partner': 'פרטנר',
+        'Cellcom': 'סלקום',
+        'Free Tv': 'Free-TV',
+        'World Series': 'סדרות זרות',
+        'Other': 'אחר'
     }
 
     def __init__(self, parent):
@@ -34,23 +54,22 @@ class M3UFilterEnhanced:
     # קריאה מהקובץ הראשי
     def runAutomaticAdvancedFilter(self, lang='he'):
         try:
-            # אפס אימוגי לריצה חדשה כדי שייבחרו מחדש, אבל אל תחזור על אותו אימוגי מהריצה הקודמת
             self._run_emojis = {}
 
-            kw_map = self._build_category_keywords(lang)
+            kw_map = self._build_category_keywords(lang)  # בסיסים באנגלית
 
-            # מיכלים לישראל ולעולם
-            israel_cats = {self._cat_key(base): [] for base in kw_map.keys()}
-            if self._cat_key('Other') not in israel_cats:
-                israel_cats[self._cat_key('Other')] = []
+            # מיכלים לישראל (תצוגה בעברית אם lang='he') ולעולם (תמיד אנגלית)
+            israel_cats = {self._cat_key(base, lang, True): [] for base in kw_map.keys()}
+            if self._cat_key('Other', lang, True) not in israel_cats:
+                israel_cats[self._cat_key('Other', lang, True)] = []
 
             world_cats = {
-                self._cat_key('World Sports'): [],
-                self._cat_key('World Music'): [],
-                self._cat_key('World Movies'): [],
-                self._cat_key('World News'): [],
-                self._cat_key('World Kids'): [],
-                self._cat_key('Other'): []
+                self._cat_key('World Sports', lang, False): [],
+                self._cat_key('World Music', lang, False): [],
+                self._cat_key('World Movies', lang, False): [],
+                self._cat_key('World News', lang, False): [],
+                self._cat_key('World Kids', lang, False): [],
+                self._cat_key('Other', lang, False): []
             }
 
             # מעבר על כל הערוצים
@@ -58,14 +77,13 @@ class M3UFilterEnhanced:
                 for entry in channels:
                     name = self._extract_name(entry)
                     if self._is_israeli_name(name):
-                        base = self._best_israel_category(name, kw_map)
-                        key = self._cat_key(base)
-                        israel_cats.setdefault(key, [])
-                        israel_cats[key].append(entry)
+                        base = self._best_israel_category(name, kw_map)  # בסיס אנגלי
+                        key = self._cat_key(base, lang, True)
+                        israel_cats.setdefault(key, []).append(entry)
                     else:
-                        key = self._world_bucket(name)
-                        world_cats.setdefault(key, [])
-                        world_cats[key].append(entry)
+                        world_base = self._world_bucket(name)  # החזר 'World Sports'/'World Music'/.../'Other'
+                        key = self._cat_key(world_base, lang, False)  # ← כאן נכנסת השורה ששאלת עליה
+                        world_cats.setdefault(key, []).append(entry)
 
             # מיזוג וסינון ריקות
             merged = {}
@@ -81,30 +99,63 @@ class M3UFilterEnhanced:
 
     # -------- עזר --------
 
+    def chooseIsraelLanguageAndRunAdvanced(self):
+        """דיאלוג מינימלי לבחירת שפה לערוצים הישראלים בלבד, ואז ריצה אוטומטית"""
+        dlg = QDialog(self.parent)
+        dlg.setWindowTitle("בחר שפה לערוצים הישראלים")
+        dlg.setFixedSize(320, 160)
+        lay = QVBoxLayout(dlg)
+
+        lbl = QLabel("בחר שפת קטגוריות לערוצים הישראלים")
+        lbl.setAlignment(Qt.AlignCenter)
+        lay.addWidget(lbl)
+
+        btn_he = QPushButton("עברית")
+        btn_en = QPushButton("English")
+
+        btn_he.setStyleSheet("background-color: black; color: white; font-weight: bold; padding: 10px;")
+        btn_en.setStyleSheet("background-color: red; color: white; font-weight: bold; padding: 10px;")
+
+        btn_he.clicked.connect(lambda: (dlg.accept(), self.runAutomaticAdvancedFilter('he')))
+        btn_en.clicked.connect(lambda: (dlg.accept(), self.runAutomaticAdvancedFilter('en')))
+
+        lay.addWidget(btn_he)
+        lay.addWidget(btn_en)
+
+        dlg.exec_()
+
     def _normalize_base(self, s):
         # השאר עברית ואנגלית ורווחים בלבד. מסיר אימוגי וסימנים.
         return re.sub(r'[^A-Za-z\u0590-\u05FF ]+', '', s).strip()
 
     def _he_alias(self, base):
-        # מיפוי בסיסים בעברית לבסיסים האנגליים כדי לקבל אימוגי נכונים
         aliases = {
-            'ספורט': 'Sports',
-            'חדשות': 'News',
-            'ילדים': 'Kids',
+            # עברית
+            'ספורט': 'Sports', 'ספורט ישראלי': 'Sports',
+            'חדשות': 'News', 'חדשות ישראליות': 'News',
+            'ילדים': 'Kids', 'ערוצי ילדים': 'Kids',
             'סרטים': 'Movies',
             'מוזיקה': 'Music',
-            'תיעוד': 'Documentaries',
-            'טבע': 'Nature',
-            'יס': 'Yes',
-            'הוט': 'Hot',
-            'פרטנר': 'Partner',
-            'סלקום': 'Cellcom',
-            'חינם': 'Free Tv',
-            'אחר': 'Other',
-            'ספורט ישראלי': 'Sports',
-            'חדשות ישראליות': 'News',
+            'בידור': 'Entertainment',
+            'טבע': 'Nature', 'טבע ודוקו': 'Documentaries', 'דוקו': 'Documentaries',
+            'יס': 'Yes', 'הוט': 'Hot',
+            'פרטנר': 'Partner', 'סלקום': 'Cellcom',
+            'חינם': 'Free Tv', 'אחר': 'Other',
+            'סדרות זרות': 'World Series',
+            # אנגלית מורחב
+            'hot series': 'Hot', 'yes premium': 'Yes',
+            'partner tv': 'Partner', 'cellcom tv': 'Cellcom',
+            'free tv': 'Free Tv', 'free-tv': 'Free Tv',
+            'world series': 'World Series',
+            # וריאנטים
+            'yes': 'Yes', 'hot': 'Hot', 'partner': 'Partner', 'cellcom': 'Cellcom',
+            'series': 'Movies', 'entertainment': 'Entertainment',
+            'documentaries': 'Documentaries', 'nature': 'Nature',
+            'kids': 'Kids', 'news': 'News', 'sports': 'Sports', 'music': 'Music', 'movies': 'Movies'
         }
-        return aliases.get(base, base)
+        key = base.strip()
+        low = key.lower()
+        return aliases.get(key, aliases.get(low, base))
 
     def _build_category_keywords(self, lang):
         from channel_keywords import CATEGORY_KEYWORDS_EN, CATEGORY_KEYWORDS_HE
@@ -166,19 +217,28 @@ class M3UFilterEnhanced:
 
     def _world_bucket(self, name):
         low = name.lower()
-        sports = ['sport','football','soccer','basketball','tennis','golf','racing','boxing','ufc','nba','nfl','mlb','cricket','rugby','hockey','eurosport','espn','bein','sky sports','dazn','match','arena']
-        music  = ['music','mtv','vh1','vevo','hits','rock','pop','jazz','classical','country','rap','hip hop','dance','edm','radio','fm']
-        movies = ['cinema','movie','film','hbo','showtime','starz','cinemax','paramount','universal','sony','fox','disney','netflix','amazon','action','drama','comedy','thriller','horror','sci-fi','romance']
-        news   = ['news','cnn','bbc','fox news','msnbc','cnbc','bloomberg','reuters','al jazeera','sky news','euronews','dw','france 24','nhk','cctv']
-        kids   = ['kids','cartoon','disney','nickelodeon','nick','boomerang','cartoon network','baby','junior','toons','animation','pbs kids','cbeebies']
+        sports = ['sport', 'football', 'soccer', 'basketball', 'tennis', 'golf', 'racing', 'boxing', 'ufc', 'nba',
+                  'nfl', 'mlb', 'cricket', 'rugby', 'hockey', 'eurosport', 'espn', 'bein', 'sky sports', 'dazn',
+                  'match', 'arena']
+        music = ['music', 'mtv', 'vh1', 'vevo', 'hits', 'rock', 'pop', 'jazz', 'classical', 'country', 'rap', 'hip hop',
+                 'dance', 'edm', 'radio', 'fm']
+        movies = ['cinema', 'movie', 'film', 'hbo', 'showtime', 'starz', 'cinemax', 'paramount', 'universal', 'sony',
+                  'fox', 'disney', 'netflix', 'amazon', 'action', 'drama', 'comedy', 'thriller', 'horror', 'sci-fi',
+                  'romance']
+        news = ['news', 'cnn', 'bbc', 'fox news', 'msnbc', 'cnbc', 'bloomberg', 'reuters', 'al jazeera', 'sky news',
+                'euronews', 'dw', 'france 24', 'nhk', 'cctv']
+        kids = ['kids', 'cartoon', 'disney', 'nickelodeon', 'nick', 'boomerang', 'cartoon network', 'baby', 'junior',
+                'toons', 'animation', 'pbs kids', 'cbeebies']
 
-        def any_in(lst): return any(k in low for k in lst)
-        if any_in(sports): return self._cat_key('World Sports')
-        if any_in(music):  return self._cat_key('World Music')
-        if any_in(movies): return self._cat_key('World Movies')
-        if any_in(news):   return self._cat_key('World News')
-        if any_in(kids):   return self._cat_key('World Kids')
-        return self._cat_key('Other')
+        def any_in(lst):
+            return any(k in low for k in lst)
+
+        if any_in(sports): return 'World Sports'
+        if any_in(music):  return 'World Music'
+        if any_in(movies): return 'World Movies'
+        if any_in(news):   return 'World News'
+        if any_in(kids):   return 'World Kids'
+        return 'Other'
 
     def _get_run_emoji(self, base):
         # בוחר אימוגי יציב לבסיס בודד בריצה, ומנסה לא לחזור על האימוגי מהריצה הקודמת
@@ -193,11 +253,13 @@ class M3UFilterEnhanced:
         self.emoji_history[base] = chosen
         return chosen
 
-    def _cat_key(self, base):
+    def _cat_key(self, base, lang='he', is_israeli=True):
         base_norm = self._normalize_base(base)
-        base_norm = self._he_alias(base_norm)
-        emoji = self._get_run_emoji(base_norm)
-        return f"{base_norm} {emoji}"
+        base_eng = self._he_alias(base_norm)  # בסיס פנימי באנגלית
+        # תצוגה: עברית לישראלי כשlang='he', אחרת אנגלית
+        display = self.HE_DISPLAY.get(base_eng, base_eng) if (is_israeli and lang == 'he') else base_eng
+        emoji = self._get_run_emoji(base_eng)
+        return f"{display} {emoji}"
 
     def _update_ui_with_filtered(self, filtered_channels):
         filtered_channels = {k: v for k, v in filtered_channels.items() if v}
