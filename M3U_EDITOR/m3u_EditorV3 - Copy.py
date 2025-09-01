@@ -18,22 +18,6 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QListWidgetItem
 from PyQt5.QtCore import QSize
 from PyQt5.QtCore import QTimer
-from m3u_filter_enhanced import M3UFilterEnhanced
-
-
-import os
-print("Current directory:", os.getcwd())
-print("Portal file exists:", os.path.exists("portal_extensions.py"))
-
-try:
-    from portal_extensions import AdvancedPortalConverter, convert_portal_to_m3u
-    PORTAL_CONVERTER_AVAILABLE = True
-    print("✅ Portal Converter loaded successfully")
-except ImportError as e:
-    PORTAL_CONVERTER_AVAILABLE = False
-    print(f"⚠️ Portal Converter not available: {e}")
-
-
 
 
 import shutil
@@ -1733,162 +1717,6 @@ class M3UEditor(QWidget):
         menu.addAction(preview_action)
 
         menu.exec_(self.channelList.viewport().mapToGlobal(position))
-
-    def chooseFilterMethod(self):
-        """בחירה ישירה בין סינון קלאסי למתקדם"""
-        dialog = QDialog(self)
-        dialog.setWindowTitle("🎯 בחר שיטת סינון")
-        dialog.setFixedSize(400, 200)
-        dialog.setStyleSheet("""
-            QDialog {
-                background-color: white;
-                border: 5px solid black;
-            }
-            QPushButton {
-                font-size: 16px;
-                padding: 15px;
-                margin: 10px;
-                font-weight: bold;
-                border: 2px solid black;
-                border-radius: 5px;
-            }
-        """)
-
-        layout = QVBoxLayout(dialog)
-
-        # כפתור סינון קלאסי
-        classic_btn = QPushButton("📋 סינון קלאסי (ישראל בלבד)")
-        classic_btn.setStyleSheet("background-color: black; color: white;")
-        classic_btn.clicked.connect(lambda: [dialog.accept(), self.showLanguageChoice()])
-
-        # כפתור סינון מתקדם
-        advanced_btn = QPushButton("🚀 סינון מתקדם (ישראל + עולם)")
-        advanced_btn.setStyleSheet("background-color: red; color: white;")
-        advanced_btn.clicked.connect(lambda: [dialog.accept(), self.runAdvancedFilter()])
-
-        layout.addWidget(classic_btn)
-        layout.addWidget(advanced_btn)
-
-        dialog.exec_()
-
-    def showLanguageChoice(self):
-        """בחירת שפה לסינון הקלאסי"""
-        dialog = QDialog(self)
-        dialog.setWindowTitle("בחר שפה")
-        dialog.setFixedSize(350, 150)
-        dialog.setStyleSheet("""
-            QDialog {
-                background-color: white;
-                border: 5px solid black;
-            }
-            QPushButton {
-                font-size: 16px;
-                padding: 12px;
-                margin: 8px;
-                font-weight: bold;
-                border: 2px solid black;
-                border-radius: 5px;
-            }
-        """)
-
-        layout = QVBoxLayout(dialog)
-
-        hebrew_btn = QPushButton(" עברית")
-        hebrew_btn.setStyleSheet("background-color: black; color: white;")
-        hebrew_btn.clicked.connect(lambda: [dialog.accept(), self.filterIsraelChannelsFromKeywords("he")])
-
-        english_btn = QPushButton(" English")
-        english_btn.setStyleSheet("background-color: red; color: white;")
-        english_btn.clicked.connect(lambda: [dialog.accept(), self.filterIsraelChannelsFromKeywords("en")])
-
-        layout.addWidget(hebrew_btn)
-        layout.addWidget(english_btn)
-
-        dialog.exec_()
-
-    def runAdvancedFilter(self):
-        if not self.categories:
-            QMessageBox.warning(self, "אין נתונים", "אין ערוצים לסינון")
-            return
-        self.filter_system.runAutomaticAdvancedFilter('he')  # או 'en' אם תרצה
-
-    def filterIsraelChannelsFromKeywords(self, lang):
-        """
-        סינון ישראלי נקי ומדויק, בלי רדיו.
-        זיהוי ישראלי:
-        1) שם בעברית
-        2) דפוסי IL בגבולות מילה: ' IL ', '(IL)', 'IL:', '-IL-', 'ISR'
-        3) מותגים/ערוצים ישראליים ידועים
-        """
-        import re
-        from channel_keywords import CATEGORY_KEYWORDS_EN, CATEGORY_KEYWORDS_HE
-
-        keywords_map = CATEGORY_KEYWORDS_HE if lang == "he" else CATEGORY_KEYWORDS_EN
-
-        il_provider_tokens = [
-            'israel', 'kan', 'keshet', 'reshet', 'makan', 'i24', 'hidabroot', 'kabbalah',
-            'yes', 'hot', 'partner', 'cellcom', 'sting',
-            'sport 1', 'sport1', 'sport 2', 'sport2', 'sport 3', 'sport3', 'sport 4', 'sport4', 'sport 5', 'sport5',
-            'one', 'channel 11', 'channel 12', 'channel 13', 'channel 14', 'channel 9', 'arutz'
-        ]
-
-        il_boundary_patterns = [
-            r'\bIL\b', r'\(IL\)', r'\bIL:', r'-IL-', r'\bISR\b', r'\bisrael\b'
-        ]
-
-        def _has_hebrew(txt: str) -> bool:
-            return any('\u0590' <= c <= '\u05EA' for c in txt)
-
-        def _is_israeli_name(name: str) -> bool:
-            if _has_hebrew(name):
-                return True
-            if any(re.search(pat, name, flags=re.IGNORECASE) for pat in il_boundary_patterns):
-                return True
-            low = name.lower()
-            return any(tok in low for tok in il_provider_tokens)
-
-        def _best_category(name: str) -> str:
-            low = name.lower()
-            best = None
-            best_score = 0
-            for cat, kws in keywords_map.items():
-                score = 0
-                for k in kws:
-                    k = k.strip().lower()
-                    if not k:
-                        continue
-                    if k in low:
-                        score += 1
-                if score > best_score:
-                    best_score = score
-                    best = cat
-            return best if best_score >= 1 else 'Other'
-
-        # נבנה מבנה קטגוריות
-        filtered = {cat: [] for cat in keywords_map}
-        if 'Other' not in filtered:
-            filtered['Other'] = []
-
-        # מעבר על כל הערוצים
-        for _category, channels in self.categories.items():
-            for entry in channels:
-                # חילוץ שם הערוץ
-                if isinstance(entry, str) and ' (' in entry and entry.endswith(')'):
-                    name = entry.split(' (', 1)[0].strip()
-                else:
-                    name = str(entry).strip()
-
-                if _is_israeli_name(name):
-                    cat = _best_category(name)
-                    filtered[cat].append(entry)
-
-        # עדכון UI
-        self.categories = filtered
-        self.updateCategoryList()
-        self.regenerateM3UTextOnly()
-        self.categoryList.clear()
-        for category, channels in self.categories.items():
-            self.categoryList.addItem(f"{category} ({len(channels)})")
 
     def translate_category_names(self):
         from PyQt5.QtWidgets import QInputDialog, QMessageBox, QProgressDialog
@@ -4244,11 +4072,10 @@ class M3UEditor(QWidget):
         self.m3uUrlConverterButton.clicked.connect(self.openM3UConverterDialog)
         buttons_layout.addWidget(self.m3uUrlConverterButton)
 
-        self.convertPortalButton = QPushButton('🌐 Advanced Portal Converter', self)
+        self.convertPortalButton = QPushButton('🔄 Stalker MAC to M3U', self)
         self.convertPortalButton.setStyleSheet("background-color: black; color: white;")
-        self.convertPortalButton.clicked.connect(self.convertStalkerToM3U)
+        self.convertPortalButton.clicked.connect(self.convertPortalToM3U)
         buttons_layout.addWidget(self.convertPortalButton)
-
 
         # Export Groups button
         self.exportGroupButton = QPushButton('📤 Export Groups', self)
@@ -4258,10 +4085,7 @@ class M3UEditor(QWidget):
 
         self.filterIsraelChannelsButton = QPushButton('🎯 Filtered Export', self)
         self.filterIsraelChannelsButton.setStyleSheet("background-color: black; color: white;")
-        self.filterIsraelChannelsButton.clicked.connect(self.chooseFilterMethod)  # רק פעם אחת!
-
-        # יצירת המערכת המתקדמת
-        self.filter_system = M3UFilterEnhanced(self)
+        self.filterIsraelChannelsButton.clicked.connect(self.chooseLanguageAndFilterIsraelChannels)
 
         buttons_layout.addWidget(self.filterIsraelChannelsButton)
 
@@ -4270,6 +4094,10 @@ class M3UEditor(QWidget):
         self.smartScanButton.clicked.connect(self.openSmartScanDialog)
         buttons_layout.addWidget(self.smartScanButton)
 
+        self.manageLogosButton = QPushButton('🖼️ Logo Manager', self)
+        self.manageLogosButton.setStyleSheet("background-color: black; color: red;")
+        self.manageLogosButton.clicked.connect(self.open_logo_manager)
+        buttons_layout.addWidget(self.manageLogosButton)
 
         self.mergeEPGButton = QPushButton('📺 Fix EPG', self)
         self.mergeEPGButton.setStyleSheet("background-color: black; color: white;")
@@ -4282,30 +4110,197 @@ class M3UEditor(QWidget):
 
         return layout
 
-    def convertStalkerToM3U(self):
-        """המרת Portal/Stalker ל-M3U - גרסה מתקדמת"""
+    def convertPortalToM3U(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Portal to M3U Converter")
+        dialog.setGeometry(300, 300, 600, 300)
+        dialog.setStyleSheet("""
+            QDialog { background-color: white; border: 5px solid red; }
+            QPushButton { font-weight: bold; height: 40px; }
+            QLineEdit { font-size: 14px; padding: 6px; }
+        """)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
 
-        if not PORTAL_CONVERTER_AVAILABLE:
-            QMessageBox.critical(
-                self,
-                "Feature Not Available",
-                "Portal Converter module is not available.\n"
-                "Please ensure portal_extensions.py is in the M3U_EDITOR folder."
-            )
-            return
+        layout = QVBoxLayout(dialog)
 
-        try:
-            # יצירת חלון הממיר המתקדם
-            converter = AdvancedPortalConverter(self)
-            converter.exec_()
+        layout.addWidget(QLabel("Enter your Portal URL:"))
+        portal_input = QLineEdit()
+        portal_input.setPlaceholderText("http://example.com/stalker_portal/  or  http://example.com/c/")
+        layout.addWidget(portal_input)
 
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Portal Converter Error",
-                f"Failed to open Portal Converter:\n\n{str(e)}"
-            )
-            print(f"Portal Converter Error: {e}")
+        layout.addWidget(QLabel("Enter your MAC Address:"))
+        mac_input = QLineEdit()
+        mac_input.setPlaceholderText("00:1A:79:XX:XX:XX")
+        layout.addWidget(mac_input)
+
+        convert_button = QPushButton("Convert & Download")
+        convert_button.setStyleSheet("background-color: red; color: white;")
+        layout.addWidget(convert_button)
+
+        close_button = QPushButton("Close")
+        close_button.setStyleSheet("background-color: black; color: white;")
+        layout.addWidget(close_button)
+        close_button.clicked.connect(dialog.close)
+
+        def _normalize(url_text):
+            u = url_text.strip()
+            if not u.startswith(("http://", "https://")):
+                u = "http://" + u
+            u = u.rstrip("/")
+            # חילוץ בסיס הדומיין
+            from urllib.parse import urlparse
+            parsed = urlparse(u)
+            base = f"{parsed.scheme}://{parsed.netloc}"
+            # Referer תמיד אל /c/
+            referer = base + "/c/"
+            # API קבוע ל-stalker_portal
+            api = base + "/stalker_portal/server/load.php"
+            return base, referer, api
+
+        def handle_conversion():
+            portal_url = portal_input.text().strip()
+            mac = mac_input.text().strip()
+
+            if not portal_url or not mac:
+                QMessageBox.warning(dialog, "Missing Input", "Please enter both Portal URL and MAC address.")
+                return
+
+            base, referer, api = _normalize(portal_url)
+            session = setup_session()
+            headers = {
+                "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
+                "X-User-Agent": "Model: MAG254; Link: Ethernet",
+                "Accept": "application/json",
+                "Referer": referer,
+                "Origin": base,
+                "Connection": "keep-alive",
+            }
+
+            try:
+                # 1) handshake - GET עם params
+                hs_params = {"type": "stb", "action": "handshake", "token": "", "prehash": "0"}
+                r = session.get(api, params=hs_params, headers=headers, timeout=15)
+                if r.status_code != 200:
+                    QMessageBox.critical(dialog, "Error", "Failed to connect to portal. Check the Portal URL.")
+                    return
+                data = r.json()
+                token = data.get("js", {}).get("token") or data.get("token")
+                if not token:
+                    QMessageBox.critical(dialog, "Error", "Authentication failed. Check your MAC and Portal URL.")
+                    return
+                headers["Authorization"] = f"Bearer {token}"
+
+                # 2) login
+                lg_params = {"type": "stb", "action": "login", "device_id": mac, "device_id2": mac, "mac": mac}
+                session.get(api, params=lg_params, headers=headers, timeout=15)
+
+                # 3) get_all_channels
+                ch_params = {"type": "itv", "action": "get_all_channels"}
+                ch = session.get(api, params=ch_params, headers=headers, timeout=20)
+                if ch.status_code != 200:
+                    QMessageBox.critical(dialog, "Error", "Failed to retrieve channel list.")
+                js = ch.json()
+                channels = (js.get("js") or {}).get("data", [])
+                if not channels:
+                    QMessageBox.critical(dialog, "Error", "No channels found.")
+                    return
+
+                # 4) בניית M3U
+                m3u_lines = ["#EXTM3U"]
+                for item in channels:
+                    name = item.get("name") or "Unknown Channel"
+                    logo = item.get("logo") or ""
+                    tvg_id = str(item.get("id") or "")
+                    # ברירת מחדל - אם יש cmd השתמש בו, אחרת צור קישור
+                    stream = item.get("cmd") or ""
+                    if not stream:
+                        try:
+                            link = session.get(api, params={"type": "itv", "action": "create_link",
+                                                            "cmd": f"ffrt {item.get('id')}"}, headers=headers,
+                                               timeout=10)
+                            stream = ((link.json().get("js") or {}).get("cmd")) or ""
+                        except Exception:
+                            stream = ""
+                    m3u_lines.append(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-logo="{logo}",{name}')
+                    m3u_lines.append(stream)
+
+                path, _ = QFileDialog.getSaveFileName(dialog, "Save M3U File", "playlist.m3u",
+                                                      "M3U Files (*.m3u);;All Files (*)")
+                if path:
+                    with open(path, "w", encoding="utf-8") as f:
+                        f.write("\n".join(m3u_lines) + "\n")
+                    QMessageBox.information(dialog, "Success", "M3U file successfully created.")
+            except Exception as e:
+                QMessageBox.critical(dialog, "Error", f"Failed to convert Portal MAC to M3U:\n{e}")
+
+        convert_button.clicked.connect(handle_conversion)
+        dialog.exec_()
+
+        def handle_conversion():
+            portal_url = portal_input.text().strip()
+            mac_address = mac_input.text().strip()
+
+            if not portal_url or not mac_address:
+                QMessageBox.warning(dialog, "Missing Input", "Please enter both Portal URL and MAC address.")
+                return
+
+            if not portal_url.endswith('/'):
+                portal_url += '/'
+
+            session = setup_session()
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko)",
+                "Referer": portal_url,
+                "X-User-Agent": "Model: MAG254; Link: Ethernet"
+            }
+
+            try:
+                handshake_url = f"{portal_url}server/load.php"
+                handshake_data = {"type": "stb", "action": "handshake", "token": "", "mac": mac_address}
+                response = session.post(handshake_url, headers=headers, json=handshake_data, timeout=10)
+
+                if response.status_code != 200 or not response.text.strip():
+                    QMessageBox.critical(dialog, "Error", "Failed to connect to portal. Check the Portal URL.")
+                    return
+
+                token = response.json().get("js", {}).get("token", None)
+                if not token:
+                    QMessageBox.critical(dialog, "Error", "Authentication failed. Check your MAC and Portal URL.")
+                    return
+
+                channels_url = f"{portal_url}stalker_portal/server/load.php?type=itv&action=get_all_channels&mac={mac_address}&token={token}"
+                channels_response = session.get(channels_url, headers=headers, timeout=10)
+
+                if channels_response.status_code != 200 or not channels_response.text.strip():
+                    QMessageBox.critical(dialog, "Error", "Failed to retrieve channel list.")
+                    return
+
+                channels = channels_response.json().get("js", {}).get("data", [])
+                if not channels:
+                    QMessageBox.critical(dialog, "Error", "No channels found.")
+                    return
+
+                m3u_content = "#EXTM3U\n"
+                for channel in channels:
+                    name = channel.get("name", "Unknown Channel")
+                    stream_url = channel.get("cmd", "")
+                    m3u_content += f"#EXTINF:-1,{name}\n{stream_url}\n"
+
+                file_path, _ = QFileDialog.getSaveFileName(dialog, "Save M3U File", "playlist.m3u",
+                                                           "M3U Files (*.m3u);;All Files (*)")
+                if file_path:
+                    with open(file_path, "w", encoding="utf-8") as file:
+                        file.write(m3u_content)
+                    QMessageBox.information(dialog, "Success", "M3U file successfully created!")
+
+                dialog.close()
+
+            except Exception as e:
+                QMessageBox.critical(dialog, "Error", f"Failed to convert Portal MAC to M3U:\n{str(e)}")
+
+        convert_button.clicked.connect(handle_conversion)
+        dialog.exec_()
 
     def displayTotalChannels(self):
         """
@@ -6265,6 +6260,103 @@ class M3UEditor(QWidget):
         dialog.accept()
         self.filterIsraelChannelsFromKeywords(lang)
 
+    def filterIsraelChannelsFromKeywords(self, lang):
+        from channel_keywords import CATEGORY_KEYWORDS_EN, CATEGORY_KEYWORDS_HE
+
+        keywords_map = CATEGORY_KEYWORDS_HE if lang == "he" else CATEGORY_KEYWORDS_EN
+        israel_keywords = ['Israel', 'IL', 'ISRAEL', 'Hebrew', 'hebrew', 'israeli', 'Israeli', '"IL"', 'Il',
+                           'IL HD', 'TV', 'MUSIC', 'ישראלי', 'MTV', 'USA', 'mtv', 'Music Hits+', 'WWE ', 'nba tv',
+                           'music', 'IL:', 'Hebrew']
+
+        filtered_channels = {cat: [] for cat in keywords_map}
+        filtered_channels['Other'] = []
+        filtered_channels['Israel Radio📻'] = []
+        filtered_channels['World Radio🌍'] = []
+
+        for category, channels in self.categories.items():
+            for channel in channels:
+                if any(keyword in channel for keyword in israel_keywords):
+                    placed = False
+                    for cat_name, keyword_list in keywords_map.items():
+                        if any(k.lower() in channel.lower() for k in keyword_list):
+                            filtered_channels[cat_name].append(channel)
+                            placed = True
+                            break
+                    if not placed:
+                        filtered_channels['Other'].append(channel)
+
+        # טעינת תחנות רדיו
+        self.loadRadioChannels(filtered_channels, 'Israel Radio📻',
+                               r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\M3U_EDITOR\IsraeliRadios.m3u")
+
+        self.loadRadioChannels(filtered_channels, 'World Radio🌍',
+                               r"C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\M3U_EDITOR\RADIO World.m3u")
+
+        # עדכון UI
+        self.categories = filtered_channels
+        self.updateCategoryList()
+        self.regenerateM3UTextOnly()
+        self.categoryList.clear()
+        for category, channels in self.categories.items():
+            self.categoryList.addItem(f"{category} ({len(channels)})")
+
+    def loadRadioCategories(self, filtered_channels, file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+
+            current_name, current_logo, current_group = None, None, "Uncategorized📻"
+
+            for line in lines:
+                line = line.strip()
+                if line.startswith("#EXTINF:"):
+                    logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                    group_match = re.search(r'group-title="([^"]+)"', line)
+                    current_logo = logo_match.group(1) if logo_match else None
+                    current_group = group_match.group(1) if group_match else "Uncategorized📻"
+                    current_name = line.split(",")[-1].strip()
+                elif line.startswith("http") and current_name:
+                    channel_entry = f"{current_name} ({line})"
+                    if current_logo:
+                        channel_entry += f' tvg-logo="{current_logo}"'
+
+                    if current_group not in filtered_channels:
+                        filtered_channels[current_group] = []
+
+                    filtered_channels[current_group].append(channel_entry)
+
+                    current_name, current_logo, current_group = None, None, "Uncategorized📻"
+
+        except FileNotFoundError:
+            QMessageBox.critical(self, "Error", f"The file {file_path} was not found.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An error occurred while loading the M3U file: {str(e)}")
+
+    def loadRadioChannels(self, filtered_channels, category, file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+
+            current_name = None
+            current_logo = None
+            for line in lines:
+                line = line.strip()
+                if line.startswith("#EXTINF:"):
+                    logo_match = re.search(r'tvg-logo="([^"]+)"', line)
+                    current_logo = logo_match.group(1) if logo_match else None
+                    current_name = line.split(",")[-1].strip()
+                elif line.startswith("http") and current_name:
+                    channel_entry = f"{current_name} ({line})"
+                    if current_logo:
+                        channel_entry += f' tvg-logo="{current_logo}"'
+                    filtered_channels[category].append(channel_entry)
+                    current_name = None
+                    current_logo = None
+
+        except FileNotFoundError:
+            QMessageBox.critical(self, "Error", f"The file {file_path} was not found.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An error occurred while loading the M3U file: {str(e)}")
 
     def getFilteredCategory(self, channel):
         if 'חדשות' in channel or 'News' in channel:

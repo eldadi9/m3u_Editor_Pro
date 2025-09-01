@@ -1,0 +1,21 @@
+{
+  "2025-08-31": [
+    {
+      "filename": "EGTV_31-08-2025.m3u",
+      "timestamp": "2025-08-31T01:04:25.863811",
+      "success": true
+    },
+    {
+      "filename": "EGTV_31-08-2025_(1).m3u",
+      "timestamp": "2025-08-31T01:29:02.701142",
+      "success": true
+    }
+  ],
+  "2025-09-01": [
+    {
+      "filename": "EGTV_01-09-2025.m3u",
+      "timestamp": "2025-09-01T01:22:55.842588",
+      "success": true
+    }
+  ]
+}
