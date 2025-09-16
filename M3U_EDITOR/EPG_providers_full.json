@@ -136,7 +136,8 @@
   ],
   "TV Team": [
     "http://epg.team/tvteam.xml.gz",
-    "http://epg.team/tvteam.xml.7.2"
+    "http://epg.team/tvteam.xml.7.2",
+	"http://epg.team/tvteam.3.1.xml"
   ],
   "kvclub.xyz": [
     "http://epg.kvclub.xyz/xmltv.xml.gz"

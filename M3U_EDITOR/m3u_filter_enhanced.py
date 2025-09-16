@@ -25,6 +25,11 @@ class M3UFilterEnhanced:
         'World Movies': ['🌏🎬','🎥','📽️','🎞️','🍿'],
         'World News': ['🌐📰','🗞️','📡','🎙️','📻'],
         'World Kids': ['🌍👶','🧸','🎈','🎮','🦄'],
+        'World Documentaries': ['🌍📚', '🌎🔬', '🌐🧠', '📖🗿'],
+        'World Nature': ['🌍🌳', '🌎🐘', '🌐🌺', '🌴🌿'],
+        'World Series': ['🌍📺', '🌎🌟', '🌐✨', '📡🗺️'],
+        'World UHD': ['🌍📺', '🌎4K', '🌐UHD', '💎📡'],
+
     }
 
     HE_DISPLAY = {
@@ -69,6 +74,10 @@ class M3UFilterEnhanced:
                 self._cat_key('World Movies', lang, False): [],
                 self._cat_key('World News', lang, False): [],
                 self._cat_key('World Kids', lang, False): [],
+                self._cat_key('World Documentaries', lang, False): [],
+                self._cat_key('World Nature', lang, False): [],
+                self._cat_key('World Series', lang, False): [],
+                self._cat_key('World UHD', lang, False): [],
                 self._cat_key('Other', lang, False): []
             }
 
@@ -229,6 +238,12 @@ class M3UFilterEnhanced:
                 'euronews', 'dw', 'france 24', 'nhk', 'cctv']
         kids = ['kids', 'cartoon', 'disney', 'nickelodeon', 'nick', 'boomerang', 'cartoon network', 'baby', 'junior',
                 'toons', 'animation', 'pbs kids', 'cbeebies']
+        documentaries = ['documentary', 'docu', 'natgeo', 'history channel', 'biography', 'discovery', 'planet',
+                         'civilization']
+        nature = ['nature', 'animal', 'wildlife', 'geo', 'planet', 'forest', 'jungle', 'national geographic',
+                  'animal planet']
+        series = ['series', 'tv series', 'episode', 'season', 'netflix', 'hulu', 'prime', 'hbo max', 'disney+']
+        uhd = ['uhd', '4k', 'hdr', 'ultra hd', '2160p']
 
         def any_in(lst):
             return any(k in low for k in lst)
@@ -238,6 +253,11 @@ class M3UFilterEnhanced:
         if any_in(movies): return 'World Movies'
         if any_in(news):   return 'World News'
         if any_in(kids):   return 'World Kids'
+        if any_in(documentaries): return 'World Documentaries'
+        if any_in(nature): return 'World Nature'
+        if any_in(series): return 'World Series'
+        if any_in(uhd): return 'World UHD'
+
         return 'Other'
 
     def _get_run_emoji(self, base):

@@ -1,5 +1,6 @@
 import os
 import sys
+
 # תוסיף את התיקייה הנוכחית ל־sys.path כדי שפייתון ימצא את logo.py
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -13,34 +14,29 @@ import time
 import tempfile
 from tempfile import NamedTemporaryFile
 import os, subprocess, tempfile
-import os
-try:
-    import requests
-except Exception:
-    requests = None
-
 from logo import get_saved_logo
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QListWidgetItem
 from PyQt5.QtCore import QSize
 from PyQt5.QtCore import QTimer
 from m3u_filter_enhanced import M3UFilterEnhanced
-from PyQt5.QtWidgets import QAbstractItemView, QListWidget
+from PyQt5.QtWidgets import QListWidget, QAbstractItemView
 from PyQt5.QtCore import Qt
 
 
 import os
+
 print("Current directory:", os.getcwd())
 print("Portal file exists:", os.path.exists("portal_extensions.py"))
 
 try:
     from portal_extensions import AdvancedPortalConverter, convert_portal_to_m3u
+
     PORTAL_CONVERTER_AVAILABLE = True
     print("✅ Portal Converter loaded successfully")
 except ImportError as e:
     PORTAL_CONVERTER_AVAILABLE = False
     print(f"⚠️ Portal Converter not available: {e}")
-
 
 import shutil
 from datetime import datetime, timedelta
@@ -56,7 +52,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont, QColor, QIcon
 from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui  import QIcon, QFont, QPixmap, QColor
+from PyQt5.QtGui import QIcon, QFont, QPixmap, QColor
 from logo import load_logo_cache, get_saved_logo, save_logo_for_channel, is_israeli_channel
 from PyQt5.QtWidgets import QMessageBox, QInputDialog
 from telegram_uploader import send_to_telegram
@@ -72,48 +68,345 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import QProgressDialog, QMessageBox
 from deep_translator import GoogleTranslator
+
 from utils.network import setup_session
+APP_QSS = """
+* { font-family: 'Segoe UI', Tahoma, Arial; }
+
+/* שדות קלט ובחירה */
+QLineEdit, QComboBox {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+QLineEdit:focus, QComboBox:focus {
+  border: 1px solid #2563eb;
+}
+
+/* כפתורים */
+QPushButton {
+  border-radius: 8px;
+  padding: 7px 10px;
+  padding: 7px 12px;
+  background: #f3f4f6;
+  font-size: 12px;
+}
+QPushButton:hover { background: #e5e7eb; }
+
+/* כפתורי הדגשה אופציונליים לפי property */
+QPushButton[accent="blue"]   { background: #2563eb; color: #ffffff; }
+QPushButton[accent="blue"]:hover   { background: #1d4ed8; }
+QPushButton[accent="green"]  { background: #16a34a; color: #ffffff; }
+QPushButton[accent="purple"] { background: #7c3aed; color: #ffffff; }
+QPushButton[accent="orange"] { background: #ea580c; color: #ffffff; }
+QPushButton[danger="true"]   { background: #ef4444; color: #ffffff; }
+
+/* מסגרות כרטיסים ואיזורי עבודה */
+QFrame#ToolBar, QFrame#Filters, QFrame#ChannelsHeader, QFrame#Cards {
+  background: #ffffff;
+QListWidget {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+/* כותרת עליונה אופציונלית */
+QWidget#HeaderBar {
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+    stop:0 #2563eb, stop:1 #1e40af);
+  color: #ffffff;
+}
+
+/* תגיות קטנות */
+QLabel#Tag {
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 9px;
+  padding: 0px 6px;
+  font-size: 11px;
+}
+
+/* כרטיס ערוץ */
+QWidget#Card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+/* כותרת הערוץ עצמו */
+QLabel#channel_label {
+  color: #111827;
+  font-weight: 600;
+  font-size: 11px;
+}
+QListWidget::item { padding: 8px; }
+QListWidget::item:hover { background: #f0f8ff; }
+"""
+
+# הוסף בסוף APP_QSS
+QSS_CHANNELS = """
+/* רשימות ערוצים */
+/* נראות חזקה לרשימות ערוצים */
+QListWidget, QListView {
+  background: #ffffff;
+  color: #111827;
+  color: #111827;                /* טקסט כהה */
+  alternate-background-color: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+QListWidget::item, QListView::item {
+  color: #111827;
+  background: #ffffff;
+  padding: 2px 4px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #eef2f7;
+}
+QListWidget::item:selected, QListView::item:selected {
+  background: #ffffff;
+  background: #dbeafe;           /* כחול בהיר לבחירה */
+  color: #111827;
+}
+QListWidget::item:hover, QListView::item:hover {
+  background: #eef2ff;
+  background: #eef2ff;           /* ריחוף עדין */
+}
+"""
+
+EXTRA_QSS_HEADER = """
+QWidget#HeaderBar {
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #2563eb, stop:1 #1e40af);
+  color: #ffffff;
+  border-radius: 6px;
+}
+QWidget#HeaderBar QLabel#HeaderTitle {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 16px;
+}
+QWidget#HeaderBar QPushButton {
+  background: rgba(255,255,255,0.15);
+  color: #ffffff;
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+QWidget#HeaderBar QPushButton:hover {
+  background: rgba(255,255,255,0.25);
+}
+"""
+EXTRA_QSS_CARDS = """
+QWidget#Card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+QWidget#Card:hover { background: #f9fafb; }
+
+QLabel#Tag {
+  background: #eef2ff;
+  color: #1e3a8a;
+  border-radius: 10px;
+  padding: 1px 8px;
+  border: 1px solid #e5e7eb;
+}
+
+QToolButton.ActionBtn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+}
+QToolButton.ActionBtn:hover {
+  background: #edf2f7;
+  border-radius: 6px;
+}
+
+QLabel#CounterPill {
+  background: #eef2ff;
+  color: #1e3a8a;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 600;
+}
+
+QFrame#TopToolbar {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+"""
+
+APP_QSS_LARGE = """
+* { font-size: 12pt; }
+QPushButton { font-size: 11pt; }
+QLineEdit, QComboBox, QTextEdit { font-size: 11pt; }
+QListWidget, QListView, QTreeWidget, QTableWidget { font-size: 12pt; }
+"""
+
+QSS_TAILWINDISH = """
+/* רשימות */
+QListWidget, QListView {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  alternate-background-color: #f8fafc;
+}
+QListWidget::item, QListView::item {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eef2f7;
+}
+QListWidget::item:selected, QListView::item:selected {
+  background: #dbeafe;
+  color: #111827;
+}
+QListWidget::item:hover, QListView::item:hover {
+  background: #eef2ff;
+}
+
+/* כרטיס ערוץ */
+#Card {
+  background: #ffffff;
+}
+
+/* תגיות קטנות (איכות/קטגוריה/מוסתר) */
+#Tag {
+  background: #e5e7eb;
+  color: #111827;
+  border-radius: 10px;
+  padding: 0px 6px;
+  margin-right: 4px;
+}
+
+/* כותרות סקשנים */
+.sectionTitle {
+  font-size: 18px;
+  font-weight: 700;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+/* רקע כללי */
+QWidget {
+    background-color: #f8f9fa;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 8pt;
+    color: #212529;
+}
+
+/* כפתורים */
+QPushButton {
+    background-color: #e2e6ea;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 4px 8px;
+    min-height: 26px;
+}
+
+QPushButton:hover {
+    background-color: #dee2e6;
+}
+
+QPushButton:pressed {
+    background-color: #cfd4da;
+}
+
+/* תוויות */
+QLabel {
+    padding: 0px;
+    margin: 0px;
+    font-weight: bold;
+    font-size: 11pt;
+}
+
+/* ComboBox */
+QComboBox {
+    padding: 2px 6px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background-color: #ffffff;
+}
+
+/* רשימת ערוצים */
+QListWidget, QListView {
+    background-color: #ffffff;
+    border: 1px solid #ced4da;
+    padding: 2px;
+}
+
+QListWidget::item, QListView::item {
+    padding: 4px 6px;
+    margin: 1px 0;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+QListWidget::item:selected {
+    background-color: #cce5ff;
+    border-color: #66afe9;
+}
+
+/* QTextEdit */
+QTextEdit {
+    background-color: #ffffff;
+    border: 1px solid #ced4da;
+    padding: 4px;
+    font-family: Consolas, monospace;
+    font-size: 10pt;
+}
+
+/* ScrollBars */
+QScrollBar:vertical {
+    width: 8px;
+    background: #f1f1f1;
+}
+
+QScrollBar::handle:vertical {
+    background: #adb5bd;
+    border-radius: 4px;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+QScrollBar:horizontal {
+    height: 8px;
+    background: #f1f1f1;
+}
+
+QScrollBar::handle:horizontal {
+    background: #adb5bd;
+    border-radius: 4px;
+}
+
+/* שורת כלים עליונה */
+QToolBar {
+    background-color: #ffffff;
+    spacing: 4px;
+    padding: 4px;
+    border: none;
+}
+
+/* כפתורי פעולה (קטגוריות) — צבעים */
+.btn-green   { background:#16a34a; color:white; font-weight:700; border-radius:8px; }
+.btn-orange  { background:#f97316; color:white; font-weight:700; border-radius:8px; }
+.btn-red     { background:#ef4444; color:white; font-weight:700; border-radius:8px; }
+.btn-navy    { background:#1e3a8a; color:white; font-weight:700; border-radius:8px; }
+"""
+
 
 # משתנים גלובליים
 LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_db.json")
-
-# --- logos db helpers (load once, alias matching) ---
-def load_logos_db() -> dict:
-    try:
-        with open(LOGO_DB_PATH, "r", encoding="utf-8") as f:
-            db = json.load(f)
-            return db if isinstance(db, dict) else {}
-    except Exception:
-        return {}
-
-# ניתן להרחיב אליאסים לשמות נפוצים (לדוגמה לישראל)
-_LOGO_ALIASES = {
-    "KAN 11": ["CHANNEL 11", "CH 11", "כאן 11", "IL: Channel 11", "IL: CH 11"],
-    "KEShet 12": ["Keshet 12", "Channel 12", "12 HD", "IL: Channel 12"],
-    "REShET 13": ["Reshet 13", "Channel 13", "13 HD", "IL: Channel 13"],
-}
-
-def get_logo_from_cache(cache: dict, name: str) -> str:
-    if not cache or not name:
-        return ""
-    # התאמה מדויקת/נירמולים
-    for key in (name, name.strip(), name.upper(), name.lower()):
-        v = cache.get(key)
-        if v:
-            return v[0] if isinstance(v, list) else v
-    # אליאסים
-    up = name.upper()
-    for canon, alts in _LOGO_ALIASES.items():
-        if up == canon.upper() or up in [a.upper() for a in alts]:
-            v = cache.get(canon) or cache.get(canon.upper())
-            return v[0] if isinstance(v, list) else v
-    return ""
-
-
 class ChannelListWidget(QListWidget):
     """
     QListWidget עם Drag&Drop פנימי ושמירת סדר לערוצים.
-    לא מוחק כל לוגיקה קיימת. רק מוסיף ההתמדה של הסדר לאחר גרירה.
+    לא משנה לוגיקה קיימת. רק מוסיף התמדה של הסדר לאחר גרירה.
     """
     def __init__(self, editor_parent):
         super().__init__(editor_parent)
@@ -134,15 +427,16 @@ class ChannelListWidget(QListWidget):
         # ואז שומר את הסדר החדש במבנה הנתונים
         try:
             self._persist_order_after_reorder()
-        except Exception as e:
-            print(f"[DragDrop] persist failed: {e}")
+        except Exception:
+            pass
 
     def _persist_order_after_reorder(self):
         """
-        אחרי גרירה: מסיק את הסדר החדש מה-QListWidget,
-        ומעדכן self.editor.categories[הקטגוריה הנוכחית].
-        משמר גם פריטים שלא מוצגים (אם היה סינון) בסוף לפי סדרם המקורי.
+        קורא אחרי גרירה, מסיק את הסדר החדש מה-QListWidget,
+        ומעדכן את self.editor.categories[הקטגוריה הנוכחית].
+        שומר גם את הפריטים שלא היו מוצגים (אם סיננת) בסוף לפי סדרם המקורי.
         """
+        # קטגוריה נוכחית במסך הראשי
         cat_item = self.editor.categoryList.currentItem() if hasattr(self.editor, "categoryList") else None
         if not cat_item:
             return
@@ -162,25 +456,31 @@ class ChannelListWidget(QListWidget):
             if entry:
                 visible_entries.append(entry)
 
-        # שמירת פריטים שלא מוצגים כרגע (למשל בגלל סינון), בסוף
+        # הפריטים הנותרים שלא מוצגים כעת (בגלל חיפוש או פילטר) נשמרים בסוף
         existing = self.editor.categories.get(real_cat, [])
         visible_set = set(visible_entries)
         rest = [e for e in existing if e not in visible_set]
 
-        # התמדה של הסדר החדש
+        # התמדה של סדר חדש
         self.editor.categories[real_cat] = visible_entries + rest
 
-        # ריענון התצוגה ותוכן ה-M3U
+        # רענונים עדינים
+        if hasattr(self.editor, "updateCategoryList"):
+            self.editor.updateCategoryList()
+
         if hasattr(self.editor, "updateM3UContent"):
             try:
                 self.editor.updateM3UContent()
             except Exception:
                 pass
-        if hasattr(self.editor, "regenerateM3UTextOnly"):
-            self.editor.regenerateM3UTextOnly()
+        elif hasattr(self.editor, "regenerateM3UTextOnly"):
+            try:
+                text = self.editor.regenerateM3UTextOnly()
+                if hasattr(self.editor, "textEdit"):
+                    self.editor.textEdit.setPlainText(text)
+            except Exception:
+                pass
 
-        if hasattr(self.editor, "display_channels") and self.editor.categoryList.currentItem():
-            self.editor.display_channels(self.editor.categoryList.currentItem())
 
 
 def detect_stream_quality(entry: str) -> str:
@@ -191,257 +491,75 @@ def detect_stream_quality(entry: str) -> str:
     if '480' in e or re.search(r'\bsd\b', e): return 'SD'
     return 'Unknown'
 
-# ====== (1) הישן – נשאר כמו שהוא ======
-# ===== Legacy (משאירים כמו שהוא) =====
-def create_channel_widget(name: str, quality: str) -> QWidget:
-    w = QWidget()
-    h = QHBoxLayout(w)
-    h.setContentsMargins(5, 2, 5, 2)
-
-    # 1. השם
-    lbl = QLabel(name)
-    h.addWidget(lbl)
-
-    # 2. תווית האיכות מיד אחרי השם
-    qlbl = QLabel(quality)
-    styles = {
-        '4K':      'background-color:#66cc66; color:black; padding:2px; border-radius:3px;',
-        'FHD':     'background-color:#99ccff; color:black; padding:2px; border-radius:3px;',
-        'HD':      'background-color:#ffff66; color:black; padding:2px; border-radius:3px;',
-        'SD':      'background-color:#ff6666; color:white; padding:2px; border-radius:3px;',
-        'Unknown': 'background-color:#999999; color:white; padding:2px; border-radius:3px;'
-    }
-    qlbl.setStyleSheet(styles.get(quality, styles['Unknown']))
-    h.addWidget(qlbl)
-
-    h.addStretch()
-    return w
+# --- NEW: color helpers for quality tag ---
+def _quality_tag_css(q: str) -> str:
+    base = "border-radius:10px; padding:0 8px; font-size:11px; font-weight:700;"
+    q = (q or "").upper()
+    if q == "4K":   return base + "background:#22c55e; color:#ffffff;"   # ירוק
+    if q == "FHD":  return base + "background:#3b82f6; color:#ffffff;"   # כחול
+    if q == "HD":   return base + "background:#f59e0b; color:#111827;"   # כתום
+    if q == "SD":   return base + "background:#ef4444; color:#ffffff;"   # אדום
+    return base + "background:#9ca3af; color:#111827;"                   # אפור (Unknown)
 
 
-# === Compact V6 quality tag (smaller) ===
-def _quality_tag_css_v6(q: str) -> str:
-    q = (q or "Unknown").upper()
-    base = "padding:1px 6px; border-radius:8px; font-weight:600; font-size:11px;"
-    styles = {
-        "4K":      f"background-color:#22c55e; color:#ffffff; {base}",
-        "FHD":     f"background-color:#3b82f6; color:#ffffff; {base}",
-        "HD":      f"background-color:#f59e0b; color:#111827; {base}",
-        "SD":      f"background-color:#ef4444; color:#ffffff; {base}",
-        "UNKNOWN": f"background-color:#9ca3af; color:#111827; {base}",
-    }
-    return styles.get(q, styles["UNKNOWN"])
-
-# === Async logo loader using Qt Network (non-blocking, fast) ===
-# --- SAFE async logo loader (no crashes if item is deleted) ---
-def _load_logo_async(label, url: str, size: int = 22):
-    try:
-        from PyQt5.QtCore import QUrl, Qt
-        from PyQt5.QtGui import QPixmap
-        from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
-        import sip
-
-        # NAM יחיד לכל label כדי שלא ייאסף לפני הזמן
-        if not hasattr(label, "_nam"):
-            label._nam = QNetworkAccessManager(label)
-
-        req = QNetworkRequest(QUrl(url))
-        req.setRawHeader(b"User-Agent", b"Mozilla/5.0")
-        reply = label._nam.get(req)
-        reply.setParent(label)  # reply יימחק עם ה-label
-
-        def _on_label_destroyed(*_):
-            try:
-                if hasattr(reply, "abort"):
-                    reply.abort()
-            except Exception:
-                pass
-
-        def _on_finished():
-            try:
-                # אם ה־label הושמד – לא נוגעים
-                if sip.isdeleted(label):
-                    return
-                if reply.error() == QNetworkReply.NoError:
-                    data = bytes(reply.readAll())
-                    pix = QPixmap()
-                    if pix.loadFromData(data):
-                        if not sip.isdeleted(label):
-                            label.setPixmap(
-                                pix.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                            )
-            finally:
-                reply.deleteLater()
-
-        label.destroyed.connect(_on_label_destroyed)
-        reply.finished.connect(_on_finished)
-    except Exception:
-        pass
-
-# === Compact V6 card (smaller + fast) ===
-def create_channel_widget_v6_compact(name: str,
-                                     quality: str,
-                                     logo_url: str = None,
-                                     category: str = None,
-                                     size: int = 26,
-                                     enable_async_http: bool = True) -> QWidget:
-    from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QSizePolicy
+# --- REPLACE existing create_channel_widget with this full version ---
+def create_channel_widget(name: str, quality: str, logo_url: str = "", category: str = "", hidden: bool = False) -> QWidget:
+    from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QSizePolicy
     from PyQt5.QtCore import Qt
     from PyQt5.QtGui import QPixmap
-    import os
 
-    w = QWidget()
-    root = QHBoxLayout(w)
-    root.setContentsMargins(6, 2, 6, 2)
-    root.setSpacing(6)
-
-    # לוגו
-    logo_lbl = QLabel()
-    logo_lbl.setFixedSize(size, size)
-    logo_lbl.setAlignment(Qt.AlignCenter)
-
-    have_logo = False
-    pix = None
-    try:
-        if isinstance(logo_url, (list, tuple)):
-            logo_url = logo_url[0] if logo_url else None
-
-        if isinstance(logo_url, str) and logo_url:
-            if logo_url.lower().startswith("http"):
-                have_logo = True
-                if enable_async_http:
-                    _load_logo_async(logo_lbl, logo_url, size=size)
-            else:
-                if os.path.exists(logo_url):
-                    pix = QPixmap(logo_url)
-                    have_logo = True
-    except Exception:
-        have_logo = False
-
-    if pix and not pix.isNull():
-        logo_lbl.setPixmap(pix.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-
-    # אם אין לוגו בפועל – לא משאירים ריבוע ריק
-    if not have_logo:
-        logo_lbl.setFixedWidth(0)
-        logo_lbl.setFixedHeight(0)
-
-    root.addWidget(logo_lbl, 0, Qt.AlignVCenter)
-
-    # טקסטים + תגיות
-    col = QVBoxLayout()
-    col.setSpacing(0)
-
-    name_lbl = QLabel(name or "")
-    name_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
-    name_lbl.setStyleSheet("color:#111827; font-weight:600; font-size:11px;")
-    col.addWidget(name_lbl)
-
-    tags = QHBoxLayout()
-    tags.setSpacing(4)
-
-    q_lbl = QLabel(quality or "Unknown")
-    q_lbl.setStyleSheet(_quality_tag_css_v6(quality))
-    q_lbl.setAlignment(Qt.AlignCenter)
-    q_lbl.setMinimumWidth(34)
-    tags.addWidget(q_lbl, 0, Qt.AlignVCenter)
-
-    if category:
-        cat_lbl = QLabel(str(category))
-        cat_lbl.setStyleSheet("background:#e5e7eb; color:#111; padding:1px 6px; border-radius:8px; font-size:10px;")
-        cat_lbl.setAlignment(Qt.AlignCenter)
-        tags.addWidget(cat_lbl, 0, Qt.AlignVCenter)
-
-    tags.addStretch(1)
-    col.addLayout(tags)
-
-    root.addLayout(col, 1)
-
-    w.setMinimumHeight(max(32, size + 6))
-    w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-    return w
-
-
-def create_channel_widget_v6_sync(name: str,
-
-                             quality: str,
-                             logo_url: str = None,
-                             category: str = None) -> QWidget:
-    """
-    כרטיס ערוץ מעוצב בסגנון V6 — לא מוחק את הישן, רק אלטרנטיבה משופרת.
-    """
-    from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QSizePolicy
-    from PyQt5.QtCore import Qt
-    from PyQt5.QtGui import QPixmap
-    import os
-
-    w = QWidget()
-    w.setObjectName("Card")
-
+    w = QWidget(); w.setObjectName("Card")
     root = QHBoxLayout(w)
     root.setContentsMargins(8, 4, 8, 4)
-    root.setSpacing(8)
+    root.setSpacing(10)
 
-    # לוגו 36x36 אם קיים
-    logo_lbl = QLabel()
-    logo_lbl.setFixedSize(36, 36)
-    logo_lbl.setAlignment(Qt.AlignCenter)
-    logo_lbl.setScaledContents(True)
+    # logo
+    logo = QLabel(); logo.setFixedSize(40, 40); logo.setAlignment(Qt.AlignCenter)
+    loaded = False
+    if logo_url:
+        try:
+            pix = QPixmap()
+            if pix.load(logo_url):
+                logo.setPixmap(pix.scaled(40, 40, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation))
+                loaded = True
+        except Exception:
+            loaded = False
+    if not loaded:
+        logo.setStyleSheet("background:#e5e7eb; border-radius:6px; color:#374151; font-size:16px;")
+        logo.setText("📺")
+    root.addWidget(logo)
 
-    pix = None
-    try:
-        if logo_url:
-            if isinstance(logo_url, (list, tuple)):
-                logo_url = logo_url[0]
-            if isinstance(logo_url, str) and logo_url.startswith("http"):
-                import requests
-                r = requests.get(logo_url, timeout=2)
-                if r.ok:
-                    pix = QPixmap()
-                    pix.loadFromData(r.content)
-            else:
-                if isinstance(logo_url, str) and os.path.exists(logo_url):
-                    pix = QPixmap(logo_url)
-    except Exception:
-        pix = None
+    col = QVBoxLayout(); col.setSpacing(0)
 
-    if pix and not pix.isNull():
-        logo_lbl.setPixmap(pix)
-    else:
-        # פלייסהולדר עדין לשמירת פריסה
-        logo_lbl.setStyleSheet("background:#e5e7eb; border-radius:6px;")
-    root.addWidget(logo_lbl, 0, Qt.AlignVCenter)
+    title = QLabel(name)
+    title.setObjectName("channel_label")
+    title.setStyleSheet("color:#111827; font-weight:700; font-size:14px;")
+    title.setWordWrap(False)
+    col.addWidget(title)
 
-    # טקסטים + תגיות
-    col = QVBoxLayout()
-    col.setSpacing(0)
+    # tags row
+    row = QHBoxLayout(); row.setSpacing(6)
 
-    name_lbl = QLabel(name or "")
-    name_lbl.setObjectName("channel_label")
-    name_lbl.setStyleSheet("color:#111827; font-weight:600; font-size:12px;")
-    name_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
-    col.addWidget(name_lbl)
-
-    tags = QHBoxLayout()
-    tags.setSpacing(6)
-
-    q_lbl = QLabel(quality or "Unknown")
-    q_lbl.setStyleSheet(_quality_tag_css_v6(quality))
-    q_lbl.setAlignment(Qt.AlignCenter)
-    q_lbl.setMinimumWidth(38)
-    tags.addWidget(q_lbl, 0, Qt.AlignVCenter)
+    q_tag = QLabel(quality or "Unknown")
+    q_tag.setObjectName("Tag")
+    q_tag.setStyleSheet(_quality_tag_css(quality))
+    row.addWidget(q_tag)
 
     if category:
-        cat_lbl = QLabel(str(category))
-        cat_lbl.setStyleSheet("background:#e5e7eb; color:#111; padding:2px 8px; border-radius:10px; font-size:11px;")
-        cat_lbl.setAlignment(Qt.AlignCenter)
-        tags.addWidget(cat_lbl, 0, Qt.AlignVCenter)
+        cat_tag = QLabel(category); cat_tag.setObjectName("Tag")
+        cat_tag.setStyleSheet("border-radius:10px; padding:0 8px; font-size:11px; background:#e5e7eb; color:#111827;")
+        row.addWidget(cat_tag)
 
-    tags.addStretch(1)
-    col.addLayout(tags)
+    if hidden:
+        hid = QLabel("מוסתר"); hid.setObjectName("Tag")
+        hid.setStyleSheet("border-radius:10px; padding:0 8px; font-size:11px; background:#fee2e2; color:#991b1b;")
+        row.addWidget(hid)
 
-    root.addLayout(col, 1)
+    row.addStretch(1)
+    col.addLayout(row)
+    root.addLayout(col)
 
-    w.setMinimumHeight(44)
+    w.setFixedHeight(48)
     w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
     return w
 
@@ -521,7 +639,7 @@ class ChannelTranslateThread(QThread):
 
     @staticmethod
     def _is_english(txt):
-        return all(ord(c)<128 for c in txt if c.isalpha())
+        return all(ord(c) < 128 for c in txt if c.isalpha())
 
     def run(self):
         # אוספים את כל השמות שצריך לתרגם
@@ -535,7 +653,7 @@ class ChannelTranslateThread(QThread):
         # מסירים מה-cache
         todo = [n for n in to_translate if n not in ChannelTranslateThread._cache]
         for i in range(0, len(todo), 50):
-            chunk = todo[i:i+50]
+            chunk = todo[i:i + 50]
             try:
                 results = self.trans.translate_batch(chunk)
                 for orig, tr in zip(chunk, results):
@@ -554,7 +672,7 @@ class ChannelTranslateThread(QThread):
             new_list = []
             for entry in lst:
                 if "(" in entry and entry.endswith(")"):
-                    name, rest = entry.split(" (",1)
+                    name, rest = entry.split(" (", 1)
                     url = rest[:-1]
                 else:
                     name, url = entry, ""
@@ -629,7 +747,6 @@ class MoveChannelsDialog(QDialog):
         self.accept()
 
 
-
 class ExportGroupsDialog(QDialog):
     def __init__(self, categories, parent=None):
         super(ExportGroupsDialog, self).__init__(parent)
@@ -638,28 +755,130 @@ class ExportGroupsDialog(QDialog):
         self.setupUI()
 
     def setupUI(self):
-        self.setGeometry(100, 100, 500, 300)  # Adjust size as needed
+        self.setGeometry(100, 100, 500, 300)
         self.setWindowTitle("Export Groups")
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)  # Adjust spacing between widgets
+        layout.setSpacing(10)
 
-        # Styling the dialog frame and background
         self.setStyleSheet("QDialog { border: 8px solid red; background-color: white;}")
 
-        # Option to export selected groups
+        # Export Selected Group
         self.exportSelectedButton = QPushButton("Export Selected Groups", self)
         self.exportSelectedButton.setStyleSheet("background-color: red; color: white; font-weight: bold;")
         self.exportSelectedButton.clicked.connect(self.exportSelected)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         layout.addWidget(self.exportSelectedButton)
 
-        # Option to export all groups
+        # Export All Groups
         self.exportAllButton = QPushButton("Export All Groups", self)
         self.exportAllButton.setStyleSheet("background-color: black; color: white; font-weight: bold;")
         self.exportAllButton.clicked.connect(self.exportAll)
         layout.addWidget(self.exportAllButton)
 
+        # חדש: Export Current View
+        self.exportCurrentViewButton = QPushButton("Export Current View", self)
+        self.exportCurrentViewButton.setStyleSheet("background-color: green; color: white; font-weight: bold;")
+        self.exportCurrentViewButton.clicked.connect(self.exportCurrentView)
+        layout.addWidget(self.exportCurrentViewButton)
+
         self.setLayout(layout)
+
+    def exportCurrentView(self):
+        """
+        מייצא קובץ M3U יחיד מהתצוגה הנוכחית במסך הראשי:
+        הקטגוריה שנבחרה + הסינון הנוכחי + רק מה שמוצג כרגע ב-list.
+        לא מוחק ולא מחליף פונקציות קיימות.
+        """
+        # דרישת קיום parent עם רשימות
+        if not hasattr(self, "parent") or not hasattr(self.parent, "channelList"):
+            QMessageBox.warning(self, "Export", "Parent or channel list not available.")
+            return
+
+        # בדיקה שיש פריטים מוצגים
+        if self.parent.channelList.count() == 0:
+            QMessageBox.information(self, "Export", "אין ערוצים מוצגים לייצוא.")
+            return
+
+        # קטגוריה נוכחית במסך הראשי
+        if not hasattr(self.parent, "categoryList") or self.parent.categoryList.currentItem() is None:
+            QMessageBox.warning(self, "Export", "לא נבחרה קטגוריה במסך הראשי.")
+            return
+
+        cat_name_ui = self.parent.categoryList.currentItem().text().split(" (")[0].strip()
+
+        # בחירת תיקיה ויצירת שם קובץ ברירת מחדל
+        directory = QFileDialog.getExistingDirectory(self, "Select Directory")
+        if not directory:
+            return
+
+        import os
+        safe_category = "".join(c for c in cat_name_ui if c.isalnum() or c in " _-").rstrip()
+        file_path = os.path.join(directory, f"{safe_category}_current.m3u")
+
+        try:
+            with open(file_path, "w", encoding="utf-8", newline="\n") as f:
+                f.write("#EXTM3U\n")
+                for i in range(self.parent.channelList.count()):
+                    it = self.parent.channelList.item(i)
+                    entry = it.data(Qt.UserRole) if it is not None else None
+                    if not entry:
+                        continue
+
+                    name = entry.split(" (")[0].strip() if isinstance(entry, str) else str(entry)
+                    url = self.parent.getUrl(entry) if hasattr(self.parent, "getUrl") else ""
+                    if not url:
+                        continue
+
+                    extinf_line = self._build_extinf_with_logo_and_group(entry, name, cat_name_ui)
+                    f.write(f"{extinf_line}\n{url}\n")
+
+            QMessageBox.information(self, "Export", f"נוצר קובץ: {file_path}")
+            self.show_toast("הייצוא הושלם", "success")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"שגיאה בייצוא: {e}")
+
+    def _build_extinf_with_logo_and_group(self, entry, name, category):
+        """
+        בונה שורת EXTINF עם group-title ולוגו אם יש ב-logo_cache של ההורה.
+        שימוש ב-extinf_lookup אם קיים, עם הזרקת group-title ו-tvg-logo במידת הצורך.
+        """
+        # extinf מתוך lookup לפי entry, ואם אין אז לפי name, ואם אין - נבנה מינימלי
+        extinf = ""
+        if hasattr(self, "parent") and hasattr(self.parent, "extinf_lookup"):
+            extinf = self.parent.extinf_lookup.get(entry) or self.parent.extinf_lookup.get(name) or ""
+
+        # לוגו מתוך cache
+        logo_url = ""
+        if hasattr(self, "parent") and hasattr(self.parent, "logo_cache"):
+            v = self.parent.logo_cache.get(name)
+            if isinstance(v, list) and v:
+                logo_url = v[0]
+            elif isinstance(v, str):
+                logo_url = v
+
+        if not extinf:
+            # מינימלי
+            if logo_url:
+                return f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{category}",{name}'
+            return f'#EXTINF:-1 group-title="{category}",{name}'
+
+        # אם קיים extinf, מבטיחים שיש בו פסיק, ואז מזריקים מאפיינים חסרים
+        if "," not in extinf:
+            # extinf לא תקין, נבנה חדש
+            if logo_url:
+                return f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{category}",{name}'
+            return f'#EXTINF:-1 group-title="{category}",{name}'
+
+        props, old_name = extinf.split(",", 1)
+
+        if 'group-title="' not in props:
+            props += f' group-title="{category}"'
+        if logo_url and 'tvg-logo="' not in props:
+            props += f' tvg-logo="{logo_url}"'
+
+        # שם הערוץ נעדיף את name הנוכחי שמופיע במסך
+        return f"{props},{name}"
 
     def exportSelected(self):
         selectedCategory, ok = QInputDialog.getItem(self, "Select Group", "Choose a group to export:",
@@ -695,6 +914,8 @@ class ExportGroupsDialog(QDialog):
 
                     url = self.parent.getUrl(channel)
                     file.write(f"{extinf_line}\n{url}\n")
+                    self.show_toast(f"נוצר {os.path.basename(file_path)}", "success", 1500)
+
 
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export {category}: {e}")
@@ -746,7 +967,6 @@ class M3UUrlConverterDialog(QDialog):
         self.copyButton.setStyleSheet("background-color: black; color: white; font-weight: bold;")
         self.copyButton.clicked.connect(self.copyResultToClipboard)
         layout.addWidget(self.copyButton)
-
 
         # Labels and Inputs
 
@@ -945,11 +1165,13 @@ class SmartScanThread(QThread):
                 # מחכים רגע קטן לפני יציאה כדי לא לקרוע סיגנלים באמצע
                 time.sleep(0.05)
                 break
-            status = "Offline"; reason = "Unknown"
+            status = "Offline";
+            reason = "Unknown"
             try:
                 res = requests.get(url, headers=headers, stream=True, timeout=4)
                 if res.status_code < 400 and any(x in res.text.lower() for x in ["#extm3u", ".ts", ".mp4", ".m3u8"]):
-                    status = "Online"; reason = "OK"
+                    status = "Online";
+                    reason = "OK"
                     # כאן תוכלו להוסיף בדיקות נוספות dup וכו׳
                 else:
                     reason = f"HTTP {res.status_code}"
@@ -961,7 +1183,6 @@ class SmartScanThread(QThread):
             # שידור עדכון
             self.progress.emit(checked, offline, duplicate, (name, url, status, reason))
         self.finished.emit()
-
 
     def stop(self):
         self.stop_requested = True
@@ -1544,7 +1765,7 @@ class SmartScanStatusDialog(QDialog):
             layout = QVBoxLayout(dialog)
 
             title = QLabel("Select scanning method:")
-            title.setStyleSheet("font-size: 14px; font-weight: bold;")
+            title.setStyleSheet("font-size: 16px; font-weight: bold;")
             layout.addWidget(title)
 
             btn_layout = QVBoxLayout()
@@ -1593,7 +1814,7 @@ class SmartScanStatusDialog(QDialog):
             layout = QVBoxLayout(dialog)
 
             title = QLabel("Choose category to scan:")
-            title.setStyleSheet("font-size: 14px; font-weight: bold; margin-bottom: 10px;")
+            title.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
             layout.addWidget(title)
 
             # רשימה עם מידע
@@ -1950,6 +2171,7 @@ class SmartScanStatusDialog(QDialog):
         finally:
             super().reject()
 
+
 class M3UEditor(QWidget):
     logosFinished = pyqtSignal()
 
@@ -1968,6 +2190,7 @@ class M3UEditor(QWidget):
         מחזיר את כל תוכן ה־M3U שמוצג בעורך.
         """
         return self.textEdit.toPlainText()
+
 
 
     def merge_or_fix_epg(self):
@@ -2044,6 +2267,236 @@ class M3UEditor(QWidget):
         self.loadM3UFromText(new_content)  # טעינה מחדש למערכת
 
         QMessageBox.information(self, "EPG Updated", "✅ שורת EPG עודכנה והוזנה מחדש.")
+
+    def create_top_toolbar(self):
+        from PyQt5.QtWidgets import QFrame, QHBoxLayout, QPushButton, QFrame as Line
+        from PyQt5.QtGui import QIcon
+        from PyQt5.QtCore import Qt
+
+        bar = QFrame(self)
+        bar.setObjectName("TopToolbar")
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setSpacing(8)
+
+        # כפתור אחד מאוחד לטעינה/העלאה (עיצוב כחול)
+        self.btnUploadTop = QPushButton("העלאת קובץ M3U", bar)
+        self.btnUploadTop.setStyleSheet(
+            "background:#2563eb; color:white; font-weight:bold; border-radius:8px; padding:6px 12px;"
+        )
+        if hasattr(self, "loadM3UFromDialog"):
+            self.btnUploadTop.clicked.connect(self.loadM3UFromDialog)
+        elif hasattr(self, "loadM3U"):
+            self.btnUploadTop.clicked.connect(self.loadM3U)
+
+        # יצוא כללי (עיצוב ירוק)
+        self.btnExportTop = QPushButton("M3U ייצוא", bar)
+        self.btnExportTop.setStyleSheet(
+            "background:#16a34a; color:white; font-weight:bold; border-radius:8px; padding:6px 12px;"
+        )
+        if hasattr(self, "openExportDialog"):
+            self.btnExportTop.clicked.connect(self.openExportDialog)
+        elif hasattr(self, "exportVisibleM3U"):
+            self.btnExportTop.clicked.connect(self.exportVisibleM3U)
+
+        lay.addWidget(self.btnUploadTop)
+        lay.addWidget(self.btnExportTop)
+
+        # מפריד דק
+        sep = Line(bar)
+        sep.setFrameShape(Line.VLine)
+        sep.setFrameShadow(Line.Sunken)
+        sep.setStyleSheet("color:#e5e7eb;")
+        lay.addWidget(sep)
+
+        # הכפתורים שהיו למטה - עוברים למעלה באותו עיצוב ותפקוד
+        self.topSaveButton = QPushButton("Save M3U", bar)
+        self.topSaveButton.setStyleSheet("background-color: red; color: white;")
+        if hasattr(self, "saveM3U"):
+            self.topSaveButton.clicked.connect(self.saveM3U)
+
+        self.topMergeButton = QPushButton("Merge M3Us", bar)
+        self.topMergeButton.setStyleSheet("background-color: blue; color: white;")
+        if hasattr(self, "mergeM3Us"):
+            self.topMergeButton.clicked.connect(self.mergeM3Us)
+
+        self.topExportTelegramButton = QPushButton(" Export to Telegram", bar)
+        self.topExportTelegramButton.setIcon(QIcon("icons/telegram.png"))
+        self.topExportTelegramButton.setStyleSheet("background-color: teal; color: white;")
+        if hasattr(self, "exportToTelegram"):
+            self.topExportTelegramButton.clicked.connect(self.exportToTelegram)
+
+        lay.addWidget(self.topSaveButton)
+        lay.addWidget(self.topMergeButton)
+        lay.addWidget(self.topExportTelegramButton)
+
+        lay.addStretch()
+
+        # alias לשמות הישנים כדי שלא תישבר אף הפניה קיימת בקוד
+        self.loadButton = self.btnUploadTop  # "load" הישן מצביע לכחול החדש
+        self.saveButton = self.topSaveButton
+        self.mergeButton = self.topMergeButton
+        self.exportTelegramButton = self.topExportTelegramButton
+
+        return bar
+
+    def _attach_actions_to_channel_widget(self, widget, entry):
+        from PyQt5.QtWidgets import QToolButton, QStyle, QWidget, QHBoxLayout
+        from PyQt5.QtCore import Qt
+
+        root = widget.layout()
+        if root is None:
+            return
+        root.addStretch()
+
+        bar = QWidget(widget)
+        h = QHBoxLayout(bar);
+        h.setContentsMargins(0, 0, 0, 0);
+        h.setSpacing(2)
+
+        def mk(icon_std, tip, handler):
+            btn = QToolButton(bar)
+            btn.setObjectName("ActionBtn")
+            btn.setToolButtonStyle(btn.ToolButtonIconOnly)
+            btn.setAutoRaise(True)
+            btn.setIcon(widget.style().standardIcon(icon_std))
+            btn.setToolTip(tip)
+            btn.clicked.connect(handler)
+            h.addWidget(btn)
+            return btn
+
+        def select_this():
+            try:
+                if not hasattr(self, "channelList"):
+                    return
+                for i in range(self.channelList.count()):
+                    it = self.channelList.item(i)
+                    it.setSelected(it.data(Qt.UserRole) == entry)
+            except Exception:
+                pass
+
+        mk(QStyle.SP_TrashIcon, "Delete", lambda: (select_this(), self.deleteSelectedChannels()))
+        mk(QStyle.SP_FileDialogDetailedView, "Edit", lambda: (select_this(), self.editSelectedChannel()))
+        mk(QStyle.SP_ArrowUp, "Move Up", lambda: (select_this(), self.moveChannelUp()))
+        mk(QStyle.SP_ArrowDown, "Move Down", lambda: (select_this(), self.moveChannelDown()))
+
+        root.addWidget(bar, 0, Qt.AlignRight)
+
+    def create_header_bar(self):
+        """יוצר פס עליון עם כותרת וכפתורי עזרה/יצוא. לא מוחק כלום מהקיים."""
+        from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
+        from PyQt5.QtCore import Qt
+
+        bar = QFrame(self)
+        bar.setObjectName("HeaderBar")
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(10, 6, 10, 6)
+        lay.setSpacing(8)
+
+        # כותרת
+        title = QLabel("M3U Playlist Editor", bar)
+        title.setObjectName("HeaderTitle")
+        title.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        lay.addWidget(title)
+        lay.addStretch()
+
+        # כפתור עזרה
+        btn_help = QPushButton("Help", bar)
+        btn_help.clicked.connect(self.showHelpDialog)
+        lay.addWidget(btn_help)
+
+        # כפתור יצוא מהיר - נשתמש במה שיש אצלך
+        btn_export = QPushButton("Export", bar)
+        if hasattr(self, "openExportDialog"):
+            btn_export.clicked.connect(self.openExportDialog)
+        elif hasattr(self, "exportVisibleM3U"):
+            btn_export.clicked.connect(self.exportVisibleM3U)
+        lay.addWidget(btn_export)
+
+        return bar
+
+    def show_toast(self, text: str, kind: str = "info", ms: int = 2000):
+        """
+        מציג הודעת Toast קצרה בפינה הימנית-עליונה של החלון.
+        kind: "info", "success", "warn", "error"
+        ms: זמן תצוגה במילישניות
+        """
+        from PyQt5.QtWidgets import QFrame, QLabel
+        from PyQt5.QtCore import Qt, QTimer
+        from PyQt5.QtGui import QFont
+
+        colors = {
+            "info": "#2563eb",
+            "success": "#10b981",
+            "warn": "#f59e0b",
+            "error": "#ef4444",
+        }
+        bg = colors.get(kind, "#2563eb")
+
+        toast = QFrame(self)
+        toast.setObjectName("Toast")
+        toast.setStyleSheet(
+            f"background:{bg}; color:white; border-radius:8px; padding:8px 12px;"
+            "border:1px solid rgba(0,0,0,0.1);"
+        )
+        toast.setAttribute(Qt.WA_StyledBackground, True)
+
+        lbl = QLabel(text, toast)
+        lbl.setStyleSheet("color:white;")
+        f = QFont()
+        f.setPointSize(9)
+        f.setBold(True)
+        lbl.setFont(f)
+        lbl.adjustSize()
+
+        # קביעת גודל ומיקום
+        toast.resize(lbl.width() + 24, lbl.height() + 16)
+        x = max(8, self.width() - toast.width() - 16)
+        y = 16
+        toast.move(x, y)
+
+        toast.show()
+        toast.raise_()
+
+        QTimer.singleShot(ms, toast.deleteLater)
+
+    def showHelpDialog(self):
+        """חלון עזרה קצר עם קיצורים ומצב נוכחי."""
+        from PyQt5.QtWidgets import QMessageBox
+
+        # קיצורים
+        tips = []
+        tips.append("F1 - עזרה")
+        if hasattr(self, "searchBox"):
+            tips.append("Ctrl+F - חיפוש")
+            tips.append("Ctrl+R - איפוס חיפוש")
+        tips.append("Ctrl+A - בחר הכל ברשימת הערוצים")
+        tips.append("Delete - מחיקת נבחרים")
+        if hasattr(self, "_open_export_dialog_smart") or hasattr(self, "openExportDialog") or hasattr(self,
+                                                                                                      "exportVisibleM3U"):
+            tips.append("Ctrl+E - יצוא")
+        if hasattr(self, "openURLCheckerDialog"):
+            tips.append("Ctrl+L - URL Checker")
+
+        # מצב נוכחי
+        state = []
+        if hasattr(self, "categoryList") and self.categoryList.currentItem():
+            cat = self.categoryList.currentItem().text().split(" (")[0].strip()
+            state.append(f"קטגוריה: {cat}")
+        if hasattr(self, "statusFilter"):
+            state.append(f"סטטוס: {self.statusFilter.currentText()}")
+        if hasattr(self, "categoryFilter"):
+            state.append(f"מסנן קטגוריה: {self.categoryFilter.currentText()}")
+        if hasattr(self, "channelList"):
+            state.append(f"ערוצים מוצגים: {self.channelList.count()}")
+        if hasattr(self, "searchBox") and self.searchBox.text().strip():
+            state.append(f"חיפוש: {self.searchBox.text().strip()}")
+
+        msg = "\n".join(tips)
+        if state:
+            msg += "\n\nמצב נוכחי:\n" + "\n".join(state)
+
+        QMessageBox.information(self, "Help", msg if tips else "No shortcuts defined.")
 
     def open_channel_context_menu(self, position):
         """
@@ -2692,13 +3145,6 @@ class M3UEditor(QWidget):
 
         if self.categoryList.count() > 0:
             self.categoryList.setCurrentRow(0)
-
-            # טוען את קובץ הלוגואים לזיכרון פעם אחת
-            try:
-                self.logo_cache = load_logos_db()
-            except Exception:
-                self.logo_cache = {}
-
             self.display_channels(self.categoryList.currentItem())
 
         # הצגת תוצאות
@@ -2967,65 +3413,57 @@ class M3UEditor(QWidget):
         except Exception:
             return ""
 
-
     def onLogosFinished(self):
         QMessageBox.information(self, "Logo Scan", "✅ סריקת הלוגואים הושלמה בהצלחה!")
 
     def initUI(self):
         # כותרת החלון ומאפיינים כלליים
         self.setWindowTitle('M3U Playlist Editor')
-        self.setGeometry(100, 100, 800, 600)
         self.setWindowFlags(self.windowFlags() |
                             Qt.WindowMinMaxButtonsHint |
                             Qt.WindowCloseButtonHint)
 
-        # גופן גלובלי
-        font = QFont('Arial', 10)
-        QApplication.setFont(font)
+        self.setGeometry(100, 100, 1200, 800)
+        QApplication.setFont(QFont('Arial', 12))
+
+        self.setStyleSheet(APP_QSS + QSS_CHANNELS)
+        self.setStyleSheet(self.styleSheet() + EXTRA_QSS_HEADER)
+        self.setStyleSheet(self.styleSheet() + EXTRA_QSS_CARDS)
+        self.setStyleSheet(self.styleSheet() + APP_QSS_LARGE)
+        # הזרקת שכבת נראות נוספת
+        self.setStyleSheet(self.styleSheet() + QSS_TAILWINDISH)
 
         # לייאאוט ראשי
         main_layout = QVBoxLayout(self)
         self.setLayout(main_layout)
 
-        # ─── לוגו עליון ───
-        logo_frame = QFrame(self)
-        logo_frame.setStyleSheet("background-color: black;")
-        logo_layout = QVBoxLayout(logo_frame)
-        logo_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(self.create_top_toolbar())
+        main_layout.setContentsMargins(8, 2, 8, 6)
+        main_layout.setSpacing(4)
 
-        logo_label = QLabel(self)
-        image_path = r'C:\Users\Master_PC\Desktop\IPtv_projects\Projects Eldad\M3u_Editor_EldadV1\Main Logo.jpg'
-        if os.path.exists(image_path):
-            pix = QPixmap(image_path).scaledToHeight(80, Qt.SmoothTransformation)
-            logo_label.setPixmap(pix)
-        else:
-            logo_label.setText("Logo not found.")
-        logo_label.setAlignment(Qt.AlignCenter)
-
-        logo_layout.addWidget(logo_label)
-        main_layout.addWidget(logo_frame)
 
         # ─── שורת חיפוש ───
         self.searchBox = QLineEdit(self)
         self.searchBox.setPlaceholderText("🔍 חיפוש קטגוריה או ערוץ...")
         self.searchBox.textChanged.connect(self.handleSearchTextChanged)
+        self.searchBox.textChanged.connect(self._on_filters_changed)  # הוספה
 
         reset_btn = QPushButton("🔄 איפוס", self)
         reset_btn.setStyleSheet("padding:3px; font-weight:bold;")
         reset_btn.clicked.connect(lambda: self.searchBox.setText(""))
 
+        # חדשים
+        self.categoryFilter = QComboBox(self)
+        self.categoryFilter.addItem("כל הקטגוריות", "")
+        self.categoryFilter.currentIndexChanged.connect(self._on_filters_changed)
+
+
         search_layout = QHBoxLayout()
         search_layout.addWidget(self.searchBox)
+        search_layout.addWidget(self.categoryFilter)  # הוספה
         search_layout.addWidget(reset_btn)
         main_layout.addLayout(search_layout)
 
-        # ─── כותרת ראשית ───
-        title = QLabel("M3U Playlist Editor", self)
-        title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet(
-            "font-size:25px; font-weight:bold; background-color:black; color:white;"
-        )
-        main_layout.addWidget(title)
 
         # ─── מידע על קובץ וערוצים ───
         info_layout = QHBoxLayout()
@@ -3041,11 +3479,15 @@ class M3UEditor(QWidget):
 
         main_layout.addLayout(info_layout)
 
-        # ─── אזורים אחרים (קטגוריות, ערוצים, M3U content, כלים) ───
-        main_layout.addLayout(self.create_category_section())
-        main_layout.addLayout(self.create_channel_section())
-        main_layout.addLayout(self.create_m3u_content_section())
-        main_layout.addLayout(self.create_Tools())
+        #main_layout.addLayout(self.create_category_section(), 2)  # יותר גובה לקטגוריות
+        #main_layout.addLayout(self.create_channel_section(), 5)  # הכי הרבה גובה לערוצים
+        #main_layout.addLayout(self.create_m3u_content_section(), 2)
+
+        self.mainSplitter = self.create_main_splitter()
+        main_layout.addWidget(self.mainSplitter, 1)
+
+        main_layout.addLayout(self.create_Tools(), 1)
+
 
         # ─── כפתורי VLC (Play & Preview) ───
         vlc_icon = QIcon("icons/vlc.png")
@@ -3055,7 +3497,7 @@ class M3UEditor(QWidget):
         # ▶ נגן ערוץ בודד
         self.playButton = QPushButton("▶ נגן ב־VLC", self)
         self.playButton.setIcon(vlc_icon)
-        self.playButton.setIconSize(QSize(24, 24))
+        self.playButton.setIconSize(QSize(22, 22))
         self.playButton.setStyleSheet(
             "background-color: navy; color: white; font-weight: bold;"
         )
@@ -3067,7 +3509,7 @@ class M3UEditor(QWidget):
         # ▶ Preview לערוצים מרובים
         self.previewButton = QPushButton("▶ צפה בערוצים", self)
         self.previewButton.setIcon(vlc_icon)
-        self.previewButton.setIconSize(QSize(24, 24))
+        self.previewButton.setIconSize(QSize(22, 22))
         self.previewButton.setStyleSheet(
             "background-color: navy; color: white; font-weight: bold;"
         )
@@ -3094,24 +3536,55 @@ class M3UEditor(QWidget):
 
         # ווידוא כותרת EXTM3U
         self.textEdit.textChanged.connect(self.ensure_extm3u_header)
+        # קיצורי מקשים לכלל האפליקציה
+        self._add_shortcuts()
+
+    def create_main_splitter(self):
+        from PyQt5.QtWidgets import QWidget, QSplitter
+        from PyQt5.QtCore import Qt
+
+        def wrap(layout_fn):
+            w = QWidget()
+            w.setLayout(layout_fn())
+            return w
+
+        top = wrap(self.create_category_section)
+        middle = wrap(self.create_channel_section)
+        bottom = wrap(self.create_m3u_content_section)
+
+        sp = QSplitter(Qt.Vertical)
+        sp.setChildrenCollapsible(False)
+        sp.setHandleWidth(6)
+        sp.addWidget(top)
+        sp.addWidget(middle)
+        sp.addWidget(bottom)
+
+        # קטגוריות קטנות, ערוצים גדולים, תוכן בינוני
+        sp.setStretchFactor(0, 1)
+        sp.setStretchFactor(1, 6)
+        sp.setStretchFactor(2, 2)
+        sp.setSizes([120, 900, 240])
+
+        return sp
 
     def create_channel_section(self):
         """
         בונה את ה־UI לטיפול בערוצים:
         - כותרת
         - ComboBox למיון
-        - QListWidget להצגת הערוצים (עם Drag&Drop פנימי)
+        - QListWidget להצגת הערוצים
         - כפתורים להוספה/מחיקה/העברה/עריכה/בדיקת כפילויות
         """
-        from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QListWidget
+        # חשוב: ייבוא מוקדם כדי למנוע UnboundLocalError בשימוש ב-Qt לפני הייבוא
         from PyQt5.QtCore import Qt
+        from PyQt5.QtWidgets import QAbstractItemView, QListWidget
 
         layout = QVBoxLayout()
 
         # כותרת
         channel_title = QLabel("Channels", self)
         channel_title.setAlignment(Qt.AlignCenter)
-        channel_title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        channel_title.setStyleSheet("font-size: 12px; font-weight: bold;")
         layout.addWidget(channel_title)
 
         # ComboBox למיון
@@ -3127,22 +3600,33 @@ class M3UEditor(QWidget):
         self.sortingComboBox.currentIndexChanged.connect(self.sortChannels)
         layout.addWidget(self.sortingComboBox)
 
-        # רשימת הערוצים — ChannelListWidget עם Drag&Drop פנימי (כבר הוספת)
+        # רשימת הערוצים
         self.channelList = ChannelListWidget(self)
+        from PyQt5.QtWidgets import QSizePolicy
+        self.channelList.setMinimumHeight(1200)  # הגדלת חלון הערוצים
+        self.channelList.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.channelList.setStyleSheet("font-size: 8pt;")
+
+        # אפשר להשאיר גם את הייבוא כאן אם כתבת אותו לפני כן. לא חובה.
+        # from PyQt5.QtWidgets import QAbstractItemView
+        # from PyQt5.QtCore import Qt
+
+        # בחירה מרובה ופוקוס חזק
+        self.channelList.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.channelList.setFocusPolicy(Qt.StrongFocus)
+
+        self.channelList.setAlternatingRowColors(True)
+        self.channelList.setUniformItemSizes(True)
+        self.channelList.setSpacing(1)
+        self.channelList.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.channelList.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.channelList.setAlternatingRowColors(True)
+        self.channelList.setUniformItemSizes(True)
+
+        # שומר את ההגדרות שלך כמו שהיו
         self.channelList.setSelectionMode(QListWidget.MultiSelection)
         self.channelList.setContextMenuPolicy(Qt.CustomContextMenu)
         self.channelList.customContextMenuRequested.connect(self.open_channel_context_menu)
-
-        # שיפורי ביצועים ונראות
-        try:
-            self.channelList.setUniformItemSizes(True)  # ציור מהיר יותר
-            self.channelList.setSpacing(2)  # ריווח עדין בין שורות
-            from PyQt5.QtWidgets import QAbstractItemView
-            self.channelList.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-            self.channelList.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        except Exception:
-            pass
-
         layout.addWidget(self.channelList)
 
         # כפתורי פעולה לערוצים
@@ -3166,6 +3650,8 @@ class M3UEditor(QWidget):
             self.checkDoublesButton
         ]:
             button_layout.addWidget(btn)
+            self.channelList.setMinimumHeight(400)  # חלון ערוצים גבוה
+            self.channelList.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         layout.addLayout(button_layout)
 
@@ -3178,7 +3664,11 @@ class M3UEditor(QWidget):
         self.clearChannelsSelectionButton.clicked.connect(self.deselectAllChannels)
         self.moveSelectedChannelButton.clicked.connect(self.moveSelectedChannel)
         self.editSelectedChannelButton.clicked.connect(self.editSelectedChannel)
-        # self.checkDoublesButton כבר חובר למעלה
+        # self.checkDoublesButton חוברה כבר לעיל
+
+        # חיזוק אחרון: להבטיח שהמצב הסופי הוא ExtendedSelection ופוקוס חזק
+        self.channelList.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.channelList.setFocusPolicy(Qt.StrongFocus)
 
         return layout
 
@@ -3263,7 +3753,6 @@ class M3UEditor(QWidget):
         dlg.setAttribute(Qt.WA_DeleteOnClose)
         dlg.finished.connect(dlg.deleteLater)
         dlg.exec_()
-
 
     def handle_download():
         import re
@@ -3512,49 +4001,81 @@ class M3UEditor(QWidget):
 
     def loadM3UFromText(self, content, append=False):
         """
-        טוען M3U:
-        - מאחד כותרות EPG לשורה אחת
-        - טוען/מרענן קטגוריות
-        - בוחר קטגוריה ראשונה ומציג ערוצים
-        - טוען logos_db.json לזיכרון פעם אחת
-        - מריץ סריקת לוגואים ברקע (לשיפור DB)
+        טוען טקסט M3U, דואג שתמיד תהיה שורת EXTM3U עם tvg-url,
+        מנסה עברית תחילה, ומתעד מאיפה נאספו קישורי ה-EPG.
         """
         import threading
 
+        # שמירה של התוכן האחרון עבור פונקציות משלימות
+        self.last_loaded_m3u = content
+
+        # אם לא append מנקים את הקטגוריות
         if not append:
             self.categories.clear()
 
-        # 1) אסוף כותרות EPG קיימות בלי strip לכל הקובץ
+        # ניהול meta למקורות EPG האחרונים
+        if not hasattr(self, "last_epg_sources") or not append:
+            self.last_epg_sources = []  # רשימת מחרוזות תיאור מקור ה-EPG
+
+        # ----- 1) ניהול EPG headers -----
+        # אתחול self.epg_headers בפעם הראשונה (או בכל load מחדש)
         if not hasattr(self, "epg_headers") or not append:
             self.epg_headers = []
-        detected = []
-        for line in content.splitlines():
-            if line.startswith("#EXTM3U") and ("url-tvg=" in line or "x-tvg-url=" in line or "tvg-url=" in line):
-                detected.append(line.strip())
-        for h in detected:
-            if h not in self.epg_headers:
-                self.epg_headers.append(h)
 
-        # 2) הסר את כל שורות ה-EXTM3U ונבנה כותרת אחידה
-        lines = [ln for ln in content.splitlines() if not ln.startswith("#EXTM3U")]
+        # שלב 1: אסוף את כל ה-EPG headers כפי שהם בקובץ
+        detected_epg_headers = []
+        for line in content.splitlines():  # splitlines() ללא strip
+            if line.startswith("#EXTM3U") and ("url-tvg=" in line or "x-tvg-url=" in line or "tvg-url=" in line):
+                detected_epg_headers.append(line.strip())
+
+        # שלב 2: הוספת headers ייחודיים (איחוד)
+        for header in detected_epg_headers:
+            if header not in self.epg_headers:
+                self.epg_headers.append(header)
+
+        if detected_epg_headers:
+            self.last_epg_sources.append("EPG מהכותרת בקובץ")
+
+        # אם אין אף header זמין, ננסה 2 מסלולים לפני merge_or_fix_epg:
+        #   א. קובץ sidecar עם אותו שם בסיס (xml או xml.gz) => נבנה tvg-url ממנו
+        #   ב. אם גם זה לא קיים, נשתמש ב-merge_or_fix_epg כדי לאחד ספקים מוכרים
+        if not self.epg_headers:
+            sidecar_urls = self._try_load_sidecar_epg()
+            if sidecar_urls:
+                # בנה header חדש על בסיס sidecar
+                new_hdr = '#EXTM3U tvg-url="' + ",".join(sidecar_urls) + '"'
+                self.epg_headers.append(new_hdr)
+                self.last_epg_sources.append("EPG מקובץ sidecar מקומי")
+            else:
+                # איחוד/זיהוי אוטומטי מתוך ספקים
+                try:
+                    self.merge_or_fix_epg(content=content, prefer_hebrew=True, update_only=True)
+                    if self.epg_headers:
+                        self.last_epg_sources.append("EPG מ-EPG_providers_full.json")
+                except Exception:
+                    # אם נכשל, נמשיך גם בלי EPG כדי לא לחסום טעינה
+                    pass
+
+        # ----- 3) ניקוי כל שורות EXTM3U המקוריות מהתוכן -----
+        lines = [line for line in content.splitlines() if not line.startswith("#EXTM3U")]
+
+        # ----- 4) בניית שורת EXTM3U אחידה עם עדיפות לעברית -----
         unified_header = self.buildUnifiedEPGHeader()
+
+        # מיזוג לכדי טקסט סופי להצגה ולעיבוד
         content2 = unified_header + "\n\n" + "\n".join(lines)
 
-        # 3) פרס, עדכן UI בסיסי
+        # ----- 5) פרס קובץ M3U -----
         self.parseM3UContentEnhanced(content2)
         self.updateCategoryList()
         self.buildSearchCompleter()
 
-        # 4) בחר קטגוריה ראשונה, טען logos_db לזיכרון והצג ערוצים
+        # ----- 6) בחירת קטגוריה ראשונה -----
         if self.categoryList.count() > 0:
             self.categoryList.setCurrentRow(0)
-            try:
-                self.logo_cache = load_logos_db()  # ← טוען פעם אחת לזיכרון
-            except Exception:
-                self.logo_cache = {}
             self.display_channels(self.categoryList.currentItem())
 
-        # 5) סריקת לוגואים ברקע – מעדכן logos_db.json (לא מפריע לתצוגה)
+        # ----- 7) סריקת לוגואים ברקע -----
         threading.Thread(
             target=self.extract_and_save_logos_for_all_channels,
             args=(content2,),
@@ -3921,6 +4442,17 @@ class M3UEditor(QWidget):
             if hasattr(self, 'channelList'):
                 self.channelList.setUpdatesEnabled(True)
 
+    def _on_filters_changed(self):
+        # מרענן את רשימת הערוצים לפי המסננים החדשים
+        current_item = self.categoryList.currentItem() if hasattr(self, "categoryList") else None
+        self.display_channels(current_item)
+        # מעדכן רק את מונה המוצגים בכותרת Channels (לא את הגלובלי)
+        if hasattr(self, "channelsHeaderCount") and hasattr(self, "channelList"):
+            self.channelsHeaderCount.setText(str(self.channelList.count()))
+        # המונה הגלובלי תמיד גלובלי
+        if hasattr(self, "displayTotalChannels"):
+            self.displayTotalChannels()
+
     def buildSearchCompleter(self):
         search_terms = list(self.categories.keys())
         for ch_list in self.categories.values():
@@ -4156,7 +4688,7 @@ class M3UEditor(QWidget):
             total += len(category_channels)
         return total
 
-    def loadM3UFromText_OLD1(self, content, append=False):
+    def loadM3UFromText(self, content, append=False):
         # אם לא append מנקים את הקטגוריות
         if not append:
             self.categories.clear()
@@ -4193,15 +4725,9 @@ class M3UEditor(QWidget):
         self.updateCategoryList()
         self.buildSearchCompleter()
 
+        # ----- 5️⃣ בחירת קטגוריה ראשונה -----
         if self.categoryList.count() > 0:
             self.categoryList.setCurrentRow(0)
-
-            # טוען את קובץ הלוגואים לזיכרון פעם אחת
-            try:
-                self.logo_cache = load_logos_db()
-            except Exception:
-                self.logo_cache = {}
-
             self.display_channels(self.categoryList.currentItem())
 
         # ----- 6️⃣ סריקת לוגואים ברקע -----
@@ -4481,7 +5007,7 @@ class M3UEditor(QWidget):
         # כותרת קטגוריות
         category_title = QLabel("Categories", self)
         category_title.setAlignment(Qt.AlignCenter)
-        category_title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        category_title.setStyleSheet("font-size: 12px; font-weight: bold;")
         layout.addWidget(category_title)
 
         # קומבובוקס מיון קטגוריות
@@ -4537,6 +5063,11 @@ class M3UEditor(QWidget):
 
         # רשימת קטגוריות
         self.categoryList = QListWidget(self)
+        from PyQt5.QtWidgets import QSizePolicy
+        self.categoryList.setMinimumHeight(300)  # הגדלת חלון הקטגוריות
+        self.categoryList.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.categoryList.setStyleSheet("font-size: 12pt;")
+
         self.categoryList.setSelectionMode(QAbstractItemView.MultiSelection)  # בחירה מרובה
         layout.addWidget(self.categoryList)
 
@@ -4550,6 +5081,7 @@ class M3UEditor(QWidget):
         self.deselectAllButton.clicked.connect(self.deselectAllCategories)
         self.categoryList.itemClicked.connect(self.display_channels)
         self.translateCategoriesButton.clicked.connect(self.translate_category_names)
+        self.categoryList.setMinimumHeight(180)  # או 220 אם תרצה יותר
 
         return layout
 
@@ -4557,7 +5089,7 @@ class M3UEditor(QWidget):
         layout = QVBoxLayout()
         tools_title = QLabel("Tools", self)
         tools_title.setAlignment(Qt.AlignCenter)
-        tools_title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        tools_title.setStyleSheet("font-size: 12px; font-weight: bold;")
         layout.addWidget(tools_title)
 
         # Create a horizontal layout for the buttons
@@ -4580,7 +5112,6 @@ class M3UEditor(QWidget):
         self.convertPortalButton.clicked.connect(self.convertStalkerToM3U)
         buttons_layout.addWidget(self.convertPortalButton)
 
-
         # Export Groups button
         self.exportGroupButton = QPushButton('📤 Export Groups', self)
         self.exportGroupButton.setStyleSheet("background-color: black; color: white;")
@@ -4600,7 +5131,6 @@ class M3UEditor(QWidget):
         self.smartScanButton.setStyleSheet("background-color: black; color: white; font-weight: ;")
         self.smartScanButton.clicked.connect(self.openSmartScanDialog)
         buttons_layout.addWidget(self.smartScanButton)
-
 
         self.mergeEPGButton = QPushButton('📺 Fix EPG', self)
         self.mergeEPGButton.setStyleSheet("background-color: black; color: white;")
@@ -4638,18 +5168,21 @@ class M3UEditor(QWidget):
             )
             print(f"Portal Converter Error: {e}")
 
-    def displayTotalChannels(self):
+    def displayTotalChannels(self, file_name: str = None):
         """
-        מחשבת ומציגה את כמות כל הערוצים בכל הקטגוריות
-        ואת מספר הקטגוריות, בתווית גלובלית אחת.
+        מציג תמיד את הסיכום הגלובלי: סה"כ ערוצים + סה"כ קטגוריות.
+        לא תלוי בסינון.
+        אם file_name ניתן, יעדכן גם את שם הקובץ.
         """
+        import os
         total_channels = sum(len(ch_list) for ch_list in self.categories.values())
         total_categories = len(self.categories)
-        text = f"📺 Total Channels: {total_channels}   |   🗂 Categories: {total_categories}"
-        self.channelCountLabel.setText(text)
-        self.channelCountLabel.setToolTip(
-            f"{total_channels} ערוצים ב־{total_categories} קטגוריות"
-        )
+        summary = f"📺 Total Channels: {total_channels}   |   🗂 Categories: {total_categories}"
+        if hasattr(self, "channelCountLabel"):
+            self.channelCountLabel.setText(summary)
+            self.channelCountLabel.setToolTip(f"{total_channels} ערוצים בסך הכל ב-{total_categories} קטגוריות")
+        if file_name and hasattr(self, "fileNameLabel"):
+            self.fileNameLabel.setText(f"Loaded File: {os.path.basename(file_name)}")
 
     def sortChannels(self):
         """
@@ -4706,41 +5239,20 @@ class M3UEditor(QWidget):
         self.regenerateM3UTextOnly()
 
     def create_m3u_content_section(self):
+        from PyQt5.QtCore import Qt
+        from PyQt5.QtWidgets import QVBoxLayout, QLabel, QTextEdit, QSizePolicy
+
         layout = QVBoxLayout()
 
-        m3u_title = QLabel("M3U Content", self)
-        m3u_title.setAlignment(Qt.AlignCenter)
-        m3u_title.setStyleSheet("font-size: 18px; font-weight: bold;")
-        layout.addWidget(m3u_title)
+        title = QLabel("M3U Content", self)
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 12px; font-weight: bold; margin:0; padding:0;")
+        layout.addWidget(title)
 
         self.textEdit = QTextEdit(self)
+        self.textEdit.setMinimumHeight(0)
+        self.textEdit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self.textEdit)
-
-        button_layout = QHBoxLayout()
-
-        self.loadButton = QPushButton('Load M3U')
-        self.saveButton = QPushButton('Save M3U')
-        self.mergeButton = QPushButton('Merge M3Us')
-        self.exportTelegramButton = QPushButton(" Export to Telegram")  # ← כפתור חדש
-        self.exportTelegramButton.setIcon(QIcon("icons/telegram.png"))
-
-        self.loadButton.setStyleSheet("background-color: green; color: white;")
-        self.saveButton.setStyleSheet("background-color: red; color: white;")
-        self.mergeButton.setStyleSheet("background-color: blue; color: white;")
-        self.exportTelegramButton.setStyleSheet("background-color: teal; color: white;")
-
-        self.loadButton.clicked.connect(self.loadM3U)
-        self.saveButton.clicked.connect(self.saveM3U)
-        self.mergeButton.clicked.connect(self.mergeM3Us)
-        self.exportTelegramButton.clicked.connect(self.exportToTelegram)  # ← חיבור לפונקציה
-
-        # הוספה ללייאאוט
-        button_layout.addWidget(self.loadButton)
-        button_layout.addWidget(self.saveButton)
-        button_layout.addWidget(self.mergeButton)
-        button_layout.addWidget(self.exportTelegramButton)  # ← בסוף מימין
-
-        layout.addLayout(button_layout)
 
         return layout
 
@@ -4752,15 +5264,58 @@ class M3UEditor(QWidget):
 
     def updateCategoryList(self):
         """
-        Updates the category list dynamically to reflect the current channel counts.
+        עדכון רשימת הקטגוריות עם ספירה,
+        כולל שימור הבחירה הנוכחית ומיקום הגלילה.
+        ממלא גם את פילטר הקטגוריות אם קיים.
         """
+        # שמירת מצב לפני רענון
+        prev_row = self.categoryList.currentRow() if hasattr(self, "categoryList") else -1
+        prev_text = None
+        if hasattr(self, "categoryList") and self.categoryList.currentItem():
+            prev_text = self.categoryList.currentItem().text().split(" (")[0].strip()
+        prev_scroll = self.categoryList.verticalScrollBar().value() if hasattr(self, "categoryList") else 0
+
+        # בניה מחדש
+        self.categoryList.blockSignals(True)
         self.categoryList.clear()
         for category, channels in self.categories.items():
             display_text = f"{category} ({len(channels)})"
             self.categoryList.addItem(display_text)
+        self.categoryList.blockSignals(False)
 
-            # עדכון הספירה הכללית של ערוצים + קטגוריות
+        # שיחזור בחירה לפי טקסט קודם אם אפשר, אחרת לפי prev_row, אחרת שורה 0 אם קיימת
+        restored = False
+        if prev_text is not None:
+            for i in range(self.categoryList.count()):
+                if self.categoryList.item(i).text().split(" (")[0].strip() == prev_text:
+                    self.categoryList.setCurrentRow(i)
+                    restored = True
+                    break
+        if not restored and prev_row >= 0 and prev_row < self.categoryList.count():
+            self.categoryList.setCurrentRow(prev_row)
+            restored = True
+        if not restored and self.categoryList.count() > 0 and self.categoryList.currentRow() < 0:
+            self.categoryList.setCurrentRow(0)
+
+        # שיחזור גלילה
+        if hasattr(self, "categoryList"):
+            self.categoryList.verticalScrollBar().setValue(prev_scroll)
+
+        # עדכון הספירה הכללית
+        if hasattr(self, "displayTotalChannels"):
             self.displayTotalChannels()
+        elif hasattr(self, "channelCountLabel"):
+            total = sum(len(chs) for chs in self.categories.values())
+            self.channelCountLabel.setText(f"Total Channels: {total}")
+
+        # מילוי פילטר הקטגוריות
+        if hasattr(self, "categoryFilter"):
+            self.categoryFilter.blockSignals(True)
+            self.categoryFilter.clear()
+            self.categoryFilter.addItem("כל הקטגוריות", "")
+            for cat_name in self.categories.keys():
+                self.categoryFilter.addItem(cat_name, cat_name)
+            self.categoryFilter.blockSignals(False)
 
     def cleanEmptyCategories(self):
         """
@@ -5172,45 +5727,67 @@ class M3UEditor(QWidget):
             self.display_channels(self.categoryList.currentItem())
 
     def deleteSelectedChannels(self):
-        selected_indexes = []
-        for i in range(self.channelList.count()):
-            if self.channelList.item(i).isSelected():
-                selected_indexes.append(i)
+        try:
+            if not hasattr(self, "channelList") or not hasattr(self, "categoryList"):
+                return
 
-        if not selected_indexes:
-            QMessageBox.information(self, "No Selection", "No channels selected for deletion.")
-            return
+            # איסוף פריטים נבחרים מהרשימה הגרפית
+            selected_items = [self.channelList.item(i)
+                              for i in range(self.channelList.count())
+                              if self.channelList.item(i) and self.channelList.item(i).isSelected()]
 
-        selected_category_item = self.categoryList.currentItem()
-        if not selected_category_item:
-            QMessageBox.warning(self, "No Category", "Please select a category.")
-            return
+            if not selected_items:
+                QMessageBox.information(self, "No Selection", "No channels selected for deletion.")
+                return
 
-        category_name = selected_category_item.text().split(" (")[0]
-        if category_name not in self.categories:
-            QMessageBox.warning(self, "Invalid Category", "Selected category not found.")
-            return
+            # אימות קטגוריה נוכחית
+            selected_category_item = self.categoryList.currentItem()
+            if not selected_category_item:
+                QMessageBox.warning(self, "No Category", "Please select a category.")
+                return
 
-        channels_in_category = self.categories[category_name]
-        original_len = len(channels_in_category)
+            category_name = selected_category_item.text().split(" (")[0].strip()
+            if category_name not in self.categories:
+                QMessageBox.warning(self, "Invalid Category", "Selected category not found.")
+                return
 
-        self.categories[category_name] = [
-            ch for i, ch in enumerate(channels_in_category)
-            if i not in selected_indexes
-        ]
+            # בונים סט של הערכים המקוריים שנשמרו ב-UserRole כדי למחוק בדיוק
+            entries_to_delete = set()
+            for it in selected_items:
+                val = it.data(Qt.UserRole)
+                if isinstance(val, str) and val:
+                    entries_to_delete.add(val)
 
-        deleted = original_len - len(self.categories[category_name])
+            if not entries_to_delete:
+                QMessageBox.information(self, "No Selection", "Could not resolve selected items.")
+                return
 
-        # ← הוספה כאן — בדיוק אחרי שינוי ה־categories:
-        self.cleanEmptyCategories()
+            before = len(self.categories[category_name])
+            self.categories[category_name] = [entry for entry in self.categories[category_name]
+                                              if entry not in entries_to_delete]
+            deleted = before - len(self.categories[category_name])
 
-        self.updateCategoryList()
-        self.regenerateM3UTextOnly()
-        if self.categoryList.currentItem():
-            self.display_channels(self.categoryList.currentItem())
+            # ניקוי קטגוריות ריקות אם יש לך פונקציה כזו
+            if hasattr(self, "cleanEmptyCategories"):
+                self.cleanEmptyCategories()
 
-        QMessageBox.information(self, "Success", f"Deleted {deleted} channel(s).")
-        self.displayTotalChannels()
+            # רענונים קיימים אצלך
+            self.updateCategoryList()
+            if hasattr(self, "regenerateM3UTextOnly"):
+                self.regenerateM3UTextOnly()
+            if self.categoryList.currentItem():
+                self.display_channels(self.categoryList.currentItem())
+
+            if hasattr(self, "channelCountLabel"):
+                self.channelCountLabel.setText(f"Total Channels: {self.channelList.count()}")
+
+            QMessageBox.information(self, "Success", f"Deleted {deleted} channel(s).")
+            self.show_toast(f"נמחקו {deleted} ערוצים", "success")
+
+            if hasattr(self, "displayTotalChannels"):
+                self.displayTotalChannels()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Delete failed: {e}")
 
     def updateM3UContent(self):
         try:
@@ -5266,7 +5843,6 @@ class M3UEditor(QWidget):
             self.safely_update_text_edit(new_content)
 
         print("[LOG] 🔄 עדכון M3U בוצע", "כולל סריקת לוגואים" if not skip_logos else "ללא סריקת לוגואים")
-
 
     def moveChannelUp(self):
         """
@@ -5360,8 +5936,14 @@ class M3UEditor(QWidget):
         QMessageBox.information(self, "Success", "File saved successfully.")
 
     def selectAllChannels(self):
-        for i in range(self.channelList.count()):
-            self.channelList.item(i).setSelected(True)
+        try:
+            if hasattr(self, "channelList"):
+                self.channelList.setFocus()
+            # הלולאה הקיימת שלך:
+            for i in range(self.channelList.count()):
+                self.channelList.item(i).setSelected(True)
+        except Exception:
+            pass
 
     def deselectAllChannels(self):
         for i in range(self.channelList.count()):
@@ -5621,46 +6203,80 @@ class M3UEditor(QWidget):
 
     def display_channels(self, item):
         """
-        מציג ערוצים מהר יותר:
-        - create_channel_widget_v6_compact (ללא placeholder)
-        - לוגו מ-self.logo_cache (נטען מ-logos_db.json)
+        מציג את הערוצים באופן גרפי עם תג איכות, כולל סינון לפי חיפוש, קטגוריה וסטטוס.
+        המונה הגלובלי לא מתעדכן כאן לפי סינון.
         """
         from PyQt5.QtWidgets import QListWidgetItem
+        from PyQt5.QtGui import QColor
         from PyQt5.QtCore import Qt
 
         self.channelList.clear()
+        # אם אין פריט – רק נקה את מונה המוצגים
         if item is None:
+            if hasattr(self, "channelsHeaderCount"):
+                self.channelsHeaderCount.setText("0")
+            # גלובלי נשאר גלובלי
+            if hasattr(self, "displayTotalChannels"):
+                self.displayTotalChannels()
             return
-
-        if not hasattr(self, "logo_cache") or not isinstance(self.logo_cache, dict) or not self.logo_cache:
-            self.logo_cache = load_logos_db()
 
         cat = item.text().split(" (")[0].strip()
         real = {k.strip(): k for k in self.categories}.get(cat)
         if not real:
+            if hasattr(self, "channelsHeaderCount"):
+                self.channelsHeaderCount.setText("0")
+            if hasattr(self, "displayTotalChannels"):
+                self.displayTotalChannels()
             return
 
-        for entry in self.categories.get(real, []):
-            try:
-                name = entry.split(" (")[0].strip()
-            except Exception:
-                name = entry.strip()
+        term = self.searchBox.text().lower().strip() if hasattr(self, "searchBox") else ""
+        cat_filter_value = ""
+        if hasattr(self, "categoryFilter") and self.categoryFilter.currentIndex() >= 0:
+            data = self.categoryFilter.currentData()
+            if isinstance(data, str):
+                cat_filter_value = data
+        status_text = self.statusFilter.currentText() if hasattr(self, "statusFilter") else "כל הערוצים"
+
+        for entry in self.categories[real]:
+            name = entry.split(" (")[0].strip()
             quality = detect_stream_quality(entry)
+            url = self.getUrl(entry) if hasattr(self, "getUrl") else ""
 
-            logo_url = get_logo_from_cache(self.logo_cache, name)
+            # לוגו אם יש cache
+            logo_url = ""
+            if hasattr(self, "logo_cache"):
+                v = self.logo_cache.get(name)
+                if isinstance(v, list) and v:
+                    logo_url = v[0]
+                elif isinstance(v, str):
+                    logo_url = v
 
-            try:
-                widget = create_channel_widget_v6_compact(
-                    name, quality, logo_url=logo_url, category=real, size=22, enable_async_http=True
-                )
-            except Exception:
-                widget = create_channel_widget(name, quality)
+            is_hidden = False  # החלף אם יש לך דגל אמיתי
 
-            it = QListWidgetItem()
-            it.setSizeHint(widget.sizeHint())
-            it.setData(Qt.UserRole, entry)
-            self.channelList.addItem(it)
-            self.channelList.setItemWidget(it, widget)
+            # סינון
+            if term and term not in name.lower():
+                continue
+            if cat_filter_value and real != cat_filter_value:
+                continue
+            if status_text == "מוסתרים" and not is_hidden:
+                continue
+            if status_text == "פעילים" and is_hidden:
+                continue
+
+            widget = create_channel_widget(name, quality, logo_url, real, is_hidden)
+            lw_item = QListWidgetItem()
+            lw_item.setSizeHint(widget.sizeHint())
+            lw_item.setData(Qt.UserRole, entry)
+            lw_item.setForeground(QColor("#111827"))
+            self.channelList.addItem(lw_item)
+            self.channelList.setItemWidget(lw_item, widget)
+
+        # מונה מוצגים מקומי
+        if hasattr(self, "channelsHeaderCount"):
+            self.channelsHeaderCount.setText(str(self.channelList.count()))
+        # גלובלי נשאר גלובלי
+        if hasattr(self, "displayTotalChannels"):
+            self.displayTotalChannels()
 
     def checkDoubles(self):
         """
@@ -5703,6 +6319,61 @@ class M3UEditor(QWidget):
 
         QMessageBox.information(self, "Check Complete",
                                 f"Found {len(duplicate_indexes)} duplicate channels (one copy kept).")
+
+    def _add_shortcuts(self):
+        from PyQt5.QtWidgets import QShortcut
+        from PyQt5.QtGui import QKeySequence
+        from PyQt5.QtCore import Qt
+
+        def make_shortcut(seq, slot):
+            sc = QShortcut(QKeySequence(seq), self)
+            sc.setContext(Qt.ApplicationShortcut)  # עובד בכל החלון
+            sc.activated.connect(slot)
+            return sc
+
+        # חיפוש
+        make_shortcut("Ctrl+F", self._focus_search)
+        make_shortcut("Ctrl+R", self._clear_search)
+
+        # בחירה ומחיקה ברשימת הערוצים
+        make_shortcut("Ctrl+A", self.selectAllChannels)
+        make_shortcut("Delete", self.deleteSelectedChannels)
+
+        # יצוא
+        make_shortcut("Ctrl+E", self._open_export_dialog_smart)
+
+        # URL Checker רק אם יש
+        if hasattr(self, "openURLCheckerDialog"):
+            make_shortcut("Ctrl+L", self.openURLCheckerDialog)
+
+        # עזרה תמיד, לא תלוי בשום דבר
+        make_shortcut("F1", self.showHelpDialog if hasattr(self, "showHelpDialog") else lambda: None)
+
+    def _focus_search(self):
+        try:
+            if hasattr(self, "searchBox"):
+                self.searchBox.setFocus()
+                self.searchBox.selectAll()
+        except Exception:
+            pass
+
+    def _clear_search(self):
+        try:
+            if hasattr(self, "searchBox"):
+                self.searchBox.clear()
+        except Exception:
+            pass
+
+    def _open_export_dialog_smart(self):
+        try:
+            if hasattr(self, "openExportDialog"):
+                self.openExportDialog()
+                return
+            if hasattr(self, "exportVisibleM3U"):
+                self.exportVisibleM3U()
+                return
+        except Exception:
+            pass
 
     def showURLScanChoiceDialog(self):
         dialog = QDialog(self)
@@ -6160,8 +6831,12 @@ class M3UEditor(QWidget):
                 for ext in [".xml", ".xml.gz"]:
                     epg_candidate = epg_base + ext
                     if os.path.exists(epg_candidate):
-                        self.loadEPG(epg_candidate)
-                        break  # נטען רק את הראשון שנמצא
+                        try:
+                            self.loadEPG(epg_candidate)
+                            break  # נטען רק את הראשון שנמצא
+                        except Exception as e:
+                            print(f"EPG Load Failed for {epg_candidate}: {e}")
+
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to load file:\n{str(e)}")
@@ -6357,8 +7032,6 @@ class M3UEditor(QWidget):
                     })
             except Exception:
                 continue
-
-
 
     def saveM3U(self):
         options = QFileDialog.Options()
@@ -6614,7 +7287,6 @@ class M3UEditor(QWidget):
     def _apply_filter_and_close(self, dialog, lang):
         dialog.accept()
         self.filterIsraelChannelsFromKeywords(lang)
-
 
     def getFilteredCategory(self, channel):
         if 'חדשות' in channel or 'News' in channel:
