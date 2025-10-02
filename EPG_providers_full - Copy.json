@@ -1,0 +1,143 @@
+{
+  "1lot.tv": [
+    "http://1lot.tv/epg/epg.xml"
+  ],
+  "Antifriz.TV": [
+    "http://antifriz.tv/xmltv/xml/gz"
+  ],
+  "api.catcast.tv": [
+    "http://api.catcast.tv/api/timetable/epg.xml?channel_ids=38850,38821,38896,39484,38801,39161",
+    "http://api.catcast.tv/api/timetable/epg.xml?channel_ids=39161,38801,38821,38896,38850"
+  ],
+  "BCUMEDIA": [
+    "https://bcumedia.pro/epg.xml.gz"
+  ],
+  "bit.ly": [
+    "http://bit.ly/voc-tv"
+  ],
+  "CineMan": [
+    "https://cineman.su/epg/epg_cineman.xml.gz"
+  ],
+  "Dortmundez": [
+    "http://dortmundez.ucoz.net/epg/epg.xml.gz"
+  ],
+  "EPG-iptv.ru": [
+    "http://epg-iptv.ru/premiere-group.xml"
+  ],
+  "Epgdo (epg.do.am)": [
+    "http://epg.do.am/tv.gz"
+  ],
+  "Elbrus": [
+    "http://epg.streaming-elbrus.su/xmltv/epg.xml.gz"
+  ],
+  "F1 Mania": [
+    "http://f1-mania.ru/janitor/EPG.xml.gz"
+  ],
+  "Filmax": [
+    "https://filmax-tv.ru/epg.xml.gz"
+  ],
+  "FOX-TV": [
+    "http://epg.fox-tv.fun/1.xmltv",
+    "https://epg.fox-tv.fun/1.xmltv"
+  ],
+  "Gabbarit": [
+    "https://gabbarit.page.link/epg14",
+    "https://gabbarit.page.link/epg"
+  ],
+  "Georgemikl": [
+    "http://georgemikl.ucoz.ru/epg/xmltv.xml.gz"
+  ],
+  "Glanz (ottg.tv)": [
+    "http://ottg.tv/epg.xml.gz"
+  ],
+  "Great IPTV": [
+    "https://epg.greatiptv.cc/iptv.xml.gz"
+  ],
+  "ILOOK TV / Edem TV": [
+    "http://epg.it999.ru/epg.xml.gz",
+    "http://epg.it999.ru/edem.xml.gz",
+    "http://epg.it999.ru/epg2.xml.gz"
+  ],
+  "IPTVX": [
+    "https://iptvx.one/EPG_LITE",
+    "https://iptvx.one/EPG",
+    "https://iptvx.one/EPG.gz",
+    "https://iptvx.one/epg/epg.xml.gz",
+    "https://iptvx.one/epg/epg_lite.xml.gz"
+  ],
+  "IPTVXTV": [
+    "http://epg.iptvx.tv/xmltv.xml.gz"
+  ],
+  "IP-TV.dev": [
+    "https://ip-tv.dev/epg/epg.xml.gz"
+  ],
+  "K210": [
+    "http://tv.k210.org/xmltv.xml.gz"
+  ],
+  "Kineskop TV": [
+    "http://st.kineskop.tv/epg.xml.gz"
+  ],
+  "Light IPTV": [
+    "http://epg.lightiptv.cc/epg.xml.gz"
+  ],
+  "Megane": [
+    "http://georgemikl.ucoz.ru/epg/xmltv.xml.gz"
+  ],
+  "myott.top (OTTCLUB)": [
+    "http://myott.top/api/epg/xml.gz"
+  ],
+  "MW.Prosto TV": [
+    "http://mw.prosto.tv/jtv_utc2.zip"
+  ],
+  "NTTV (api.ttv.world)": [
+    "http://api.ttv.world/ttv.xmltv.xml.gz"
+  ],
+  "Openboxfan": [
+    "http://epg.openboxfan.com/xmltv.xml.gz"
+  ],
+  "Ottepg": [
+    "https://ottepg.ru/ottepg.xml.gz"
+  ],
+  "PlayTV": [
+    "https://list.playtv.pro/f/epg_vod.xml.gz"
+  ],
+  "ProgramTV": [
+    "http://programtv.ru/xmltv.xml.gz"
+  ],
+  "Рошен (Roshen)": [
+    "http://epg.roshen.live/tvguide.xml"
+  ],
+  "RV77": [
+    "http://iptv-content.rv77.pw/epg.xml.gz"
+  ],
+  "Sharavoz TV": [
+    "http://iptv-content.webhop.net/guide.xml",
+    "http://iptv-content.webhop.net/epg.xml.gz",
+    "http://iptv-content.webhop.net/epg.xml.xz",
+    "http://iptv-content.webhop.net/guide-lite.xml",
+    "http://iptv-content.webhop.net/epg-lite.xml.gz",
+    "http://iptv-content.webhop.net/epg-lite.xml.xz"
+  ],
+  "Shara (stb.shara-tv.org)": [
+    "http://stb.shara-tv.org/epg/epgtv.xml.gz"
+  ],
+  "Shara CLUB (list.satfor.pro)": [
+    "https://list.satfor.pro/f/epg.xml.gz"
+  ],
+  "SpaceTV": [
+    "http://spacetv.in/api/epg.xml.gz"
+  ],
+  "Teleguide": [
+    "http://www.teleguide.info/download/new3/xmltv.xml.gz"
+  ],
+  "TopIPTV": [
+    "http://topiptv.info/download/topiptv.xml.gz"
+  ],
+  "TV Team": [
+    "http://epg.team/tvteam.xml.gz",
+    "http://epg.team/tvteam.xml.7.2"
+  ],
+  "kvclub.xyz": [
+    "http://epg.kvclub.xyz/xmltv.xml.gz"
+  ]
+}
