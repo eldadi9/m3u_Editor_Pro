@@ -1,5 +1,6 @@
 import os
 import sys
+
 # תוסיף את התיקייה הנוכחית ל־sys.path כדי שפייתון ימצא את logo.py
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -14,6 +15,7 @@ import tempfile
 from tempfile import NamedTemporaryFile
 import os, subprocess, tempfile
 import os
+
 try:
     import requests
 except Exception:
@@ -28,19 +30,19 @@ from m3u_filter_enhanced import M3UFilterEnhanced
 from PyQt5.QtWidgets import QAbstractItemView, QListWidget
 from PyQt5.QtCore import Qt
 
-
 import os
+
 print("Current directory:", os.getcwd())
 print("Portal file exists:", os.path.exists("portal_extensions.py"))
 
 try:
     from portal_extensions import AdvancedPortalConverter, convert_portal_to_m3u
+
     PORTAL_CONVERTER_AVAILABLE = True
     print("✅ Portal Converter loaded successfully")
 except ImportError as e:
     PORTAL_CONVERTER_AVAILABLE = False
     print(f"⚠️ Portal Converter not available: {e}")
-
 
 import shutil
 from datetime import datetime, timedelta
@@ -56,7 +58,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont, QColor, QIcon
 from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui  import QIcon, QFont, QPixmap, QColor
+from PyQt5.QtGui import QIcon, QFont, QPixmap, QColor
 from logo import load_logo_cache, get_saved_logo, save_logo_for_channel, is_israeli_channel
 from PyQt5.QtWidgets import QMessageBox, QInputDialog
 from telegram_uploader import send_to_telegram
@@ -77,6 +79,7 @@ from utils.network import setup_session
 # משתנים גלובליים
 LOGO_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos_db.json")
 
+
 # --- logos db helpers (load once, alias matching) ---
 def load_logos_db() -> dict:
     try:
@@ -86,12 +89,14 @@ def load_logos_db() -> dict:
     except Exception:
         return {}
 
+
 # ניתן להרחיב אליאסים לשמות נפוצים (לדוגמה לישראל)
 _LOGO_ALIASES = {
     "KAN 11": ["CHANNEL 11", "CH 11", "כאן 11", "IL: Channel 11", "IL: CH 11"],
     "KEShet 12": ["Keshet 12", "Channel 12", "12 HD", "IL: Channel 12"],
     "REShET 13": ["Reshet 13", "Channel 13", "13 HD", "IL: Channel 13"],
 }
+
 
 def get_logo_from_cache(cache: dict, name: str) -> str:
     if not cache or not name:
@@ -114,6 +119,7 @@ class ChannelListWidget(QListWidget):
     """
     Drag&Drop פנימי, בחירה מרובה, שמירת סדר לערוצים ועדכון המודל/טקסט.
     """
+
     def __init__(self, editor_parent):
         super().__init__(editor_parent)
         self.editor = editor_parent
@@ -134,8 +140,8 @@ class ChannelListWidget(QListWidget):
         # מכבה עדכונים בזמן ה-drop כדי למנוע קפיצות
         self.setUpdatesEnabled(False)
         try:
-            super().dropEvent(event)               # Qt מזיז שורות ב־UI
-            self._persist_order_after_reorder()    # אנחנו מעדכנים את self.categories ואת ה-M3U
+            super().dropEvent(event)  # Qt מזיז שורות ב־UI
+            self._persist_order_after_reorder()  # אנחנו מעדכנים את self.categories ואת ה-M3U
         finally:
             self.setUpdatesEnabled(True)
 
@@ -187,6 +193,7 @@ def detect_stream_quality(entry: str) -> str:
     if '480' in e or re.search(r'\bsd\b', e): return 'SD'
     return 'Unknown'
 
+
 # ====== (1) הישן – נשאר כמו שהוא ======
 # ===== Legacy (משאירים כמו שהוא) =====
 def create_channel_widget(name: str, quality: str) -> QWidget:
@@ -202,10 +209,10 @@ def create_channel_widget(name: str, quality: str) -> QWidget:
 
     # תווית איכות
     styles = {
-        '4K':      'background:#66cc66; color:black; padding:2px; border-radius:3px;',
-        'FHD':     'background:#99ccff; color:black; padding:2px; border-radius:3px;',
-        'HD':      'background:#ffff66; color:black; padding:2px; border-radius:3px;',
-        'SD':      'background:#ff6666; color:white; padding:2px; border-radius:3px;',
+        '4K': 'background:#66cc66; color:black; padding:2px; border-radius:3px;',
+        'FHD': 'background:#99ccff; color:black; padding:2px; border-radius:3px;',
+        'HD': 'background:#ffff66; color:black; padding:2px; border-radius:3px;',
+        'SD': 'background:#ff6666; color:white; padding:2px; border-radius:3px;',
         'Unknown': 'background:#999999; color:white; padding:2px; border-radius:3px;'
     }
     qlbl = QLabel(quality or "Unknown")
@@ -221,13 +228,14 @@ def _quality_tag_css_v6(q: str) -> str:
     q = (q or "Unknown").upper()
     base = "padding:1px 6px; border-radius:8px; font-weight:600; font-size:11px;"
     styles = {
-        "4K":      f"background-color:#22c55e; color:#ffffff; {base}",
-        "FHD":     f"background-color:#3b82f6; color:#ffffff; {base}",
-        "HD":      f"background-color:#f59e0b; color:#111827; {base}",
-        "SD":      f"background-color:#ef4444; color:#ffffff; {base}",
+        "4K": f"background-color:#22c55e; color:#ffffff; {base}",
+        "FHD": f"background-color:#3b82f6; color:#ffffff; {base}",
+        "HD": f"background-color:#f59e0b; color:#111827; {base}",
+        "SD": f"background-color:#ef4444; color:#ffffff; {base}",
         "UNKNOWN": f"background-color:#9ca3af; color:#111827; {base}",
     }
     return styles.get(q, styles["UNKNOWN"])
+
 
 # === Async logo loader using Qt Network (non-blocking, fast) ===
 # --- SAFE async logo loader (no crashes if item is deleted) ---
@@ -274,6 +282,7 @@ def _load_logo_async(label, url: str, size: int = 22):
         reply.finished.connect(_on_finished)
     except Exception:
         pass
+
 
 # === Compact V6 card (smaller + fast) ===
 def create_channel_widget_v6_compact(name: str,
@@ -450,7 +459,6 @@ def create_channel_widget_v6_sync(name: str,
     return w
 
 
-
 class CategoryTranslateThread(QThread):
     progress = pyqtSignal(int, str)
     finished = pyqtSignal(dict, dict, str)  # updated_categories, mapping, mode
@@ -526,7 +534,7 @@ class ChannelTranslateThread(QThread):
 
     @staticmethod
     def _is_english(txt):
-        return all(ord(c)<128 for c in txt if c.isalpha())
+        return all(ord(c) < 128 for c in txt if c.isalpha())
 
     def run(self):
         # אוספים את כל השמות שצריך לתרגם
@@ -540,7 +548,7 @@ class ChannelTranslateThread(QThread):
         # מסירים מה-cache
         todo = [n for n in to_translate if n not in ChannelTranslateThread._cache]
         for i in range(0, len(todo), 50):
-            chunk = todo[i:i+50]
+            chunk = todo[i:i + 50]
             try:
                 results = self.trans.translate_batch(chunk)
                 for orig, tr in zip(chunk, results):
@@ -559,7 +567,7 @@ class ChannelTranslateThread(QThread):
             new_list = []
             for entry in lst:
                 if "(" in entry and entry.endswith(")"):
-                    name, rest = entry.split(" (",1)
+                    name, rest = entry.split(" (", 1)
                     url = rest[:-1]
                 else:
                     name, url = entry, ""
@@ -632,7 +640,6 @@ class MoveChannelsDialog(QDialog):
             )
             return  # אל תסגור את החלון
         self.accept()
-
 
 
 class ExportGroupsDialog(QDialog):
@@ -754,7 +761,6 @@ class M3UUrlConverterDialog(QDialog):
         self.copyButton.setStyleSheet("background-color: black; color: white; font-weight: bold;")
         self.copyButton.clicked.connect(self.copyResultToClipboard)
         layout.addWidget(self.copyButton)
-
 
         # Labels and Inputs
 
@@ -953,11 +959,13 @@ class SmartScanThread(QThread):
                 # מחכים רגע קטן לפני יציאה כדי לא לקרוע סיגנלים באמצע
                 time.sleep(0.05)
                 break
-            status = "Offline"; reason = "Unknown"
+            status = "Offline";
+            reason = "Unknown"
             try:
                 res = requests.get(url, headers=headers, stream=True, timeout=4)
                 if res.status_code < 400 and any(x in res.text.lower() for x in ["#extm3u", ".ts", ".mp4", ".m3u8"]):
-                    status = "Online"; reason = "OK"
+                    status = "Online";
+                    reason = "OK"
                     # כאן תוכלו להוסיף בדיקות נוספות dup וכו׳
                 else:
                     reason = f"HTTP {res.status_code}"
@@ -969,7 +977,6 @@ class SmartScanThread(QThread):
             # שידור עדכון
             self.progress.emit(checked, offline, duplicate, (name, url, status, reason))
         self.finished.emit()
-
 
     def stop(self):
         self.stop_requested = True
@@ -1068,7 +1075,8 @@ class URLCheckerDialog(QDialog):
 
         for label in [self.checkedLabel, self.onlineLabel, self.offlineLabel]:
             label.setAlignment(Qt.AlignCenter)
-            label.setStyleSheet("font-size: 24px; background-color: #6A1B9A; color: white; padding: 20px; border-radius: 5px;")
+            label.setStyleSheet(
+                "font-size: 24px; background-color: #6A1B9A; color: white; padding: 20px; border-radius: 5px;")
             summaryLayout.addWidget(label)
 
         layout.addLayout(summaryLayout)
@@ -1956,6 +1964,7 @@ class SmartScanStatusDialog(QDialog):
             print(f"[Reject Error] {e}")
         finally:
             super().reject()
+
 
 class M3UEditor(QWidget):
     logosFinished = pyqtSignal()
@@ -3034,7 +3043,6 @@ class M3UEditor(QWidget):
         except Exception:
             return ""
 
-
     def onLogosFinished(self):
         QMessageBox.information(self, "Logo Scan", "✅ סריקת הלוגואים הושלמה בהצלחה!")
 
@@ -3131,8 +3139,6 @@ class M3UEditor(QWidget):
             lambda: self.play_channel_with_name(self.getCurrentEntry())
         )
         vlc_layout.addWidget(self.playButton)
-
-        
 
         # ▶ Preview לערוצים מרובים
         self.previewButton = QPushButton("▶ צפה בערוצים", self)
@@ -3704,31 +3710,36 @@ class M3UEditor(QWidget):
     def loadM3UFromText(self, content, append=False):
         """
         טוען M3U:
-        - מאחד כותרות EPG לשורה אחת.
-        - מרענן/מוסיף קטגוריות.
+        - מאחד כותרות EPG לשורה אחת (שומר self.epg_headers).
+        - מרענן/מוסיף קטגוריות (לפי append).
         - בוחר קטגוריה ראשונה ומציג ערוצים.
-        - טוען logos_db.json פעם אחת.
-        - סריקת לוגואים ברקע.
-        - HOOK: תיקון EPG תמיד בסוף.
+        - טוען logos_db.json לזיכרון פעם אחת.
+        - מריץ סריקת לוגואים ברקע.
+        * שיפור מהירות/יציבות: עיבוד שורה-שורה, מניעת עבודה כפולה, חסימת עדכוני UI בזמן עיבוד.
         """
         import threading
 
         if not isinstance(content, str):
+            # ליתר ביטחון, אם הגיע bytes
             try:
                 content = content.decode("utf-8", errors="replace")
             except Exception:
                 content = str(content)
 
+        # --- הכנה: categories ---
         if not append:
+            # לא מוחק את האובייקט, רק מנקה (שומר על type/refs)
             try:
                 self.categories.clear()
             except Exception:
                 self.categories = {}
 
+        # --- בניית epg_headers מאוחד (יעיל) ---
         if not hasattr(self, "epg_headers") or not append:
             self.epg_headers = []
 
         epg_lines = []
+        # נבצע מעבר אחד על השורות ונאסוף רק שורות EXTM3U עם פרמטרי EPG
         for ln in content.splitlines():
             if ln.startswith("#EXTM3U") and ("url-tvg=" in ln or "x-tvg-url=" in ln or "tvg-url=" in ln):
                 s = ln.strip()
@@ -3736,18 +3747,28 @@ class M3UEditor(QWidget):
                 if s not in self.epg_headers:
                     self.epg_headers.append(s)
 
+        # צור שורה מאוחדת אחת בלבד (דרך הפונקציה הקיימת שלך)
         unified_header = self.buildUnifiedEPGHeader()
+
+        # --- הסרת כל שורות ה-EXTM3U המקוריות ---
+        # במקום לעבור פעמיים, נבנה רשימה ב־list comprehension אחת
         body_lines = [ln for ln in content.splitlines() if not ln.startswith("#EXTM3U")]
+
+        # נבנה טקסט אחוד ויעבור לפונקציית הפירוש שלך
         content2 = f"{unified_header}\n\n" + "\n".join(body_lines)
 
+        # --- חסימת עדכוני UI בזמן עיבוד כבד ---
         try:
             if hasattr(self, "channelList"):
                 self.channelList.setUpdatesEnabled(False)
         except Exception:
             pass
 
+        # --- פירוש ועדכון UI בסיסי ---
+        # parseM3UContentEnhanced: שומרת על ההתנהגות המקורית שלך
         self.parseM3UContentEnhanced(content2)
 
+        # UI lists/completer
         try:
             self.updateCategoryList()
         except Exception:
@@ -3757,6 +3778,7 @@ class M3UEditor(QWidget):
         except Exception:
             pass
 
+        # --- קטגוריה ראשונה + טעינת logos_db פעם אחת ---
         if getattr(self, "categoryList", None) and self.categoryList.count() > 0:
             self.categoryList.setCurrentRow(0)
             try:
@@ -3765,11 +3787,13 @@ class M3UEditor(QWidget):
                     self.logo_cache = {}
             except Exception:
                 self.logo_cache = {}
+            # הצגת ערוצים (שומר על הפונקציה שלך)
             try:
                 self.display_channels(self.categoryList.currentItem())
             except Exception:
                 pass
 
+        # --- סריקת לוגואים ברקע ---
         try:
             threading.Thread(
                 target=self.extract_and_save_logos_for_all_channels,
@@ -3780,17 +3804,12 @@ class M3UEditor(QWidget):
         except Exception:
             pass
 
+        # --- החזרת עדכוני UI ---
         try:
             if hasattr(self, "channelList"):
                 self.channelList.setUpdatesEnabled(True)
         except Exception:
             pass
-
-        # --- HOOK: תיקון EPG תמיד בסוף ---
-        try:
-            self.merge_or_fix_epg()
-        except Exception as e:
-            print(f"[loadM3UFromText] Warning: failed to merge_or_fix_epg -> {e}")
 
     def extract_and_save_logos_for_all_channels(self, content):
         """
@@ -4773,7 +4792,6 @@ class M3UEditor(QWidget):
         self.convertPortalButton.clicked.connect(self.convertStalkerToM3U)
         buttons_layout.addWidget(self.convertPortalButton)
 
-
         # Export Groups button
         self.exportGroupButton = QPushButton('📤 Export Groups', self)
         self.exportGroupButton.setStyleSheet("background-color: black; color: white;")
@@ -4793,7 +4811,6 @@ class M3UEditor(QWidget):
         self.smartScanButton.setStyleSheet("background-color: black; color: white; font-weight: ;")
         self.smartScanButton.clicked.connect(self.openSmartScanDialog)
         buttons_layout.addWidget(self.smartScanButton)
-
 
         self.mergeEPGButton = QPushButton('📺 Fix EPG', self)
         self.mergeEPGButton.setStyleSheet("background-color: black; color: white;")
@@ -5592,7 +5609,6 @@ class M3UEditor(QWidget):
             self.safely_update_text_edit(new_content)
 
         print("[LOG] 🔄 עדכון M3U בוצע", "כולל סריקת לוגואים" if not skip_logos else "ללא סריקת לוגואים")
-
 
     def moveChannelUp(self):
         """
@@ -6764,8 +6780,6 @@ class M3UEditor(QWidget):
             except Exception:
                 continue
 
-
-
     def saveM3U(self):
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getSaveFileName(self, "Save M3U File", "", "M3U Files (*.m3u);;All Files (*)",
@@ -7162,7 +7176,6 @@ class M3UEditor(QWidget):
     def _apply_filter_and_close(self, dialog, lang):
         dialog.accept()
         self.filterIsraelChannelsFromKeywords(lang)
-
 
     def getFilteredCategory(self, channel):
         if 'חדשות' in channel or 'News' in channel:
