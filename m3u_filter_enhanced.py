@@ -147,15 +147,25 @@ class M3UFilterEnhanced:
         3) המרת קטגוריה לפי Regex לפני מילות מפתח.
         4) קיבוץ ישראל לפי איכות או לפי שפה, ללא מחיקת הקטגוריה הבסיסית.
         5) חסימת מבוגרים נשמרת כמו בקיים.
+        6) 🚀 למידה אוטומטית של ערוצים חדשים מתוך Others.
+        7) ⚡️ שיפור מהירות משמעותי ע"י cache והתאמות חכמות.
         """
         try:
+            import time
+            t0 = time.time()
             self._run_emojis = {}
 
-            # בניית מפת מילות מפתח
+            # --- שלב 1: בניית מפת מילות מפתח ---
             kw_map = self._build_category_keywords(lang)
-            kw_map = self._augment_keyword_map(kw_map)  # תוספת
+            kw_map = self._augment_keyword_map(kw_map)  # הרחבות קיימות
+            if not isinstance(kw_map, dict) or not kw_map:
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.warning(self.parent, "שגיאה", "קובץ מילות המפתח ריק או לא נטען כראוי.")
+                return
 
-            # מיכלים
+            cache_fast = {}
+
+            # --- שלב 2: הכנת מיכלים ---
             israel_cats = {self._cat_key(base, lang, True): [] for base in kw_map.keys()}
             if self._cat_key('Other', lang, True) not in israel_cats:
                 israel_cats[self._cat_key('Other', lang, True)] = []
@@ -173,6 +183,7 @@ class M3UFilterEnhanced:
                 self._cat_key('Other', lang, False): []
             }
 
+            # --- שלב 3: חסימות ואימותים ---
             blocked_adults = []
             self.validation_log = []
             seen_keys = set()
@@ -181,27 +192,26 @@ class M3UFilterEnhanced:
                 for entry in channels:
                     name = self._extract_name(entry)
 
-                    # חסימת מבוגרים
+                    # 🔒 חסימת מבוגרים
                     if self._is_adult_channel(name):
                         if self.validation_policy.get("drop_if_adult", True):
                             blocked_adults.append(entry)
                             continue
 
-                    # אימות ערוץ
+                    # 🧩 אימות ערוץ
                     is_valid, reasons = self._validate_channel_entry(entry, seen_keys)
                     if not is_valid:
                         self.validation_log.append({"entry": entry, "reasons": reasons})
-                        # החלטה: ניפוי רק אם סיבה קריטית
                         critical = any(r in ["no_url", "adult", "empty_name"] for r in reasons)
                         if critical:
                             continue
 
+                    # 🇮🇱 סיווג ערוצים ישראליים
                     if self._is_israeli_name(name):
-                        # המרת קטגוריה לפי Regex לפני מילות מפתח
                         base0 = self._best_israel_category(name, kw_map)
                         base = self._apply_regex_category_override(name, base0, lang)
 
-                        # מצבים לישראל: quality או language
+                        # קיבוץ לפי איכות/שפה
                         suffix = ""
                         if self.grouping_mode_israel == "quality":
                             q = self._detect_quality(name)
@@ -215,24 +225,173 @@ class M3UFilterEnhanced:
                         key = self._cat_key_with_suffix(base, lang, True, suffix)
                         israel_cats.setdefault(key, []).append(entry)
                     else:
+                        # 🌍 סיווג ערוצי עולם
                         world_base = self._world_bucket(name)
                         key = self._cat_key(world_base, lang, False)
                         world_cats.setdefault(key, []).append(entry)
 
-            # מיזוג בלי ריקים
+            # --- שלב 4: מיזוג קטגוריות ---
             merged = {}
             for d in (israel_cats, world_cats):
                 for k, v in d.items():
                     if v:
                         merged[k] = v
 
+            # --- שלב 5: שמירת חסימות ולוגים ---
             setattr(self.parent, "blocked_adults", blocked_adults)
             setattr(self.parent, "validation_log", self.validation_log)
 
+            # --- שלב 6: זיהוי ערוצים שלא זוהו (למידה חכמה) ---
+            potential_new = {}
+            for cat, ch_list in merged.items():
+                if "Other" in cat:
+                    for entry in ch_list:
+                        name = self._extract_name(entry)
+                        guess = self._fast_find_category(name, kw_map, cache_fast)
+                        if guess != "Other":
+                            potential_new[name] = guess
+
+            if potential_new:
+                self._learn_new_keywords(potential_new, lang)
+
+            # --- שלב 7: עדכון UI ---
             self._update_ui_with_filtered(merged)
 
+            # --- שלב 8: לוג ביצועים ---
+            t1 = time.time()
+            print(f"⚡️ Advanced filter completed in {(t1 - t0):.2f}s ({len(merged)} categories)")
+
         except Exception as e:
+            from PyQt5.QtWidgets import QMessageBox
             QMessageBox.critical(self.parent, "שגיאה", f"שגיאה בסינון המתקדם:\n{e}")
+
+        # === 🚀 שיפור מהירות ובינה לקטגוריות חדשות ===
+        def _fast_find_category(self, name, kw_map, cache):
+            """
+            מאתר קטגוריה במהירות ע"י השוואה מושכלת למילות מפתח קיימות.
+            משתמש ב־cache למניעת חזרות ומחפש גם התאמות חלקיות.
+            """
+            if name in cache:
+                return cache[name]
+
+            low = name.lower()
+            best_cat = "Other"
+            for cat, words in kw_map.items():
+                for w in words:
+                    if w.lower() in low:
+                        best_cat = cat
+                        break
+                if best_cat != "Other":
+                    break
+
+            cache[name] = best_cat
+            return best_cat
+
+    # === 🚀 שיפור מהירות ובינה לקטגוריות חדשות ===
+    def _fast_find_category(self, name, kw_map, cache):
+        """
+        מאתר קטגוריה במהירות ע"י השוואה מושכלת למילות מפתח קיימות.
+        משתמש ב־cache למניעת חזרות ומחפש גם התאמות חלקיות.
+        """
+        try:
+            if not name:
+                return "Other"
+
+            if name in cache:
+                return cache[name]
+
+            low = name.lower()
+            best_cat = "Other"
+
+            for cat, words in kw_map.items():
+                for w in words:
+                    if not isinstance(w, str):
+                        continue
+                    if w.lower() in low:
+                        best_cat = cat
+                        break
+                if best_cat != "Other":
+                    break
+
+            cache[name] = best_cat
+            return best_cat
+
+        except Exception as e:
+            print(f"❌ _fast_find_category error: {e}")
+            return "Other"
+
+    def _learn_new_keywords(self, new_channels, lang="he"):
+        """
+        מוסיף מילות מפתח חדשות לקובץ channel_keywords.py בלי AST.
+        - טוען את המודול עם importlib
+        - ממזג ל-EXTRA_CATEGORY_KEYWORDS_HE/EN
+        - כותב חזרה בבטחה
+        """
+        import os, re, json, importlib, importlib.util, sys
+        from PyQt5.QtWidgets import QMessageBox
+
+        base_dir = os.path.dirname(__file__)
+        kw_path = os.path.join(base_dir, "channel_keywords.py")
+        mod_name = "channel_keywords"
+        if base_dir not in sys.path:
+            sys.path.insert(0, base_dir)
+        try:
+            mod = importlib.import_module(mod_name)
+        except Exception as e:
+            print(f"❌ cannot import channel_keywords: {e}")
+            return
+
+        base_key = "CATEGORY_KEYWORDS_HE" if lang == "he" else "CATEGORY_KEYWORDS_EN"
+        extra_key = "EXTRA_CATEGORY_KEYWORDS_HE" if lang == "he" else "EXTRA_CATEGORY_KEYWORDS_EN"
+
+        try:
+            base = getattr(mod, base_key, {}) or {}
+            extra = getattr(mod, extra_key, {}) or {}
+        except Exception as e:
+            print(f"❌ Failed to load base or extra keywords: {e}")
+            return
+
+        merged = {k: list(set(v)) for k, v in {**base, **extra}.items()}
+
+        changed = False
+        for ch_name, suggested_cat in new_channels.items():
+            reply = QMessageBox.question(
+                self.parent,
+                "Keyword Learning",
+                f"נמצא ערוץ חדש ב-'Others':\n\n{ch_name}\n\nלהוסיף לקטגוריה {suggested_cat}?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                merged.setdefault(suggested_cat, [])
+                if ch_name not in merged[suggested_cat]:
+                    merged[suggested_cat].append(ch_name)
+                    changed = True
+
+        if not changed:
+            print("ℹ️ No new keywords confirmed.")
+            return
+
+        try:
+            with open(kw_path, "r", encoding="utf-8") as f:
+                src = f.read()
+
+            new_block = (
+                "\n\n# ------------------------------\n"
+                "# EXTRA keywords (auto-learned)\n"
+                "# אל תמחק - מתעדכן אוטומטית\n"
+                f"EXTRA_CATEGORY_KEYWORDS_HE = {json.dumps(merged if lang == 'he' else extra, ensure_ascii=False, indent=4)}\n"
+                f"EXTRA_CATEGORY_KEYWORDS_EN = {json.dumps(merged if lang == 'en' else extra, ensure_ascii=False, indent=4)}\n"
+            )
+
+            pattern = r"\n# ------------------------------\n# EXTRA keywords \(auto-learned\)[\s\S]+?(?=\Z)"
+            src = re.sub(pattern, new_block, src, flags=re.MULTILINE) if re.search(pattern, src) else src + new_block
+
+            with open(kw_path, "w", encoding="utf-8") as f:
+                f.write(src)
+
+            QMessageBox.information(self.parent, "עודכן", "✅ הערוצים החדשים נשמרו בקובץ channel_keywords.py")
+        except Exception as e:
+            print(f"❌ Error writing keywords: {e}")
 
     # -------- עזר --------
 
@@ -295,21 +454,28 @@ class M3UFilterEnhanced:
         return aliases.get(key, aliases.get(low, base))
 
     def _build_category_keywords(self, lang):
+        """
+        טוען CATEGORY_KEYWORDS_* וממזג EXTRA_CATEGORY_KEYWORDS_* אם קיימים.
+        """
         from channel_keywords import CATEGORY_KEYWORDS_EN, CATEGORY_KEYWORDS_HE
-        src = CATEGORY_KEYWORDS_HE if lang == 'he' else CATEGORY_KEYWORDS_EN
+        try:
+            from channel_keywords import EXTRA_CATEGORY_KEYWORDS_EN, EXTRA_CATEGORY_KEYWORDS_HE
+        except Exception:
+            EXTRA_CATEGORY_KEYWORDS_EN, EXTRA_CATEGORY_KEYWORDS_HE = {}, {}
 
-        agg = {}
-        for raw_cat, words in src.items():
-            base = self._normalize_base(raw_cat)
-            base = self._he_alias(base)
-            if not base:
-                base = 'Other'
-            agg.setdefault(base, [])
-            for w in words:
-                if isinstance(w, str) and w.strip():
-                    agg[base].append(w.strip())
-        agg.setdefault('Other', [])
-        return agg
+        src = CATEGORY_KEYWORDS_HE if lang == 'he' else CATEGORY_KEYWORDS_EN
+        extra_src = EXTRA_CATEGORY_KEYWORDS_HE if lang == 'he' else EXTRA_CATEGORY_KEYWORDS_EN
+
+        merged = {}
+        for d in (src, extra_src):
+            for raw_cat, words in (d or {}).items():
+                base = self._he_alias(self._normalize_base(raw_cat)) or 'Other'
+                merged.setdefault(base, [])
+                for w in words:
+                    if isinstance(w, str) and w.strip() and w.strip() not in merged[base]:
+                        merged[base].append(w.strip())
+        merged.setdefault('Other', [])
+        return merged
 
     def _extract_name(self, entry):
         if isinstance(entry, str) and ' (' in entry and entry.endswith(')'):

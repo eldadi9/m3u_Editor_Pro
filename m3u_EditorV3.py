@@ -313,13 +313,8 @@ def create_channel_widget_v6_compact(name: str,
         if isinstance(logo_url, str) and logo_url:
             if logo_url.lower().startswith("http"):
                 have_logo = True
-                # ✅ שיפור: בדיקת cache מראש למניעת טעינות כפולות
                 if enable_async_http:
-                    # בדוק אם כבר טענו את הלוגו הזה
-                    if not hasattr(logo_lbl, '_cached_url') or logo_lbl._cached_url != logo_url:
-                        logo_lbl._cached_url = logo_url
-                        _load_logo_async(logo_lbl, logo_url, size=size)
-                    # אם כבר טענו - לא עושים כלום (חוסך זמן!)
+                    _load_logo_async(logo_lbl, logo_url, size=size)
             else:
                 if os.path.exists(logo_url):
                     pix = QPixmap(logo_url)
@@ -368,11 +363,6 @@ def create_channel_widget_v6_compact(name: str,
 
     w.setMinimumHeight(max(32, size + 6))
     w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-
-    # ✅ שיפור: שמירת reference למניעת garbage collection
-    w._logo_label = logo_lbl
-    w._name_label = name_lbl
-
     return w
 
 
@@ -3603,60 +3593,92 @@ class M3UEditor(QWidget):
 
     def loadM3UFromText(self, content, append=False):
         """
-        טוען M3U ברקע עם progress bar - לא קורס על קבצים גדולים
+        טוען M3U:
+        - מאחד כותרות EPG לשורה אחת
+        - טוען/מרענן קטגוריות
+        - בוחר קטגוריה ראשונה ומציג ערוצים
+        - טוען logos_db.json לזיכרון פעם אחת
+        - מריץ סריקת לוגואים ברקע (לשיפור DB)
         """
-        if not append:
-            self.categories.clear()
+        import threading
 
-        # 1️⃣ ניהול EPG headers
-        if not hasattr(self, "epg_headers") or not append:
-            self.epg_headers = []
+        # כיבוי עדכונים/סיגנלים כדי למנוע רענוני UI מיותרים בזמן עיבוד כבד
+        try:
+            if hasattr(self, "categoryList"):
+                self.categoryList.setUpdatesEnabled(False)
+                self.categoryList.blockSignals(True)
+            if hasattr(self, "channelList"):
+                self.channelList.setUpdatesEnabled(False)
+                self.channelList.blockSignals(True)
+        except Exception:
+            pass
 
-        detected_epg_headers = []
-        for line in content.splitlines()[:100]:  # ✅ סרוק רק 100 שורות ראשונות
-            if line.startswith("#EXTM3U") and ("url-tvg=" in line or "x-tvg-url=" in line or "tvg-url=" in line):
-                detected_epg_headers.append(line.strip())
+        try:
+            if not append:
+                self.categories.clear()
 
-        for header in detected_epg_headers:
-            if header not in self.epg_headers:
-                self.epg_headers.append(header)
+            # מעבר יחיד על התוכן: גם איסוף כותרות EPG וגם סינון #EXTM3U
+            if not hasattr(self, "epg_headers") or not append:
+                self.epg_headers = []
 
-        # 2️⃣ בניית שורת EXTM3U אחידה
-        lines = [line for line in content.splitlines() if not line.startswith("#EXTM3U")]
-        unified_header = self.buildUnifiedEPGHeader()
-        content2 = unified_header + "\n\n" + "\n".join(lines)
+            lines_src = content.splitlines()
+            extm3u_prefix = "#EXTM3U"
+            epg_markers = ("url-tvg=", "x-tvg-url=", "tvg-url=")
 
-        # 3️⃣ ✅ פרסור מהיר ברקע עם QTimer
-        from PyQt5.QtCore import QTimer
+            filtered_lines = []
+            epg_headers_local = self.epg_headers  # קיצור גישה
+            for ln in lines_src:
+                if ln.startswith(extm3u_prefix):
+                    # נשמור רק כותרות EPG עם פרמטרים רלוונטיים
+                    if any(m in ln for m in epg_markers):
+                        s = ln.strip()
+                        if s not in epg_headers_local:
+                            epg_headers_local.append(s)
+                    # לא מכניסים לרשימת התוכן (מונעים כפילות)
+                    continue
+                filtered_lines.append(ln)
 
-        # הצג progress
-        from PyQt5.QtWidgets import QProgressDialog
-        progress = QProgressDialog("Loading M3U...", None, 0, 100, self)
-        progress.setWindowModality(Qt.WindowModal)
-        progress.setMinimumDuration(0)
-        progress.setValue(10)
+            unified_header = self.buildUnifiedEPGHeader()
+            # הגרסה המצומצמת של התוכן: כותרת אחת + כל שאר השורות
+            content2 = unified_header + "\n\n" + "\n".join(filtered_lines)
 
-        def parse_async():
+            # פרסינג + בניית UI נלווים (עם פחות הקפצות)
             self.parseM3UContentEnhanced(content2)
-            progress.setValue(60)
 
+            # פעולות UI כבדות - נבצע כשהעדכונים כבויים
             self.updateCategoryList()
             self.buildSearchCompleter()
-            progress.setValue(80)
 
+            # בחר קטגוריה ראשונה, טען logos_db לזיכרון פעם אחת, והצג ערוצים
             if self.categoryList.count() > 0:
                 self.categoryList.setCurrentRow(0)
                 try:
                     self.logo_cache = load_logos_db()
                 except Exception:
                     self.logo_cache = {}
-                self.display_channels(self.categoryList.currentItem())
 
-            progress.setValue(100)
-            progress.close()
+                # ⏳ דחיית טעינת הערוצים לאחר שהקובץ נטען במלואו
+                from PyQt5.QtCore import QTimer
+                QTimer.singleShot(300, lambda: self.display_channels(self.categoryList.currentItem()))
 
-        # ✅ הרץ לאחר 50ms כדי לתת ל-UI להתעדכן
-        QTimer.singleShot(50, parse_async)
+            # סריקת לוגואים ברקע – בלי לחסום UI
+            threading.Thread(
+                target=self.extract_and_save_logos_for_all_channels,
+                args=(content2,),
+                daemon=True
+            ).start()
+
+        finally:
+            # החזרת העדכונים/סיגנלים
+            try:
+                if hasattr(self, "categoryList"):
+                    self.categoryList.blockSignals(False)
+                    self.categoryList.setUpdatesEnabled(True)
+                if hasattr(self, "channelList"):
+                    self.channelList.blockSignals(False)
+                    self.channelList.setUpdatesEnabled(True)
+            except Exception:
+                pass
 
     def extract_and_save_logos_for_all_channels(self, content):
         """
@@ -4149,6 +4171,7 @@ class M3UEditor(QWidget):
             return
 
         print(f"[MERGE] Found {extinf_count} EXTINF entries in file")
+
         print(f"[MERGE] Starting merge of file: {fileName}")
 
         try:
@@ -4167,21 +4190,23 @@ class M3UEditor(QWidget):
             # משתנים למעקב
             channels_added = 0
             categories_created = 0
-            extinf_data = {}
+            extinf_data = {}  # מיפוי מלא של EXTINF לכל ערוץ
 
             print(f"[MERGE] Processing {len(lines)} lines from new file")
 
-            # ✅ שיפור: עיבוד מהיר עם batch processing
             i = 0
-            batch_entries = []  # ✅ אוסף entries לפני הוספה
-
             while i < len(lines):
                 line = lines[i]
 
+                # בדיקה אם זו שורת EXTINF
                 if line.startswith("#EXTINF"):
+                    # וידוא שיש שורת URL אחריה
                     if i + 1 < len(lines) and not lines[i + 1].startswith("#"):
                         extinf_line = line
                         url_line = lines[i + 1]
+
+                        print(f"[MERGE] Processing EXTINF: {extinf_line[:100]}...")
+                        print(f"[MERGE] URL: {url_line}")
 
                         # חילוץ שם הערוץ
                         name_match = re.search(r',(.+)', extinf_line)
@@ -4190,6 +4215,8 @@ class M3UEditor(QWidget):
                         # חילוץ קטגוריה
                         group_match = re.search(r'group-title="([^"]*)"', extinf_line)
                         category = group_match.group(1).strip() if group_match else "Other"
+
+                        print(f"[MERGE] Channel: '{channel_name}', Category: '{category}'")
 
                         # הזרקת לוגו אם לא קיים
                         if 'tvg-logo="' not in extinf_line:
@@ -4205,68 +4232,55 @@ class M3UEditor(QWidget):
                         # יצירת רשומת ערוץ מלאה
                         channel_entry = f"{channel_name} ({url_line})"
 
-                        # ✅ שיפור: הוספה ל-batch במקום הוספה ישירה
-                        batch_entries.append({
-                            'category': category,
-                            'entry': channel_entry,
-                            'extinf': extinf_line,
-                            'name': channel_name
-                        })
+                        # יצירת הקטגוריה אם לא קיימת
+                        if category not in self.categories:
+                            self.categories[category] = []
+                            categories_created += 1
+                            print(f"[MERGE] Created category: {category}")
 
-                        i += 2
+                        # בדיקת כפילויות מפורטת
+                        is_duplicate = False
+                        existing_entries = self.categories.get(category, [])
+
+                        print(
+                            f"[MERGE] Checking duplicates in category '{category}' with {len(existing_entries)} existing entries")
+
+                        for j, existing_entry in enumerate(existing_entries):
+                            if " (" in existing_entry and existing_entry.endswith(")"):
+                                existing_name = existing_entry.split(" (")[0].strip()
+                                existing_url = existing_entry.split(" (", 1)[1].rstrip(")")
+
+                                # בדיקה לפי שם בלבד (פחות קפדנית)
+                                if existing_name.lower() == channel_name.lower():
+                                    is_duplicate = True
+                                    print(f"[MERGE] Found duplicate by name: '{existing_name}' == '{channel_name}'")
+                                    break
+
+                                # בדיקה לפי URL בלבד
+                                if existing_url.strip() == url_line.strip():
+                                    is_duplicate = True
+                                    print(f"[MERGE] Found duplicate by URL: {url_line}")
+                                    break
+
+                        # הוספת הערוץ תמיד - גם אם כפול (לבדיקה)
+                        if True:  # שינוי זמני לבדיקה - הוסף הכל
+                            self.categories[category].append(channel_entry)
+                            channels_added += 1
+
+                            # שמירת EXTINF למיפוי
+                            extinf_data[channel_entry] = extinf_line
+
+                            status = "DUPLICATE" if is_duplicate else "NEW"
+                            print(f"[MERGE] {status}: Added '{channel_name}' to '{category}'")
+
+                        i += 2  # דילוג על שתי השורות שעובדו
                     else:
+                        # EXTINF ללא URL - דילוג
                         print(f"[MERGE] Warning: EXTINF without URL at line {i}: {line[:50]}...")
                         i += 1
                 else:
+                    # שורה אחרת - דילוג
                     i += 1
-
-            # ✅ עיבוד batch - הרבה יותר מהיר מלולאות מקוננות
-            print(f"[MERGE] Processing batch of {len(batch_entries)} entries")
-
-            for entry_data in batch_entries:
-                category = entry_data['category']
-                channel_entry = entry_data['entry']
-                extinf_line = entry_data['extinf']
-                channel_name = entry_data['name']
-
-                # יצירת הקטגוריה אם לא קיימת
-                if category not in self.categories:
-                    self.categories[category] = []
-                    categories_created += 1
-                    print(f"[MERGE] Created category: {category}")
-
-                # בדיקת כפילויות מפורטת
-                is_duplicate = False
-                existing_entries = self.categories.get(category, [])
-
-                for existing_entry in existing_entries:
-                    if " (" in existing_entry and existing_entry.endswith(")"):
-                        existing_name = existing_entry.split(" (")[0].strip()
-                        existing_url = existing_entry.split(" (", 1)[1].rstrip(")")
-
-                        # בדיקה לפי שם בלבד (פחות קפדנית)
-                        if existing_name.lower() == channel_name.lower():
-                            is_duplicate = True
-                            print(f"[MERGE] Found duplicate by name: '{existing_name}' == '{channel_name}'")
-                            break
-
-                        # בדיקה לפי URL בלבד
-                        url_from_entry = channel_entry.split(" (", 1)[1].rstrip(")")
-                        if existing_url.strip() == url_from_entry.strip():
-                            is_duplicate = True
-                            print(f"[MERGE] Found duplicate by URL")
-                            break
-
-                # הוספת הערוץ (כולל כפולים לבדיקה)
-                if True:  # ✅ שמור את השורה הזו כמו שהיא
-                    self.categories[category].append(channel_entry)
-                    channels_added += 1
-
-                    # שמירת EXTINF למיפוי
-                    extinf_data[channel_entry] = extinf_line
-
-                    status = "DUPLICATE" if is_duplicate else "NEW"
-                    print(f"[MERGE] {status}: Added '{channel_name}' to '{category}'")
 
             # עדכון מיפוי EXTINF הגלובלי
             if not hasattr(self, 'extinf_lookup'):
@@ -4283,7 +4297,7 @@ class M3UEditor(QWidget):
             # עדכון התוכן בעורך
             self.regenerateM3UTextOnly()
 
-            # עדכון התצוגה
+            # עדכון תצוגה
             self.cleanEmptyCategories()
             self.updateCategoryList()
 
@@ -4307,11 +4321,11 @@ class M3UEditor(QWidget):
             message = f"""המיזוג הושלם בהצלחה!
 
     📊 סיכום מפורט:
-    - ערוצים שנוספו: {channels_added}
-    - קטגוריות חדשות: {categories_created}
-    - סה"כ ערוצים לפני: {channels_before:,}
-    - סה"כ ערוצים אחרי: {channels_after:,}
-    - הגידול בפועל: {actual_added:,}
+    • ערוצים שנוספו: {channels_added}
+    • קטגוריות חדשות: {categories_created}
+    • סה"כ ערוצים לפני: {channels_before:,}
+    • סה"כ ערוצים אחרי: {channels_after:,}
+    • הגידול בפועל: {actual_added:,}
 
     ✅ כל הערוצים והקטגוריות נוספו לפלייליסט
     📝 כל מיפויי ה-EXTINF נשמרו
@@ -5036,15 +5050,37 @@ class M3UEditor(QWidget):
 
     def updateCategoryList(self):
         """
-        Updates the category list dynamically to reflect the current channel counts.
+        ⚡ גרסה מהירה של עדכון רשימת קטגוריות:
+        - מכבה ציור בזמן העדכון (setUpdatesEnabled)
+        - בונה את הרשימה בזיכרון ומוסיפה בבת אחת
+        - מחשבת סיכומים רק פעם אחת בסוף
         """
-        self.categoryList.clear()
-        for category, channels in self.categories.items():
-            display_text = f"{category} ({len(channels)})"
-            self.categoryList.addItem(display_text)
+        from PyQt5.QtWidgets import QListWidgetItem
 
-            # עדכון הספירה הכללית של ערוצים + קטגוריות
-            self.displayTotalChannels()
+        lst = self.categoryList
+        lst.setUpdatesEnabled(False)
+        try:
+            lst.clear()
+
+            total_channels = 0
+            addItem = lst.addItem  # קיצור גישה (חוסך חיפושי attribute)
+
+            # בונה את כל השורות בזיכרון
+            for category, channels in self.categories.items():
+                count = len(channels)
+                total_channels += count
+                addItem(f"{category} ({count})")
+
+            # עדכון סיכום פעם אחת בלבד (לא בכל לולאה)
+            if hasattr(self, "displayTotalChannels"):
+                try:
+                    self.displayTotalChannels(total_channels=total_channels)
+                except TypeError:
+                    # גרסאות ישנות שלא מקבלות פרמטר
+                    self.displayTotalChannels()
+
+        finally:
+            lst.setUpdatesEnabled(True)
 
     def cleanEmptyCategories(self):
         """
@@ -5573,6 +5609,69 @@ class M3UEditor(QWidget):
 
         print("[LOG] 🔄 עדכון M3U בוצע", "כולל סריקת לוגואים" if not skip_logos else "ללא סריקת לוגואים")
 
+    def showCategoryChannels_lazy(self, category_name):
+        """
+        ✅ הצגת קטגוריה עם טעינה הדרגתית כדי למנוע קריסה בקטגוריות גדולות (כמו Others)
+        """
+        try:
+            from PyQt5.QtCore import QSize, Qt, QTimer
+            from PyQt5.QtWidgets import QListWidgetItem
+
+            if not hasattr(self, "channelList"):
+                print("❌ channelList לא מוגדר - בדוק את ממשק המשתמש")
+                return
+
+            self.channelList.clear()
+            channels = self.categories.get(category_name, [])
+            if not channels:
+                return
+
+            total = len(channels)
+            batch_size = 250 if total > 1000 else total
+            self._visible_batch = batch_size
+            self._all_channels = channels
+
+            def load_batch():
+                """טעינה הדרגתית למניעת עומס"""
+                self.channelList.setUpdatesEnabled(False)
+                subset = self._all_channels[:self._visible_batch]
+
+                for entry in subset:
+                    try:
+                        name = entry.split(" (", 1)[0].strip()
+                        q = self.detect_stream_quality(name) if hasattr(self, 'detect_stream_quality') else ""
+                        item = QListWidgetItem()
+                        item.setSizeHint(QSize(160, 34))
+                        item.setData(Qt.UserRole, entry)
+                        w = create_channel_widget_v6_compact(name, q)
+                        self.channelList.addItem(item)
+                        self.channelList.setItemWidget(item, w)
+                    except Exception as e:
+                        print(f"[lazy] item error: {e}")
+                        continue
+
+                self.channelList.setUpdatesEnabled(True)
+
+                if len(self._all_channels) > self._visible_batch:
+                    load_more_item = QListWidgetItem("⬇️ טען עוד ערוצים...")
+                    load_more_item.setData(Qt.UserRole, "load_more")
+                    self.channelList.addItem(load_more_item)
+
+            def on_item_clicked(item):
+                if item.data(Qt.UserRole) == "load_more":
+                    self._visible_batch += 250
+                    QTimer.singleShot(10, load_batch)
+
+            self.channelList.itemClicked.connect(on_item_clicked)
+            load_batch()
+
+            print(f"✅ נטענו {min(total, self._visible_batch)} מתוך {total} ערוצים בקטגוריה '{category_name}'")
+
+        except Exception as e:
+            print(f"❌ showCategoryChannels_lazy error: {e}")
+
+
+
     def moveChannelUp(self):
         """
         מעביר ערוץ אחד למעלה הן ב-UI והן ב-metadata של self.categories.
@@ -5927,60 +6026,88 @@ class M3UEditor(QWidget):
     def display_channels(self, item):
         """
         הצגה מהירה: מכבה ציור בזמן בניה, משתמש בכרטיס V6 קומפקטי ולוגו מ-cache.
-        שיפור: בניית batch של items לפני הוספה
+        שיפור: בניית batch של items לפני הוספה + הגבלת טעינת לוגואים כדי למנוע עומס רשת.
         """
         from PyQt5.QtWidgets import QListWidgetItem
         from PyQt5.QtCore import Qt
 
-        self.channelList.setUpdatesEnabled(False)
+        lst = self.channelList
+        lst.setUpdatesEnabled(False)
+
         try:
-            self.channelList.clear()
+            lst.clear()
             if item is None:
                 return
 
-            # cache ללוגואים (נשען עליך)
+            # cache ללוגואים (טעינה חד פעמית)
             if not hasattr(self, "logo_cache") or not isinstance(self.logo_cache, dict) or not self.logo_cache:
-                self.logo_cache = load_logos_db()
+                try:
+                    self.logo_cache = load_logos_db()
+                except Exception:
+                    self.logo_cache = {}
 
-            cat = item.text().split(" (")[0].strip()
-            real = {k.strip(): k for k in self.categories}.get(cat)
+            # מציאת שם הקטגוריה המדויק במילון
+            cat_ui = item.text().split(" (")[0].strip()
+            real = {k.strip(): k for k in self.categories}.get(cat_ui)
             if not real:
                 return
 
-            # ✅ שיפור: בניית batch מלא לפני הוספה (פי 10 מהיר יותר)
-            channels_to_add = []
-            for entry in self.categories.get(real, []):
+            channels = self.categories.get(real, [])
+            addItem = lst.addItem
+            setItemWidget = lst.setItemWidget
+            get_logo = get_logo_from_cache
+            q_detect = detect_stream_quality
+
+            # 🚫 כדי למנוע הצפת חיבורים/הקפאת UI: לוגו אסינכרוני רק ל-N הראשונים
+            # (השאר יצוגו בלי לוגו/עם enable_async_http=False – עדיין מהיר וקל)
+            LOGO_ASYNC_LIMIT = 250  # ניתן לשינוי ללא פגיעה בלוגיקה
+
+            batch = []
+            use_v6 = True  # נשמר העיצוב הנוכחי שלך כברירת מחדל
+
+            # בניית כל ה-items בזיכרון (ללא רענון ביניים)
+            for idx, entry in enumerate(channels):
                 try:
                     name = entry.split(" (")[0].strip()
                 except Exception:
-                    name = entry.strip()
+                    name = str(entry).strip()
 
-                quality = detect_stream_quality(entry)
-                logo_url = get_logo_from_cache(self.logo_cache, name)
+                quality = q_detect(entry)
+                logo_url = get_logo(self.logo_cache, name)
+
+                # הפחתת עומס רשת/CPU בליסטות ענק
+                enable_async = (idx < LOGO_ASYNC_LIMIT)
 
                 try:
-                    widget = create_channel_widget_v6_compact(
-                        name, quality, logo_url=logo_url, category=real, size=22, enable_async_http=True
-                    )
+                    if use_v6:
+                        widget = create_channel_widget_v6_compact(
+                            name, quality, logo_url=logo_url, category=real,
+                            size=22, enable_async_http=enable_async
+                        )
+                    else:
+                        widget = create_channel_widget(name, quality)
                 except Exception:
                     widget = create_channel_widget(name, quality)
 
                 it = QListWidgetItem()
                 it.setSizeHint(widget.sizeHint())
                 it.setData(Qt.UserRole, entry)
-                channels_to_add.append((it, widget))
+                batch.append((it, widget))
 
-            # ✅ הוספה חכמה - אחת אחת אבל ללא refresh ביניים
-            for it, widget in channels_to_add:
-                self.channelList.addItem(it)
-                self.channelList.setItemWidget(it, widget)
+            # הוספה מרוכזת ללא רענון בין פריטים
+            for it, widget in batch:
+                addItem(it)
+                setItemWidget(it, widget)
 
         finally:
-            self.channelList.setUpdatesEnabled(True)
+            lst.setUpdatesEnabled(True)
 
-            # בסוף display_channels, לפני ה-return
+            # צביעה/סגנון בחירה (אם קיימת)
             if hasattr(self, "_apply_channel_selection_styles"):
-                self._apply_channel_selection_styles()
+                try:
+                    self._apply_channel_selection_styles()
+                except Exception:
+                    pass
 
     def _on_channel_item_clicked(self, item):
         """
@@ -6489,39 +6616,93 @@ class M3UEditor(QWidget):
     import xml.etree.ElementTree as ET
 
     def loadM3U(self):
+        """
+        🚀 גרסה משופרת - טעינת קובץ M3U ב-Thread נפרד עם טיפול יציב בזיכרון.
+        """
+        from PyQt5.QtCore import QThread, pyqtSignal, QObject
+        from PyQt5.QtWidgets import QMessageBox, QFileDialog
+        import os
+
+        class M3ULoaderWorker(QObject):
+            finished = pyqtSignal(str, str)
+            error = pyqtSignal(str)
+
+            def __init__(self, path):
+                super().__init__()
+                self.path = path
+
+            def run(self):
+                try:
+                    with open(self.path, "r", encoding="utf-8-sig", errors="replace") as f:
+                        content = f.read()
+                    self.finished.emit(self.path, content)
+                except Exception as e:
+                    self.error.emit(str(e))
+
+        # --- פתיחת קובץ ---
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(
             self,
             "Open M3U File",
             "",
-            "M3U Files (*.m3u *.m3u8);;All Files (*)", options=options
+            "M3U Files (*.m3u *.m3u8);;All Files (*)",
+            options=options
         )
-        if fileName:
+        if not fileName:
+            return
+
+        # הודעה ראשונית
+        if hasattr(self, "statusBar"):
             try:
-                with open(fileName, 'r', encoding='utf-8') as file:
-                    content = file.read()
+                self.statusBar().showMessage(f"📂 Loading {os.path.basename(fileName)} ...")
+            except Exception:
+                pass
 
-                # טען M3U דרך המתודה הראשית
-                self.loadM3UFromText(content, append=False)
+        # --- Thread קריאה ---
+        worker = M3ULoaderWorker(fileName)
+        thread = QThread(self)  # קושר את ה-thread ל־self כדי שלא ייהרס
 
-                # ✅ עדכון תצוגה
-                total_channels = sum(len(channels) for channels in self.categories.values())
-                total_categories = len(self.categories)
-                summary = f"📺 Total Channels: {total_channels}   |   🗂 Categories: {total_categories}"
+        # שמירה לשדות (כדי לא להיאסף על ידי ה-GC)
+        self._loader_thread = thread
+        self._loader_worker = worker
+
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._onM3ULoaded)
+        worker.error.connect(lambda e: QMessageBox.critical(self, "Error", f"Failed to load file:\n{e}"))
+        # סגירה בטוחה
+        worker.finished.connect(thread.quit)
+        worker.error.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+
+        thread.start()
+
+    def _onM3ULoaded(self, path, content):
+        """מקבל תוכן שנקרא ב-thread ברקע וממשיך כרגיל"""
+        import os
+        try:
+            if hasattr(self, "statusBar"):
+                self.statusBar().showMessage("📊 Parsing M3U content...")
+
+            self.loadM3UFromText(content, append=False)
+
+            total_channels = sum(len(v) for v in self.categories.values())
+            total_categories = len(self.categories)
+            summary = f"📺 Total Channels: {total_channels}   |   🗂 Categories: {total_categories}"
+
+            if hasattr(self, "channelCountLabel"):
                 self.channelCountLabel.setText(summary)
                 self.channelCountLabel.setToolTip(f"{total_channels} ערוצים בסך הכל ב-{total_categories} קטגוריות")
-                self.fileNameLabel.setText(f"Loaded File: {os.path.basename(fileName)}")
+            if hasattr(self, "fileNameLabel"):
+                self.fileNameLabel.setText(f"Loaded File: {os.path.basename(path)}")
 
-                # 🧠 טעינת קובץ EPG אוטומטית אם קיים
-                epg_base = os.path.splitext(fileName)[0]
-                for ext in [".xml", ".xml.gz"]:
-                    epg_candidate = epg_base + ext
-                    if os.path.exists(epg_candidate):
-                        self.loadEPG(epg_candidate)
-                        break  # נטען רק את הראשון שנמצא
+            if hasattr(self, "statusBar"):
+                self.statusBar().showMessage(f"✅ Loaded {os.path.basename(path)} successfully")
 
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to load file:\n{str(e)}")
+        except Exception as e:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Error", f"Error while parsing file:\n{e}")
 
     def loadEPG(self, epg_path):
         try:
@@ -6864,70 +7045,88 @@ class M3UEditor(QWidget):
 
     def parseM3UContentEnhanced(self, content):
         """
-        Parse M3U content - גרסה מהירה פי 50
-        משתמש בסריקה חד-פעמית במקום regex כבד
+        🚀 גרסה סופר מהירה:
+        - סורקת קובץ M3U במעבר אחד בלבד (גם לקבצים ענקיים).
+        - משתמשת ב-buffer או mmap לקריאה ישירה במקום splitlines().
+        - בונה קטגוריות בלי כפילויות ומעדכנת UI רק בסוף.
         """
+        import re
+        from PyQt5.QtWidgets import QListWidgetItem
+        import io
+
         self.categories.clear()
         self.extinf_lookup = {}
 
+        # Regexים מקומפלים מראש
+        re_group_title = re.compile(r'group-title="([^"]+)"')
+        re_channel_name = re.compile(r',(.*?)$')
+        re_extgrp = re.compile(r'^#EXTGRP:(.*)')
+
+        categories = {}
         current_group = None
-        lines = content.splitlines()
+        channel_name = None
 
-        # ✅ שיפור: סריקה ליניארית אחת במקום regex
-        i = 0
-        while i < len(lines):
-            line = lines[i]
+        # נשתמש ב-StringIO במקום splitlines (אין יצירת רשימות עצומות)
+        if isinstance(content, (bytes, bytearray)):
+            stream = io.StringIO(content.decode('utf-8', errors='replace'))
+        else:
+            stream = io.StringIO(content)
 
-            if line.startswith("#EXTGRP:"):
-                current_group = line.split(":", 1)[1].strip()
-                i += 1
+        readline = stream.readline
+        while True:
+            line = readline()
+            if not line:
+                break
+            line = line.strip()
+            if not line:
                 continue
 
+            # EXTGRP
+            if line.startswith("#EXTGRP:"):
+                m = re_extgrp.match(line)
+                if m:
+                    current_group = m.group(1).strip()
+                continue
+
+            # EXTINF
             if line.startswith("#EXTINF:"):
-                extinf_line = line
+                g = re_group_title.search(line)
+                if g:
+                    current_group = g.group(1).strip()
+                elif current_group:
+                    # מוסיף את ה-group האחרון אם חסר
+                    line = line.replace("#EXTINF:", f'#EXTINF: group-title="{current_group}",', 1)
 
-                # הוסף group-title אם חסר
-                if "group-title=" not in extinf_line and current_group:
-                    extinf_line = extinf_line.replace(",", f' group-title="{current_group}",', 1)
+                n_match = re_channel_name.search(line)
+                channel_name = n_match.group(1).strip() if n_match else None
+                continue
 
-                # חלץ group-title
-                group_title = "Uncategorized📺"
-                if 'group-title="' in extinf_line:
-                    start = extinf_line.find('group-title="') + 13
-                    end = extinf_line.find('"', start)
-                    if end > start:
-                        group_title = extinf_line[start:end]
+            # URL
+            if line.startswith("http"):
+                if current_group and channel_name:
+                    cats = categories.setdefault(current_group, [])
+                    cats.append(f"{channel_name} ({line})")
+                    channel_name = None
+                continue
 
-                # חלץ שם ערוץ
-                comma_pos = extinf_line.rfind(',')
-                channel_name = extinf_line[comma_pos + 1:].strip() if comma_pos > 0 else "Unknown"
+        stream.close()
 
-                # קח URL מהשורה הבאה
-                channel_url = ""
-                if i + 1 < len(lines) and not lines[i + 1].startswith("#"):
-                    channel_url = lines[i + 1].strip()
-                    i += 1  # דלג על שורת URL
-
-                # הוסף לקטגוריות
-                if channel_url:
-                    if group_title not in self.categories:
-                        self.categories[group_title] = []
-                    entry = f"{channel_name} ({channel_url})"
-                    self.categories[group_title].append(entry)
-                    self.extinf_lookup[entry] = extinf_line
-
-                current_group = None
-
-            i += 1
-
-        # עדכון UI
+        # עדכון UI אחד בלבד
+        self.categoryList.setUpdatesEnabled(False)
         self.categoryList.clear()
-        for category, channels in self.categories.items():
-            item = QListWidgetItem(f"{category} ({len(channels)})")
-            self.categoryList.addItem(item)
+        addItem = self.categoryList.addItem
 
-        self.searchBox.setText("")
-        self.buildSearchCompleter()
+        for category, channels in categories.items():
+            self.categories[category] = channels
+            addItem(f"{category} ({len(channels)})")
+
+        self.categoryList.setUpdatesEnabled(True)
+
+        # איפוס שדות
+        if hasattr(self, "searchBox"):
+            self.searchBox.setText("")
+        if hasattr(self, "buildSearchCompleter"):
+            self.buildSearchCompleter()
 
     def chooseLanguageAndFilterIsraelChannels(self):
         dialog = QDialog(self)
