@@ -14,7 +14,7 @@ CATEGORY_KEYWORDS_EN = {
         'Channel 9 HD', 'Channel 11', 'Channel 12', 'Channel 13', 'Reshet 13 [IL]', 'Knesset [IL]',
         'I24 News [IL]', 'Keshet 12 HD [IL]', 'Keshet 12 [IL]', 'Reshet 13 HD [IL]', '13 Keshet IL',
         'KAN 11 HD [IL]', 'KAN 11 [IL]', 'Kan Chinuchit 23', 'i24 News', 'Channel 9','24 IL',
-        'Now 14 HD [IL]', 'KAN23 [IL]', 'Kan Educational HD [IL]','Mekan IL','Kanal 7',
+        'Now 14 HD [IL]', 'KAN23 [IL]', 'Kan Educational HD [IL]','Mekan IL',
         'Channel 24', 'Channel 98 IL', 'CHANNEL 12 HD IL', 'CHANNEL 13 HD',
         'Kan 11 HD IL', 'Kan Educational IL', 'Keshet 12 FHD IL', 'Keshet 12 HD IL', 'Reshet 13 HD IL',
         'IL: Israel HD', 'IL: Kneest', 'IL: Kabbalah TV', 'IL: Kalkala 10 HD',
@@ -22,8 +22,6 @@ CATEGORY_KEYWORDS_EN = {
         'IL: Channel 12 HD', 'IL: Channel 12 SD', 'IL: Channel 13 4K', 'IL: Channel 13 FHD', 'IL: Channel 13 HD',
         'IL: Channel 13 SD', 'IL: Channel 14 4K', 'IL: Channel 14 HD', 'IL: Channel 24 4K', 'IL: Channel 24 FHD',
         'IL: Channel 24', 'ID', 'Knesset', 'Knesset FHD',
-
-        # תוספות בעברית ושמות חלופיים
         'כאן 11', 'כאן11', 'כאן 11 HD', 'כאן חינוכית', 'כאן 23', 'ערוץ 11',
         'קשת 12', 'קשת12', 'חדשות 12', 'חדשות12', 'הכל כלול 13', 'רשת 13', 'רשת13', 'חדשות 13', 'חדשות13',
         'ערוץ 14', 'עכשיו 14', 'Now 14', 'ערוץ 24', 'מיוזיק 24', 'מוזיקה 24',
@@ -44,8 +42,6 @@ CATEGORY_KEYWORDS_EN = {
         'IL: HOT Bollywood HD', 'IL: HOT Bollyshow', 'IL: HOT Design', 'IL: HOT Kidz', 'IL: HOT Nofesh', 'IL: HOT Reality',
         'IL: HOT Style', 'IL: HOT Turkish Drama 1', 'IL: HOT Turkish Drama 2', 'IL: HOT Turkish Drama 3', 'IL: HOT Vamos',
         'IL: HOT Viva Premium', 'IL: HOT Viva Vintage', 'IL: HOT Yam Tichoni', 'IL: HOT Yam Tichoni plus', 'IL: HOT Zoom Toom',
-
-        # תוספות בעברית
         'הוט 3', 'הוט 8', 'הוט זון', 'הוט בידור', 'הוט בידור ישראלי', 'קומדי סנטרל', 'HOT קומדי סנטרל',
         'הוט קידז', 'הוט סטייל', 'HOT עיצוב', 'הוט נופש', 'HOT נופש', 'HOT בוליווד', 'HOT סרטים 1', 'HOT סרטים 2', 'HOT סרטים 3', 'HOT סרטים 4'
     ],
@@ -64,8 +60,6 @@ CATEGORY_KEYWORDS_EN = {
         'IL: YES Movies Drama FHD', 'IL: YES Movies Drama HD [Multi-Sub]', 'IL: YES Movies Drama HD', 'IL: YES Movies Comedy FHD',
         'IL: YES Movies Comedy HD [Multi-Sub]', 'IL: YES Movies Comedy HD', 'IL: YES Docu FHD', 'IL: YES Docu HD [Multi-Sub]', 'IL: YES Docu HD',
         'IL: YES Cinema HD [Multi-Sub]', 'IL: YES Cinema HD',
-
-        # תוספות בעברית ושמות רשמיים
         'יס', 'יס דוקו', 'יס קומדי', 'יס דרמה', 'יס אקשן', 'יס קידס', 'יס ילדים', 'יס סרטים', 'יס מוביז', 'יס סינמה',
         'yes Action', 'yes Comedy', 'yes Drama', 'yes Docu', 'yes Kids', 'yes Movies', 'yes Cinema', 'yes Oh',
         'יס או', 'יס או או', 'יס פלוס', 'Yes+', 'יס ויז', 'Yes Wiz', 'יש טיוי', 'יס טיוי'
@@ -89,8 +83,6 @@ CATEGORY_KEYWORDS_EN = {
         'Cellcom Israel', 'Cellcom Rus', 'IL: Cellcom TV Family', 'IL: Cellcom TV HBO', 'IL: Cellcom TV Isreal',
         'Cellcom Sratim', 'Cellcom Yeladim', 'Cellcom HBO HD', 'Cellcom Doco HD',
         'IL: Cellcom TV Kids', 'IL: Cellcom TV Movies', 'IL: Cellcom TV Now', 'IL: Cellcom TV Yvin',
-
-        # תוספות בעברית
         'סלקום TV', 'סלקום טיוי', 'סלקום משפחה', 'סלקום סרטים', 'סלקום ילדים', 'סלקום דוקו', 'סלקום HBO'
     ],
 
@@ -108,8 +100,6 @@ CATEGORY_KEYWORDS_EN = {
         'IL: FreeTV Movies Drama FHD', 'IL: FreeTV Movies Romance FHD', 'IL: FreeTV Imagin Comedy FHD','Free Movies Romantic IL','Free Movies Action IL','Free Movies Action IL',
         'IL: FreeTV Imagin Cooking FHD', 'IL: FreeTV Imagin Doco FHD', 'IL: FreeTV Imagin Drama FHD','Free Israeli Movies IL','Free TV Hatuna IL',
         'IL: FreeTV Imagin lifestyle FHD', 'IL: FreeTV Movies Family FHD', 'IL: FreeTV Movies Horror FHD',
-
-        # תוספות בעברית
         'FreeTV', 'פרי טיוי', 'ערוצי חינם', 'ערוצי פרי', 'חינמי', 'ערוצי סטרים חינם'
     ],
 
@@ -130,8 +120,6 @@ CATEGORY_KEYWORDS_EN = {
         'IL: Sport 5+ Stars FHD P50', 'IL: Sport 5+ Stars FHD', 'IL: Sport 5+ Stars HD', 'IL: Sport 5+ Plus 4K',
         'IL: Sport 5 Plus FHD', 'IL: Sport 5 Plus', 'IL: Sport 5+ Gold 4K', 'IL: Sport 5 Gold', 'IL: Fox Sport HD',
         'IL: Eurosport 1 HD', 'IL: Eurosport 2 HD', 'IL: Extreme Sports', 'IL: Trace Spôrt Stars',
-
-        # תוספות בעברית
         'ספורט 1', 'ספורט1', 'ספורט 2', 'ספורט2', 'ספורט 3', 'ספורט3', 'ספורט 4', 'ספורט4', 'ספורט 5', 'ספורט5',
         'ערוץ הספורט', 'חמש פלוס', '5 פלוס', 'חמש פלוס לייב', '5 פלוס לייב', 'חמש לייב', 'חמש גולד', '5 גולד',
         'חמש סטארס', '5 סטארס', 'ONE 1', 'ONE1', 'ONE 2', 'ONE2', 'יורוספורט 1', 'יורוספורט 2', 'ערוץ האקסטרים',
@@ -158,8 +146,6 @@ CATEGORY_KEYWORDS_EN = {
         'IL: YOYO FHD', 'IL: HOP', 'IL: HOP YALDUT', 'IL: Disney HD', 'IL: Nickelodeon',
         'IL: Nick Jr', 'IL: Baby TV', 'IL: Luli', 'IL: Junior', 'IL: Israel Shopping Channel',
         'IL: Kids Channel FHD', 'IL: Disney Jr', 'IL: NickTeen', 'IL: JLTV HD', 'IL: DIY Channel FHD',
-
-        # תוספות בעברית
         'ערוץ הילדים', 'ניקלודיאון', 'ניק', 'ניק גוניור', 'טין ניק', 'דיסני', 'דיסני גוניור', 'דיסני קידס',
         'הופ', 'הופ ילדות ישראלית', 'הופ הורים', 'לוגי', 'לולי', 'יויו', 'זום', 'זום טון'
     ],
@@ -188,8 +174,6 @@ CATEGORY_KEYWORDS_EN = {
         'IL: National Geographic', 'IL: National Geographic HD', 'IL: Next Star POPUP FHD','History IL', 'History IL', 'History',
         'IL: Ninja POPUP FHD', 'IL: Reality HD', 'IL: Savri FHD', 'IL: Starz FHD', 'IL: The Humor Channel','TLC IL', 'TLC National Geo Wild',
         'IL: TLC', 'IL: Together HD', 'IL: Travel HD',
-
-        # תוספות בעברית
         'ערוץ האוכל', 'פודי', 'פוד נייטוורק', 'החיים הטובים', 'ערוץ הבריאות', 'ערוץ האופנה', 'ערוץ ההיסטוריה',
         'ערוץ ההומור', 'תעלומות', 'ריאליטי', 'האח הגדול', 'נינגה ישראל', 'הכוכב הבא'
     ],
@@ -222,8 +206,6 @@ CATEGORY_KEYWORDS_EN = {
         'VOX MUSIC TV [PL]', 'Vox Music TV PL', 'Yosso TV Music Hits', 'Z!Music HD',
         'ТНТ Music', 'ТНТ Music HD', 'ТНТ Music orig',
         'IL: MTV Hits', 'IL: MTV Isreal', 'IL: Music IL FHD', 'IL: Music IL HD', 'IL: VH1', 'IL: VH1 Classic',
-
-        # תוספות בעברית
         'ערוץ 24', 'מוזיקה 24', 'מיוזיק 24', 'MTV ישראל', 'וי אייץ 1', 'VH1', 'מוסיקה'
     ],
 
@@ -263,8 +245,6 @@ CATEGORY_KEYWORDS_EN = {
         'IL: Bollywood HD', 'IL: VIVA', 'IL: VIVA Plus', 'IL: Viva Telenovelas',
         'IL: Viva Istanbul FHD', 'IL: Bollywood Cinema India FHD', 'IL: Bollywood Serial FHD',
         'IL: Turkish Dramas FHD', 'IL: Turkish Dramas 2',
-
-        # תוספות בעברית
         'ויוה', 'ויוה פלוס', 'ויוה פרימיום', 'ויוה וינטג', 'טלנובלות', 'לטינו', 'סדרות ספרדיות', 'סדרות טורקיות',
         'בוליווד', 'סדרות הודיות', 'ים תיכוני', 'מדיטרניאן'
     ],
