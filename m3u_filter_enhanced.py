@@ -135,37 +135,13 @@ class M3UFilterEnhanced:
             # אם יש תקלה בזיהוי – לא לחסום כדי להימנע מפגיעה בסינון רגיל
             return False
 
-
-    # קריאה מהקובץ הראשי
-    # קריאה מהקובץ הראשי
     def runAutomaticAdvancedFilter(self, lang='he'):
-        """
-        סינון מתקדם: ישראל + עולם.
-        חידושים:
-        1) הזרקת מילות מפתח נוספות דרך _augment_keyword_map.
-        2) מנגנון אימות סופי לכל ערוץ.
-        3) המרת קטגוריה לפי Regex לפני מילות מפתח.
-        4) קיבוץ ישראל לפי איכות או לפי שפה, ללא מחיקת הקטגוריה הבסיסית.
-        5) חסימת מבוגרים נשמרת כמו בקיים.
-        6) 🚀 למידה אוטומטית של ערוצים חדשים מתוך Others.
-        7) ⚡️ שיפור מהירות משמעותי ע"י cache והתאמות חכמות.
-        """
         try:
-            import time
-            t0 = time.time()
             self._run_emojis = {}
 
-            # --- שלב 1: בניית מפת מילות מפתח ---
-            kw_map = self._build_category_keywords(lang)
-            kw_map = self._augment_keyword_map(kw_map)  # הרחבות קיימות
-            if not isinstance(kw_map, dict) or not kw_map:
-                from PyQt5.QtWidgets import QMessageBox
-                QMessageBox.warning(self.parent, "שגיאה", "קובץ מילות המפתח ריק או לא נטען כראוי.")
-                return
+            kw_map = self._build_category_keywords(lang)  # בסיסים באנגלית
 
-            cache_fast = {}
-
-            # --- שלב 2: הכנת מיכלים ---
+            # מיכלים לישראל (תצוגה בעברית אם lang='he') ולעולם (תמיד אנגלית)
             israel_cats = {self._cat_key(base, lang, True): [] for base in kw_map.keys()}
             if self._cat_key('Other', lang, True) not in israel_cats:
                 israel_cats[self._cat_key('Other', lang, True)] = []
@@ -176,116 +152,33 @@ class M3UFilterEnhanced:
                 self._cat_key('World Movies', lang, False): [],
                 self._cat_key('World News', lang, False): [],
                 self._cat_key('World Kids', lang, False): [],
-                self._cat_key('World Documentaries', lang, False): [],
-                self._cat_key('World Nature', lang, False): [],
-                self._cat_key('World Series', lang, False): [],
-                self._cat_key('World UHD', lang, False): [],
                 self._cat_key('Other', lang, False): []
             }
 
-            # --- שלב 3: חסימות ואימותים ---
-            blocked_adults = []
-            self.validation_log = []
-            seen_keys = set()
-
+            # מעבר על כל הערוצים
             for _category, channels in self.parent.categories.items():
                 for entry in channels:
                     name = self._extract_name(entry)
-
-                    # 🔒 חסימת מבוגרים
-                    if self._is_adult_channel(name):
-                        if self.validation_policy.get("drop_if_adult", True):
-                            blocked_adults.append(entry)
-                            continue
-
-                    # 🧩 אימות ערוץ
-                    is_valid, reasons = self._validate_channel_entry(entry, seen_keys)
-                    if not is_valid:
-                        self.validation_log.append({"entry": entry, "reasons": reasons})
-                        critical = any(r in ["no_url", "adult", "empty_name"] for r in reasons)
-                        if critical:
-                            continue
-
-                    # 🇮🇱 סיווג ערוצים ישראליים
                     if self._is_israeli_name(name):
-                        base0 = self._best_israel_category(name, kw_map)
-                        base = self._apply_regex_category_override(name, base0, lang)
-
-                        # קיבוץ לפי איכות/שפה
-                        suffix = ""
-                        if self.grouping_mode_israel == "quality":
-                            q = self._detect_quality(name)
-                            if q:
-                                suffix = self._map_quality_suffix_he(q) if lang == "he" else f" - {q}"
-                        elif self.grouping_mode_israel == "language":
-                            sub = self._detect_israeli_sublanguage(name)
-                            if sub:
-                                suffix = self._map_lang_suffix_he(sub) if lang == "he" else f" - {sub}"
-
-                        key = self._cat_key_with_suffix(base, lang, True, suffix)
+                        base = self._best_israel_category(name, kw_map)  # בסיס אנגלי
+                        key = self._cat_key(base, lang, True)
                         israel_cats.setdefault(key, []).append(entry)
                     else:
-                        # 🌍 סיווג ערוצי עולם
-                        world_base = self._world_bucket(name)
-                        key = self._cat_key(world_base, lang, False)
+                        world_base = self._world_bucket(name)  # החזר 'World Sports'/'World Music'/.../'Other'
+                        key = self._cat_key(world_base, lang, False)  # ← כאן נכנסת השורה ששאלת עליה
                         world_cats.setdefault(key, []).append(entry)
 
-            # --- שלב 4: מיזוג קטגוריות ---
+            # מיזוג וסינון ריקות
             merged = {}
             for d in (israel_cats, world_cats):
                 for k, v in d.items():
                     if v:
                         merged[k] = v
 
-            # --- שלב 5: שמירת חסימות ולוגים ---
-            setattr(self.parent, "blocked_adults", blocked_adults)
-            setattr(self.parent, "validation_log", self.validation_log)
-
-            # --- שלב 6: זיהוי ערוצים שלא זוהו (למידה חכמה) ---
-            potential_new = {}
-            for cat, ch_list in merged.items():
-                if "Other" in cat:
-                    for entry in ch_list:
-                        name = self._extract_name(entry)
-                        guess = self._fast_find_category(name, kw_map, cache_fast)
-                        if guess != "Other":
-                            potential_new[name] = guess
-
-            if potential_new:
-                self._learn_new_keywords(potential_new, lang)
-
-            # --- שלב 7: עדכון UI ---
             self._update_ui_with_filtered(merged)
 
-            # --- שלב 8: לוג ביצועים ---
-            t1 = time.time()
-            print(f"⚡️ Advanced filter completed in {(t1 - t0):.2f}s ({len(merged)} categories)")
-
         except Exception as e:
-            from PyQt5.QtWidgets import QMessageBox
             QMessageBox.critical(self.parent, "שגיאה", f"שגיאה בסינון המתקדם:\n{e}")
-
-        # === 🚀 שיפור מהירות ובינה לקטגוריות חדשות ===
-        def _fast_find_category(self, name, kw_map, cache):
-            """
-            מאתר קטגוריה במהירות ע"י השוואה מושכלת למילות מפתח קיימות.
-            משתמש ב־cache למניעת חזרות ומחפש גם התאמות חלקיות.
-            """
-            if name in cache:
-                return cache[name]
-
-            low = name.lower()
-            best_cat = "Other"
-            for cat, words in kw_map.items():
-                for w in words:
-                    if w.lower() in low:
-                        best_cat = cat
-                        break
-                if best_cat != "Other":
-                    break
-
-            cache[name] = best_cat
-            return best_cat
 
     # === 🚀 שיפור מהירות ובינה לקטגוריות חדשות ===
     def _fast_find_category(self, name, kw_map, cache):

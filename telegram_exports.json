@@ -1,43 +1,4 @@
 {
-  "2025-09-25": [
-    {
-      "filename": "EGTV_25-09-2025.m3u",
-      "timestamp": "2025-09-25T00:31:01.649848",
-      "success": true
-    }
-  ],
-  "2025-09-26": [
-    {
-      "filename": "EGTV_26-09-2025.m3u",
-      "timestamp": "2025-09-26T00:23:25.593407",
-      "success": true
-    },
-    {
-      "filename": "EGTV_26-09-2025_(1).m3u",
-      "timestamp": "2025-09-26T08:36:08.183325",
-      "success": true
-    },
-    {
-      "filename": "EGTV_26-09-2025_(2).m3u",
-      "timestamp": "2025-09-26T08:41:53.689194",
-      "success": true
-    },
-    {
-      "filename": "EGTV_26-09-2025_(3).m3u",
-      "timestamp": "2025-09-26T08:48:32.173099",
-      "success": true
-    },
-    {
-      "filename": "EGTV_26-09-2025_(4).m3u",
-      "timestamp": "2025-09-26T17:07:46.321401",
-      "success": true
-    },
-    {
-      "filename": "EGTV_26-09-2025_(5).m3u",
-      "timestamp": "2025-09-26T17:58:16.910996",
-      "success": true
-    }
-  ],
   "2025-10-02": [
     {
       "filename": "EGTV_02-10-2025.m3u",
@@ -47,6 +8,33 @@
     {
       "filename": "EGTV_02-10-2025_(1).m3u",
       "timestamp": "2025-10-02T23:40:19.342875",
+      "success": true
+    }
+  ],
+  "2025-10-05": [
+    {
+      "filename": "EGTV_05-10-2025.m3u",
+      "timestamp": "2025-10-05T00:26:43.721435",
+      "success": true
+    },
+    {
+      "filename": "EGTV_05-10-2025_(1).m3u",
+      "timestamp": "2025-10-05T00:34:35.755589",
+      "success": true
+    },
+    {
+      "filename": "EGTV_05-10-2025_(2).m3u",
+      "timestamp": "2025-10-05T00:38:51.780221",
+      "success": true
+    },
+    {
+      "filename": "EGTV_05-10-2025_(3).m3u",
+      "timestamp": "2025-10-05T02:21:57.065249",
+      "success": true
+    },
+    {
+      "filename": "EGTV_05-10-2025_(4).m3u",
+      "timestamp": "2025-10-05T02:55:35.695813",
       "success": true
     }
   ]
