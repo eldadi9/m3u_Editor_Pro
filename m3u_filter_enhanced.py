@@ -136,15 +136,115 @@ class M3UFilterEnhanced:
             return False
 
     def runAutomaticAdvancedFilter(self, lang='he'):
+        """
+        ✅ סינון מתקדם + למידה אוטומטית חכמה:
+           • לומד רק ערוצים חדשים שסווגו לקטגוריה קיימת (חזק/אישור חלקי)
+           • נמנע מכפילויות מול המילונים הידניים וה-EXTRA
+           • לא קופץ חלון כשאין התאמה – נשלח ישירות ל-Other
+           • קופץ חלון רק במקרה של התאמה חלקית (דילמה)
+           • ישראל/עולם מופרדים, עם אימוג'י קבוע לריצה
+        """
         try:
+            from PyQt5.QtWidgets import QMessageBox
+            import re
+
+            # ---------- עזר פנימי: ניקוד התאמה ----------
+            def _score_for(name: str, cat: str, kw_map: dict) -> float:
+                """
+                מחזיר ניקוד 0..1 עד כמה השם מתאים לקטגוריה.
+                משלב:
+                (א) התאמות מפורשות למילות מפתח של הקטגוריה
+                (ב) הֶאוּרִיסְטִיקָה של ספקים (HOT/YES/Partner/Cellcom/IL/Sport/Nick/Disney/MTV וכו')
+                """
+                if not name or not cat or cat == 'Other':
+                    return 0.0
+
+                low = name.lower()
+                score = 0.0
+
+                # (א) מילות מפתח קיימות לקטגוריה
+                kws = kw_map.get(cat, [])
+                hits = 0
+                for w in kws:
+                    if not isinstance(w, str):
+                        continue
+                    wl = w.strip().lower()
+                    if not wl:
+                        continue
+                    if wl in low:
+                        hits += 1
+                        # התאמה "שלמה" בתוך מילים
+                        if f' {wl} ' in f' {low} ':
+                            hits += 0.5
+                if hits:
+                    # נרמול קל – מספיק מילה אחת כדי להיות חזק
+                    score += min(0.75, 0.25 * hits)
+
+                # (ב) הוּאֲרִיסְטִיקָה של ספקים/ז׳אנרים ישראליים
+                provider_hint = {
+                    'Hot': [' hot', 'hot ', 'hot-', 'hot/', 'hot3', 'hot ', 'hot cinema'],
+                    'Yes': [' yes', 'yes ', 'yes+', ' yes+', 'wiz', 'yes tv', 'yes cinema', 'yes sport', 'yes docu'],
+                    'Partner': ['partner', ' pt '],
+                    'Cellcom': ['cellcom', ' סלקום', 'cell '],
+                    'Sports': ['sport ', ' sport', 'one ', ' one', 'eurosport', 'nba', 'wwe', 'five', '5+'],
+                    'Kids': ['nick', 'disney', 'junior', 'baby', 'yaldut', 'yalduti', 'hop', 'luli', 'zoom'],
+                    'Music': ['mtv', 'vh1', 'music '],
+                    'News': ['kan ', 'knesset', 'keshet', 'reshet', 'i24', 'channel 11', 'channel 12', 'channel 13',
+                             'channel 14', ' ערוץ '],
+                }
+                for tgt_cat, needles in provider_hint.items():
+                    if tgt_cat == cat and any(n in low for n in needles):
+                        score = max(score, 0.75)  # רמז חזק
+
+                # "IL" / "ISR" / "Israel" – רמז כללי שייתכן ישראלי, לא מעלה מעל 0.7
+                if self._is_israeli_name(name):
+                    score = max(score, min(0.7, score))
+
+                return min(1.0, score)
+
+            # ---------- עזר פנימי: אישור מהיר להתאמה חלקית ----------
+            def _ask_partial_confirmation(ch_name: str, base_cat: str, score: float) -> bool:
+                """
+                מראה שאלה רק בהתאמה חלקית. מחזיר True אם המשתמש אישר לשייך.
+                """
+                reply = QMessageBox.question(
+                    self.parent,
+                    "אישור שיוך (התאמה חלקית)",
+                    f"נמצא ערוץ חדש:\n\n{ch_name}\n\nנראה קשור לקטגוריה:\n• {base_cat}\n\n"
+                    f"ניקוד התאמה: {score:.2f}\n\nלהוסיף לקטגוריה הזו וללמוד ל-EXTRA?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                return reply == QMessageBox.Yes
+
+            # ---------- הכנות ----------
             self._run_emojis = {}
 
-            kw_map = self._build_category_keywords(lang)  # בסיסים באנגלית
+            # 1) מילון מילות מפתח (ידני + EXTRA ממוזג)
+            kw_map = self._build_category_keywords(lang)
 
-            # מיכלים לישראל (תצוגה בעברית אם lang='he') ולעולם (תמיד אנגלית)
+            # 2) ידוע/לא-ידוע – כדי לא ללמוד כפולים
+            try:
+                from channel_keywords import (
+                    CATEGORY_KEYWORDS_EN, CATEGORY_KEYWORDS_HE,
+                    EXTRA_CATEGORY_KEYWORDS_EN, EXTRA_CATEGORY_KEYWORDS_HE
+                )
+            except Exception:
+                CATEGORY_KEYWORDS_EN = CATEGORY_KEYWORDS_HE = {}
+                EXTRA_CATEGORY_KEYWORDS_EN = EXTRA_CATEGORY_KEYWORDS_HE = {}
+
+            manual_src = CATEGORY_KEYWORDS_HE if lang == 'he' else CATEGORY_KEYWORDS_EN
+            extra_src = EXTRA_CATEGORY_KEYWORDS_HE if lang == 'he' else EXTRA_CATEGORY_KEYWORDS_EN
+
+            known_channels = set()
+            for cat_dict in (manual_src or {}), (extra_src or {}):
+                for _c, words in (cat_dict or {}).items():
+                    for w in words or []:
+                        if isinstance(w, str):
+                            known_channels.add(w.strip().lower())
+
+            # 3) מיכלים
             israel_cats = {self._cat_key(base, lang, True): [] for base in kw_map.keys()}
-            if self._cat_key('Other', lang, True) not in israel_cats:
-                israel_cats[self._cat_key('Other', lang, True)] = []
+            israel_cats.setdefault(self._cat_key('Other', lang, True), [])
 
             world_cats = {
                 self._cat_key('World Sports', lang, False): [],
@@ -155,20 +255,74 @@ class M3UFilterEnhanced:
                 self._cat_key('Other', lang, False): []
             }
 
-            # מעבר על כל הערוצים
+            # נלמד רק ערוצים ישראליים חדשים שאושרו (אוטומטי חזק או אישור חלקי)
+            to_learn = {}  # name -> base category (באנגלית)
+
+            # ---------- מעבר על הערוצים ----------
+            total = 0
             for _category, channels in self.parent.categories.items():
                 for entry in channels:
-                    name = self._extract_name(entry)
+                    total += 1
+                    name = self._extract_name(entry) or ""
+                    if not name.strip():
+                        continue
+                    name_l = name.lower()
+
+                    # אם כבר קיים במילון (ידני/אקסטרה) – מסווגים ללא למידה
+                    if name_l in known_channels:
+                        if self._is_israeli_name(name):
+                            base = self._best_israel_category(name, kw_map) or 'Other'
+                            key = self._cat_key(base, lang, True)
+                            israel_cats.setdefault(key, []).append(entry)
+                        else:
+                            base = self._world_bucket(name)
+                            key = self._cat_key(base, lang, False)
+                            world_cats.setdefault(key, []).append(entry)
+                        continue
+
+                    # חדש: נסיון סיווג
                     if self._is_israeli_name(name):
-                        base = self._best_israel_category(name, kw_map)  # בסיס אנגלי
-                        key = self._cat_key(base, lang, True)
-                        israel_cats.setdefault(key, []).append(entry)
+                        # נבחר את הקטגוריה הטובה ביותר לפי מילות המפתח
+                        base_guess = self._best_israel_category(name, kw_map) or 'Other'
+                        # ניקוד התאמה חכם
+                        score = _score_for(name, base_guess, kw_map)
+
+                        if score >= 0.75:
+                            # התאמה חזקה – מסווגים ולומדים אוטומטית
+                            key = self._cat_key(base_guess, lang, True)
+                            israel_cats.setdefault(key, []).append(entry)
+                            to_learn[name] = base_guess
+
+                        elif 0.35 <= score < 0.75:
+                            # התאמה חלקית – לשאול
+                            if _ask_partial_confirmation(name, base_guess, score):
+                                key = self._cat_key(base_guess, lang, True)
+                                israel_cats.setdefault(key, []).append(entry)
+                                to_learn[name] = base_guess
+                            else:
+                                # לא אושר – ל-Other
+                                israel_cats[self._cat_key('Other', lang, True)].append(entry)
+                        else:
+                            # חלש מאוד – ל-Other ללא פופ־אפ
+                            israel_cats[self._cat_key('Other', lang, True)].append(entry)
+
                     else:
-                        world_base = self._world_bucket(name)  # החזר 'World Sports'/'World Music'/.../'Other'
-                        key = self._cat_key(world_base, lang, False)  # ← כאן נכנסת השורה ששאלת עליה
+                        # עולם
+                        base = self._world_bucket(name)
+                        key = self._cat_key(base, lang, False)
                         world_cats.setdefault(key, []).append(entry)
 
-            # מיזוג וסינון ריקות
+            # ---------- למידה: שמירה ל-EXTRA (רק מה שאושר/חזק) ----------
+            added = 0
+            if to_learn:
+                # נעדיף את הגרסה החכמה אם קיימת, אחרת נשתמש בגרסה הישנה
+                if hasattr(self, "_learn_new_keywords_smart") and callable(getattr(self, "_learn_new_keywords_smart")):
+                    self._learn_new_keywords_smart(to_learn, lang)
+                elif hasattr(self, "_learn_new_keywords") and callable(getattr(self, "_learn_new_keywords")):
+                    self._learn_new_keywords(to_learn, lang)
+                added = len(to_learn)
+
+            # ---------- מיזוג ועדכון UI ----------
             merged = {}
             for d in (israel_cats, world_cats):
                 for k, v in d.items():
@@ -177,8 +331,257 @@ class M3UFilterEnhanced:
 
             self._update_ui_with_filtered(merged)
 
+            # ---------- הודעת סיכום ----------
+            QMessageBox.information(
+                self.parent, "סינון הושלם",
+                f"נמצאו {sum(len(v) for v in merged.values())} ערוצים\n"
+                f"נוספו {added} ערוצים חדשים ל־EXTRA"
+            )
+
         except Exception as e:
             QMessageBox.critical(self.parent, "שגיאה", f"שגיאה בסינון המתקדם:\n{e}")
+
+    def _learn_new_keywords_smart(self, detected_channels, lang="he"):
+        """
+        גרסה חכמה מלאה של למידה אוטומטית של ערוצים חדשים:
+        ✅ שואלת אם להוסיף ערוצים חדשים לקטגוריה המתאימה
+        ✅ אם המשתמש מאשר – נרשם אוטומטית ל־EXTRA
+        ⚠️ אם המשתמש מסרב – נשמר רק ב־Other
+        🧠 מדפיסה לקונסול כמה נוספו וכמה נדחו
+        """
+        import os, re, json, importlib, sys, time
+        from PyQt5.QtWidgets import QMessageBox
+
+        start_time = time.time()
+        base_dir = os.path.dirname(__file__)
+        kw_path = os.path.join(base_dir, "channel_keywords.py")
+        mod_name = "channel_keywords"
+
+        if base_dir not in sys.path:
+            sys.path.insert(0, base_dir)
+
+        try:
+            mod = importlib.import_module(mod_name)
+        except Exception as e:
+            print(f"❌ cannot import channel_keywords: {e}")
+            return
+
+        base_key = "CATEGORY_KEYWORDS_HE" if lang == "he" else "CATEGORY_KEYWORDS_EN"
+        extra_key = "EXTRA_CATEGORY_KEYWORDS_HE" if lang == "he" else "EXTRA_CATEGORY_KEYWORDS_EN"
+
+        base = getattr(mod, base_key, {}) or {}
+        extra = getattr(mod, extra_key, {}) or {}
+
+        # מיזוג כל known keywords כדי לזהות כפילויות
+        all_known = {k: set(v) for k, v in {**base, **extra}.items()}
+        changed = False
+        learned = {}
+        declined = []
+
+        print(f"\n🧠 [Smart-Learn] Checking {len(detected_channels)} channels...")
+
+        for ch_name, cat in detected_channels.items():
+            clean_cat = self._he_alias(self._normalize_base(cat))
+
+            # אם לא זוהתה קטגוריה כלל
+            if not clean_cat or clean_cat.lower() in ["other", "אחר"]:
+                declined.append(ch_name)
+                continue
+
+            # אם הערוץ כבר קיים
+            already_known = any(ch_name.lower() in [w.lower() for w in v] for v in all_known.values())
+            if already_known:
+                continue
+
+            # בדיקה להתאמה חלקית לשמות קיימים
+            partial_match = any(
+                any(w.lower() in ch_name.lower() or ch_name.lower() in w.lower() for w in v)
+                for v in all_known.values()
+            )
+
+            # אם לא נמצא כלל או שיש התאמה חלקית – נבקש אישור מהמשתמש
+            if not partial_match:
+                reply = QMessageBox.question(
+                    self.parent,
+                    "ערוץ חדש מזוהה",
+                    f"נמצא ערוץ חדש:\n\n{ch_name}\n\n"
+                    f"לא נמצא במילון הקיים.\n\n"
+                    f"האם להוסיף לקטגוריה '{clean_cat}'?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+            else:
+                reply = QMessageBox.question(
+                    self.parent,
+                    "אישור שיוך ערוץ חדש",
+                    f"נמצא ערוץ חדש:\n\n{ch_name}\n\n"
+                    f"נראה דומה לערוצים קיימים.\n\n"
+                    f"האם לשייך לקטגוריה '{clean_cat}'?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+
+            if reply == QMessageBox.Yes:
+                learned.setdefault(clean_cat, []).append(ch_name)
+                changed = True
+            else:
+                declined.append(ch_name)
+
+        if not changed:
+            print("ℹ️ [Smart-Learn] No new channels confirmed.")
+            return
+
+        # מיזוג לערכים החדשים בקובץ
+        for cat, ch_list in learned.items():
+            extra.setdefault(cat, [])
+            for ch_name in ch_list:
+                if ch_name not in extra[cat]:
+                    extra[cat].append(ch_name)
+
+        # כתיבה חזרה לקובץ channel_keywords.py
+        try:
+            with open(kw_path, "r", encoding="utf-8") as f:
+                src = f.read()
+
+            new_block = (
+                "\n\n# ------------------------------\n"
+                "# EXTRA keywords (auto-learned)\n"
+                "# אל תמחק - מתעדכן אוטומטית\n"
+                f"EXTRA_CATEGORY_KEYWORDS_HE = {json.dumps(extra if lang == 'he' else getattr(mod, 'EXTRA_CATEGORY_KEYWORDS_HE', {}), ensure_ascii=False, indent=4)}\n"
+                f"EXTRA_CATEGORY_KEYWORDS_EN = {json.dumps(extra if lang == 'en' else getattr(mod, 'EXTRA_CATEGORY_KEYWORDS_EN', {}), ensure_ascii=False, indent=4)}\n"
+            )
+
+            pattern = r"\n# ------------------------------\n# EXTRA keywords \(auto-learned\)[\s\S]+?(?=\Z)"
+            src = re.sub(pattern, new_block, src, flags=re.MULTILINE) if re.search(pattern, src) else src + new_block
+
+            with open(kw_path, "w", encoding="utf-8") as f:
+                f.write(src)
+
+            elapsed = time.time() - start_time
+            total_learned = sum(len(v) for v in learned.values())
+            cat_list = list(learned.keys())
+
+            # לוג צבעוני לקונסול
+            print("\n🟢 [Smart-Learn] Learning completed successfully!")
+            print(
+                f"🧩 Added {total_learned} new channels → {', '.join(cat_list[:5])}{'...' if len(cat_list) > 5 else ''}")
+            print(f"⚙️ Declined / sent to Other: {len(declined)} channels")
+            print(f"💾 Saved to: channel_keywords.py")
+            print(f"⏱️ Duration: {elapsed:.2f} seconds\n")
+
+            QMessageBox.information(
+                self.parent,
+                "למידה הושלמה",
+                f"✅ נוספו {total_learned} ערוצים חדשים ל־EXTRA.\n"
+                f"נשמר בהצלחה בקובץ channel_keywords.py"
+            )
+
+        except Exception as e:
+            print(f"❌ Error writing keywords: {e}")
+
+    def _calculate_match_score(self, name: str, suggested_cat: str, kw_map: dict) -> float:
+        """
+        ✅ מחשב ציון התאמה (0.0-1.0) בין שם ערוץ לקטגוריה מוצעת
+        """
+        try:
+            low = name.lower()
+            keywords = kw_map.get(suggested_cat, [])
+            if not keywords:
+                return 0.0
+
+            matches = 0
+            total_weight = 0
+
+            for kw in keywords:
+                kw_low = kw.lower().strip()
+                if not kw_low:
+                    continue
+
+                total_weight += 1
+
+                # התאמה מדויקת של מילה שלמה
+                if f' {kw_low} ' in f' {low} ':
+                    matches += 1.0
+                # התאמה חלקית
+                elif kw_low in low:
+                    matches += 0.5
+
+            return matches / total_weight if total_weight > 0 else 0.0
+        except:
+            return 0.0
+
+    def _ask_category_confirmation(self, channel_name: str, suggested_cat: str, score: float) -> str:
+        """
+        ✅ מקפיץ חלון שאלה רק למקרים של דילמה (התאמה חלקית)
+        """
+        from PyQt5.QtWidgets import QMessageBox
+
+        reply = QMessageBox.question(
+            self.parent,
+            "❓ אישור סיווג",
+            f"<b>ערוץ חדש:</b> {channel_name}<br><br>"
+            f"<b>קטגוריה מוצעת:</b> {suggested_cat}<br>"
+            f"<b>רמת ביטחון:</b> {score * 100:.0f}%<br><br>"
+            f"האם לסווג לקטגוריה זו?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+        return "yes" if reply == QMessageBox.Yes else "no"
+
+    def _save_to_extra_keywords(self, new_channels: dict, lang: str):
+        """
+        ✅ שומר ערוצים חדשים ל-EXTRA בסוף הקובץ (לא משולב למעלה)
+        """
+        import os, json, re
+
+        try:
+            base_dir = os.path.dirname(__file__)
+            kw_path = os.path.join(base_dir, "channel_keywords.py")
+
+            if not os.path.exists(kw_path):
+                return
+
+            # קריאת הקובץ
+            with open(kw_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # טעינת EXTRA הקיים
+            extra_key = f"EXTRA_CATEGORY_KEYWORDS_{lang.upper()}"
+            try:
+                match = re.search(rf"{extra_key}\s*=\s*(\{{[^}}]*\}})", content, re.DOTALL)
+                if match:
+                    extra_dict = eval(match.group(1))
+                else:
+                    extra_dict = {}
+            except:
+                extra_dict = {}
+
+            # הוספת ערוצים חדשים
+            for ch_name, cat in new_channels.items():
+                extra_dict.setdefault(cat, [])
+                if ch_name not in extra_dict[cat]:
+                    extra_dict[cat].append(ch_name)
+
+            # בניית הבלוק החדש
+            new_block = (
+                f"\n\n# {'=' * 60}\n"
+                f"# EXTRA - ערוצים שנוספו אוטומטית (אל תמחק!)\n"
+                f"# {'=' * 60}\n"
+                f"{extra_key} = {json.dumps(extra_dict, ensure_ascii=False, indent=4)}\n"
+            )
+
+            # החלפה או הוספה
+            pattern = rf"\n# ={'='}+\n# EXTRA.*?\n{extra_key}\s*=\s*\{{.*?\}}\n"
+            if re.search(pattern, content, re.DOTALL):
+                content = re.sub(pattern, new_block, content, flags=re.DOTALL)
+            else:
+                content += new_block
+
+            # כתיבה חזרה
+            with open(kw_path, "w", encoding="utf-8") as f:
+                f.write(content)
+
+            print(f"✅ נשמרו {len(new_channels)} ערוצים חדשים ל-{extra_key}")
+        except Exception as e:
+            print(f"❌ שגיאה בשמירת EXTRA: {e}")
 
     # === 🚀 שיפור מהירות ובינה לקטגוריות חדשות ===
     def _fast_find_category(self, name, kw_map, cache):
@@ -348,13 +751,37 @@ class M3UFilterEnhanced:
 
     def _build_category_keywords(self, lang):
         """
-        טוען CATEGORY_KEYWORDS_* וממזג EXTRA_CATEGORY_KEYWORDS_* אם קיימים.
+        ⚙️ טוען CATEGORY_KEYWORDS_* וממזג EXTRA_CATEGORY_KEYWORDS_* (כולל רענון אמיתי מהדיסק).
+        ✅ טוען את הקובץ channel_keywords.py בכל ריצה מחדש (לא מתוך cache)
+        ✅ מבצע מיזוג חכם של מפת מילות מפתח + EXTRA
+        ✅ תומך בעברית ואנגלית
+        ✅ מדפיס לוג צבעוני על טעינה מחדש
         """
-        from channel_keywords import CATEGORY_KEYWORDS_EN, CATEGORY_KEYWORDS_HE
+        import importlib, importlib.util, sys, os, time
+
+        start = time.time()
+        base_dir = os.path.dirname(__file__)
+        kw_path = os.path.join(base_dir, "channel_keywords.py")
+        mod_name = "channel_keywords"
+
+        # --- רענון אמיתי של המודול ---
+        if mod_name in sys.modules:
+            del sys.modules[mod_name]
+
         try:
-            from channel_keywords import EXTRA_CATEGORY_KEYWORDS_EN, EXTRA_CATEGORY_KEYWORDS_HE
-        except Exception:
-            EXTRA_CATEGORY_KEYWORDS_EN, EXTRA_CATEGORY_KEYWORDS_HE = {}, {}
+            spec = importlib.util.spec_from_file_location(mod_name, kw_path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            elapsed = time.time() - start
+            print(f"\n♻️ [Reload] channel_keywords.py reloaded successfully ({elapsed:.2f}s)")
+        except Exception as e:
+            print(f"❌ Failed to reload channel_keywords.py: {e}")
+            return {"Other": []}
+
+        CATEGORY_KEYWORDS_EN = getattr(mod, "CATEGORY_KEYWORDS_EN", {})
+        CATEGORY_KEYWORDS_HE = getattr(mod, "CATEGORY_KEYWORDS_HE", {})
+        EXTRA_CATEGORY_KEYWORDS_EN = getattr(mod, "EXTRA_CATEGORY_KEYWORDS_EN", {})
+        EXTRA_CATEGORY_KEYWORDS_HE = getattr(mod, "EXTRA_CATEGORY_KEYWORDS_HE", {})
 
         src = CATEGORY_KEYWORDS_HE if lang == 'he' else CATEGORY_KEYWORDS_EN
         extra_src = EXTRA_CATEGORY_KEYWORDS_HE if lang == 'he' else EXTRA_CATEGORY_KEYWORDS_EN
@@ -367,7 +794,11 @@ class M3UFilterEnhanced:
                 for w in words:
                     if isinstance(w, str) and w.strip() and w.strip() not in merged[base]:
                         merged[base].append(w.strip())
+
         merged.setdefault('Other', [])
+
+        print(
+            f"🧠 [Keywords] Loaded {len(src)} base + {len(extra_src)} extra categories → total {len(merged)} merged.\n")
         return merged
 
     def _extract_name(self, entry):
@@ -393,23 +824,56 @@ class M3UFilterEnhanced:
         return any(p in low for p in providers)
 
     def _best_israel_category(self, name, kw_map):
-        low = name.lower()
-        best = 'Other'
-        best_score = 0
-        for cat, kws in kw_map.items():
-            score = 0
-            for k in kws:
-                k = k.strip().lower()
-                if not k:
-                    continue
-                if k in low:
-                    score += 1
-                    if f' {k} ' in f' {low} ':
-                        score += 0.5
-            if score > best_score:
-                best_score = score
-                best = cat
-        return best if best_score >= 1 else 'Other'
+        """
+        מוצאת את הקטגוריה הישראלית המתאימה ביותר לשם הערוץ לפי מילות מפתח.
+        אם לא נמצאה התאמה — משתמשת בזיהוי ספקים ישראליים (HOT, YES, Partner וכו')
+        לפני שנופלת ל-Other.
+        """
+        try:
+            low = name.lower()
+            best = 'Other'
+            best_score = 0
+
+            # --- שלב 1: ננסה התאמה לפי מילות מפתח ---
+            for cat, kws in kw_map.items():
+                score = 0
+                for k in kws:
+                    k = k.strip().lower()
+                    if not k:
+                        continue
+                    if k in low:
+                        score += 1
+                        if f' {k} ' in f' {low} ':
+                            score += 0.5
+                if score > best_score:
+                    best_score = score
+                    best = cat
+
+            # --- שלב 2: fallback לפי ספקים ישראליים ---
+            if best_score < 1:
+                if any(x in low for x in ['hot', 'hot3', 'hot cinema']):
+                    best = 'Hot'
+                elif any(x in low for x in ['yes', 'yes tv', 'yes comedy', 'yes drama']):
+                    best = 'Yes'
+                elif 'partner' in low:
+                    best = 'Partner'
+                elif 'cellcom' in low:
+                    best = 'Cellcom'
+                elif any(x in low for x in ['keshet', '12']):
+                    best = 'News'
+                elif any(x in low for x in ['reshet', '13']):
+                    best = 'News'
+                elif any(x in low for x in ['kan', '11', 'knesset']):
+                    best = 'News'
+                elif any(x in low for x in ['sport', 'one']):
+                    best = 'Sports'
+                elif any(x in low for x in ['kids', 'hop', 'luli', 'zoom', 'disney', 'nick']):
+                    best = 'Kids'
+
+            return best
+        except Exception as e:
+            print(f"⚠️ _best_israel_category error: {e}")
+            return 'Other'
 
     def _world_bucket(self, name):
         low = name.lower()

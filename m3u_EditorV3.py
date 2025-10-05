@@ -2186,27 +2186,77 @@ class M3UEditor(QWidget):
 
     def filterIsraelChannelsFromKeywords(self, lang):
         """
-        סינון ישראלי נקי ומדויק, בלי רדיו.
-        זיהוי ישראלי:
-        1) שם בעברית
-        2) דפוסי IL בגבולות מילה: ' IL ', '(IL)', 'IL:', '-IL-', 'ISR'
-        3) מותגים/ערוצים ישראליים ידועים
+        ✅ סינון ישראלי נקי ומדויק עם תמיכה ב-EXTRA
         """
         import re
-        from channel_keywords import CATEGORY_KEYWORDS_EN, CATEGORY_KEYWORDS_HE
 
-        keywords_map = CATEGORY_KEYWORDS_HE if lang == "he" else CATEGORY_KEYWORDS_EN
+        try:
+            from channel_keywords import (
+                CATEGORY_KEYWORDS_EN, CATEGORY_KEYWORDS_HE,
+                EXTRA_CATEGORY_KEYWORDS_EN, EXTRA_CATEGORY_KEYWORDS_HE
+            )
+        except:
+            EXTRA_CATEGORY_KEYWORDS_EN = {}
+            EXTRA_CATEGORY_KEYWORDS_HE = {}
+
+        # ✅ מיזוג ידני + EXTRA
+        manual = CATEGORY_KEYWORDS_HE if lang == "he" else CATEGORY_KEYWORDS_EN
+        extra = EXTRA_CATEGORY_KEYWORDS_HE if lang == "he" else EXTRA_CATEGORY_KEYWORDS_EN
+
+        keywords_map = {}
+        for d in [manual, extra]:
+            for cat, words in (d or {}).items():
+                keywords_map.setdefault(cat, [])
+                keywords_map[cat].extend([w for w in words if isinstance(w, str)])
 
         il_provider_tokens = [
             'israel', 'kan', 'keshet', 'reshet', 'makan', 'i24', 'hidabroot', 'kabbalah',
-            'yes', 'hot', 'partner', 'cellcom', 'sting',
-            'sport 1', 'sport1', 'sport 2', 'sport2', 'sport 3', 'sport3', 'sport 4', 'sport4', 'sport 5', 'sport5',
-            'one', 'channel 11', 'channel 12', 'channel 13', 'channel 14', 'channel 9', 'arutz'
+            'yes', 'hot', 'partner', 'cellcom', 'sting', 'next',
+            'sport 1', 'sport 2', 'sport 3', 'sport 4', 'sport 5', 'one',
+            'channel 11', 'channel 12', 'channel 13', 'channel 14', 'arutz'
         ]
 
         il_boundary_patterns = [
             r'\bIL\b', r'\(IL\)', r'\bIL:', r'-IL-', r'\bISR\b', r'\bisrael\b'
         ]
+
+        def _has_hebrew(txt: str) -> bool:
+            return any('\u0590' <= c <= '\u05EA' for c in txt)
+
+        def _is_israeli_name(name: str) -> bool:
+            if _has_hebrew(name):
+                return True
+            if any(re.search(pat, name, flags=re.IGNORECASE) for pat in il_boundary_patterns):
+                return True
+            low = name.lower()
+            return any(tok in low for tok in il_provider_tokens)
+
+        def _best_category(name: str) -> str:
+            low = name.lower()
+            best = None
+            best_score = 0
+            for cat, kws in keywords_map.items():
+                score = sum(1 for k in kws if k.strip().lower() in low)
+                if score > best_score:
+                    best_score = score
+                    best = cat
+            return best if best_score >= 1 else 'Other'
+
+        # בניה
+        filtered = {cat: [] for cat in keywords_map}
+        filtered.setdefault('Other', [])
+
+        for _category, channels in self.categories.items():
+            for entry in channels:
+                name = entry.split(" (", 1)[0].strip() if " (" in entry else entry.strip()
+                if _is_israeli_name(name):
+                    cat = _best_category(name)
+                    filtered[cat].append(entry)
+
+        # עדכון UI
+        self.categories = filtered
+        self.updateCategoryList()
+        self.regenerateM3UTextOnly()
 
         def _has_hebrew(txt: str) -> bool:
             return any('\u0590' <= c <= '\u05EA' for c in txt)
